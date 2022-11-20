@@ -5,7 +5,7 @@
 ### The Idea ###
 Do you love your job but hate the custumer's <b>technophobic</b> nature and unwillingness to cooperate? <br />
 <b>ME TOO!</b> <br /><br />
-This is where <b>HandsOff</b> comes in.
+This is where <b>HandsOff</b> comes in. <br />
 The entire idea behind this solution is that the other side only holds the <b>phone</b> and nothing else<br />
 (Future add-ons will include locking the client's mouse and keyboard while you handle the tech issue).
 
