@@ -1,5 +1,7 @@
 # HandsOff
-A solution for IT | HD specialists
+![logo](https://github.com/GShwartz/HandsOff/raw/main/Images/HandsOff_resized.png)
+
+## A small and free solution for IT & HD specialists.
 
 ------
 ### About
