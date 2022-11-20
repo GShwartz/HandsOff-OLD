@@ -119,7 +119,7 @@ class App(tk.Tk):
         self.build_main_window_frames()
         self.build_connected_table()
         self.server_information()
-        self.make_buttons(None, None, None)
+        self.build_buttons(None, None, None)
         self.show_available_connections()
         self.connection_history()
 
@@ -234,8 +234,8 @@ class App(tk.Tk):
     def make_style(self):
         self.local_tools.logIt_thread(self.log_path, msg=f'Styling App...')
         self.style.theme_create("HandsOff", parent='classic', settings={
-            "TNotebook": {"configure": {"tabmargins": [2, 5, 2, 1], 'background': 'gainsboro'}},
-            "TNotebook.Tab": {"configure": {"padding": [5, 2], "background": 'slate gray'},
+            "TNotebook": {"configure": {"tabmargins": [2, 5, 2, 1], 'background': 'slate gray'}},
+            "TNotebook.Tab": {"configure": {"padding": [7, 1], "background": 'SkyBlue3'},
                               "map": {"background": [("selected", 'green')],
                                       "expand": [("selected", [1, 1, 1, 0])]}},
 
@@ -336,7 +336,7 @@ class App(tk.Tk):
         self.local_tools.logIt_thread(self.log_path, msg=f'Building statusbar frame in main frame...')
         self.local_tools.logIt_thread(self.log_path, msg=f'Building details LabelFrame...')
         self.details_labelFrame = LabelFrame(self.main_frame, text="Details", relief='solid',
-                                             height=250, background='gainsboro')
+                                             height=250, background='slate gray')
         self.details_labelFrame.grid(row=3, column=0, sticky='news')
         self.statusbar_frame = Frame(self.main_frame, relief=SUNKEN, bd=1)
         self.statusbar_frame.grid(row=5, column=0, sticky='news')
@@ -426,15 +426,15 @@ class App(tk.Tk):
     # Build Notebook
     def create_notebook(self):
         def on_tab_change(event):
-            tab = event.widget.tab('current')
-            tab['padding'] = [5, 5]
+            tab = event.widget.tab('current')['text']
             print(tab)
+            self.style.map("TNotebook.Tab", expand=[('selected', [1, 1, 100, 0])])
 
         self.local_tools.logIt_thread(self.log_path, msg=f'Clearing frames list...')
 
         self.local_tools.logIt_thread(self.log_path, msg=f'Building details LabelFrame...')
         self.details_labelFrame = LabelFrame(self.main_frame, text="Details", relief='solid',
-                                             height=400, background='gainsboro')
+                                             height=400, background='slate gray')
         self.details_labelFrame.grid(row=3, sticky='news', columnspan=3)
 
         self.local_tools.logIt_thread(self.log_path, msg=f'Clearing frames list...')
@@ -1635,21 +1635,21 @@ class App(tk.Tk):
                     return True
 
     # Create Controller Buttons
-    def make_buttons(self, clientConn, clientIP, sname):
+    def build_buttons(self, clientConn, clientIP, sname):
         self.local_tools.logIt_thread(self.log_path, msg=f'Building screenshot button...')
-        self.screenshot_btn = Button(self.controller_btns, text="Screenshot", width=14,
+        self.screenshot_btn = Button(self.controller_btns, text="Screenshot", width=10,
                                      pady=5, padx=10,
                                      command=lambda: self.screenshot_thread(clientConn,
                                                                             clientIP,
                                                                             sname))
-        self.screenshot_btn.grid(row=0, column=0, sticky="w", pady=5, padx=2, ipadx=2)
+        self.screenshot_btn.grid(row=0, column=1, sticky="w", pady=5, padx=2, ipadx=2)
         self.local_tools.logIt_thread(self.log_path,
                                       msg=f'Updating controller buttons list...')
         self.buttons.append(self.screenshot_btn)
         self.local_tools.logIt_thread(self.log_path, msg=f'Building anydesk button...')
         self.anydesk_btn = Button(self.controller_btns, text="Anydesk", width=14, pady=5,
                                   command=lambda: self.anydesk(clientConn, clientIP, sname))
-        self.anydesk_btn.grid(row=0, column=1, sticky="w", pady=5, padx=2, ipadx=2)
+        self.anydesk_btn.grid(row=0, column=2, sticky="w", pady=5, padx=2, ipadx=2)
         self.local_tools.logIt_thread(self.log_path,
                                       msg=f'Updating controller buttons list...')
         self.buttons.append(self.anydesk_btn)
@@ -1658,7 +1658,7 @@ class App(tk.Tk):
                                        pady=5,
                                        command=lambda: self.last_restart(clientConn, clientIP,
                                                                          sname))
-        self.last_restart_btn.grid(row=0, column=2, sticky="w", pady=5, padx=2, ipadx=2)
+        self.last_restart_btn.grid(row=0, column=3, sticky="w", pady=5, padx=2, ipadx=2)
         self.local_tools.logIt_thread(self.log_path,
                                       msg=f'Updating controller buttons list...')
         self.buttons.append(self.last_restart_btn)
@@ -1667,28 +1667,28 @@ class App(tk.Tk):
         self.sysinfo_btn = Button(self.controller_btns, text="SysInfo", width=14, pady=5,
                                   command=lambda: self.client_system_information_thread(
                                       clientConn, clientIP, sname))
-        self.sysinfo_btn.grid(row=0, column=3, sticky="w", pady=5, padx=2, ipadx=2)
+        self.sysinfo_btn.grid(row=0, column=4, sticky="w", pady=5, padx=2, ipadx=2)
         self.local_tools.logIt_thread(self.log_path,
                                       msg=f'Updating controller buttons list...')
         self.buttons.append(self.sysinfo_btn)
         self.local_tools.logIt_thread(self.log_path, msg=f'Building tasks button...')
         self.tasks_btn = Button(self.controller_btns, text="Tasks", width=14, pady=5,
                                 command=lambda: self.tasks(clientConn, clientIP, sname))
-        self.tasks_btn.grid(row=0, column=4, sticky="w", pady=5, padx=2, ipadx=2)
+        self.tasks_btn.grid(row=0, column=5, sticky="w", pady=5, padx=2, ipadx=2)
         self.local_tools.logIt_thread(self.log_path,
                                       msg=f'Updating controller buttons list...')
         self.buttons.append(self.tasks_btn)
         self.local_tools.logIt_thread(self.log_path, msg=f'Building restart button...')
         self.restart_btn = Button(self.controller_btns, text="Restart", width=14, pady=5,
                                   command=lambda: self.restart(clientConn, clientIP, sname))
-        self.restart_btn.grid(row=0, column=5, sticky="w", pady=5, padx=2, ipadx=2)
+        self.restart_btn.grid(row=0, column=6, sticky="w", pady=5, padx=2, ipadx=2)
         self.local_tools.logIt_thread(self.log_path,
                                       msg=f'Updating controller buttons list...')
         self.buttons.append(self.restart_btn)
         self.local_tools.logIt_thread(self.log_path, msg=f'Building local files button...')
         self.browse_btn = Button(self.controller_btns, text="Local Files", width=14, pady=5,
                                  command=lambda: self.browse_local_files(sname))
-        self.browse_btn.grid(row=0, column=6, sticky="w", pady=5, padx=2, ipadx=2)
+        self.browse_btn.grid(row=0, column=7, sticky="w", pady=5, padx=2, ipadx=2)
         self.local_tools.logIt_thread(self.log_path,
                                       msg=f'Updating controller buttons list...')
         self.buttons.append(self.browse_btn)
@@ -1696,18 +1696,18 @@ class App(tk.Tk):
                                     pady=5,
                                     command=lambda: self.update_selected_client_thread(
                                         clientConn, clientIP, sname))
-        self.update_client.grid(row=0, column=7, sticky="w", pady=5, padx=2, ipadx=2)
+        self.update_client.grid(row=0, column=8, sticky="w", pady=5, padx=2, ipadx=2)
         self.buttons.append(self.update_client)
         self.maintenance = Button(self.controller_btns, text="Maintenance", width=14,
                                   pady=5,
                                   command=lambda: self.run_maintenance(clientConn, clientIP,
                                                                        sname))
-        self.maintenance.grid(row=0, column=8, sticky="w", pady=5, padx=2, ipadx=2)
+        self.maintenance.grid(row=0, column=9, sticky="w", pady=5, padx=2, ipadx=2)
         self.buttons.append(self.maintenance)
         self.refresh_btn = Button(self.controller_btns, text="Refresh", width=9,
                                   pady=5,
                                   command=lambda: self.refresh())
-        self.refresh_btn.grid(row=0, column=9, sticky="w", pady=5, padx=2, ipadx=2)
+        self.refresh_btn.grid(row=0, column=0, sticky="w", pady=5, padx=2, ipadx=2)
 
     # Manage Connected Table & Controller LabelFrame Buttons
     def select_item(self, event) -> bool:
@@ -1735,7 +1735,7 @@ class App(tk.Tk):
                     for clientIP, vals in clientIPv.items():
                         if clientIP == ip:
                             for sname in vals.keys():
-                                self.make_buttons(clientConn, clientIP, sname)
+                                self.build_buttons(clientConn, clientIP, sname)
                                 self.local_tools.logIt_thread(self.log_path,
                                                               msg=f'Calling self.enable_buttons_thread...')
                                 self.enable_buttons_thread()
