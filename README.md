@@ -2,7 +2,7 @@
 ![logo](https://github.com/GShwartz/HandsOff/raw/main/Images/HandsOff_resized.png)
 ## A small and free solution for IT & HD specialists. ##
 ---
-### The Idea ###
+## The Idea ##
 Do you love your job but hate the custumer's <b>technophobic</b> nature and unwillingness to cooperate? <br />
 <b>ME TOO!</b> <br /><br />
 This is where <b>HandsOff</b> comes in. <br />
@@ -13,7 +13,7 @@ You can also perform maintenance on the remote station and update the station's 
 
 ---
 
-### Main Features
+### Main Features ###
 - Grab Screenshot from the Remote Station
 - Run Anydesk On The Remote Station
 - View Remote Station's Last Restart Time
@@ -24,7 +24,7 @@ You can also perform maintenance on the remote station and update the station's 
 - Update Remote Station's Client
 - Run Maintenance On The Remote Station
 
-### Menubar Tools
+### Menubar Tools ###
 - Refresh Connections
 - Clear Details Window
 - Save Connection History
@@ -32,6 +32,14 @@ You can also perform maintenance on the remote station and update the station's 
 - Update All Connected Stations
 
 ---
+# Installation #
+## Controller ##
+* HandsOff needs Python 3.10.8 at least.
+* Clone Repo
+* open CMD and run pip install -r requirements.txt
+* run python main.py
+
+
 ### About
 ![about](https://github.com/GShwartz/HandsOff/raw/main/Images/POC/about.JPG)
 
