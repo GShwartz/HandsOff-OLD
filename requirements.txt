@@ -1,5 +1,8 @@
 Pillow
+tkinter
 pystray
 psutil
-wget
-PySimpleGUI
+future
+termcolor
+pyftpdlib
+pwinput
