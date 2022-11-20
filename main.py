@@ -1228,6 +1228,7 @@ class App(tk.Tk):
             self.local_tools.logIt_thread(self.log_path, msg=f'Connection added to connection history.')
 
             self.local_tools.logIt_thread(self.log_path, msg=f'Calling self.welcome_message()...')
+            self.server_information()
             self.show_available_connections()
             self.connection_history_thread()
             self.welcome_message()
