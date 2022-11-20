@@ -103,6 +103,7 @@ class App(tk.Tk):
         self.geometry(f'{self.WIDTH}x{self.HEIGHT}+{int(x)}+{int(y)}')
         self.maxsize(f'{self.WIDTH}', f'{self.HEIGHT}')
         self.minsize(f'{self.WIDTH}', f'{self.HEIGHT}')
+        # TODO: Add Keyboad Bindings
 
         # Set Closing protocol
         self.protocol("WM_DELETE_WINDOW", self.on_closing)
@@ -149,14 +150,14 @@ class App(tk.Tk):
 
     # Update Client Thread
     def update_all_clients_thread(self):
-        update = Thread(target=self.update_all_clients,
+        update = Thread(target=self.update_all_clients_command,
                         daemon=True,
                         name="Update All Clients Thread")
         update.start()
 
     # Update Selected Client Thread
     def update_selected_client_thread(self, con: str, ip: str, sname: str):
-        updateThread = Thread(target=self.update_selected_client,
+        updateThread = Thread(target=self.update_selected_client_command,
                               args=(con, ip, sname),
                               daemon=True,
                               name="Update Selected Client Thread")
@@ -201,7 +202,7 @@ class App(tk.Tk):
 
     # Restart All Clients Thread
     def restart_all_clients_thread(self):
-        restartThread = Thread(target=self.restart_all_clients,
+        restartThread = Thread(target=self.restart_all_clients_command,
                                daemon=True,
                                name="Restart All Clients Thread")
         restartThread.start()
@@ -215,14 +216,14 @@ class App(tk.Tk):
 
     # Client System Info Thread
     def client_system_information_thread(self, con: str, ip: str, sname: str):
-        clientSystemInformationThread = Thread(target=self.sysinfo,
+        clientSystemInformationThread = Thread(target=self.sysinfo_command,
                                                args=(con, ip, sname),
                                                daemon=True,
                                                name="Client System Information Thread")
         clientSystemInformationThread.start()
 
     def screenshot_thread(self, con: str, ip: str, sname: str):
-        screenThread = Thread(target=self.screenshot,
+        screenThread = Thread(target=self.screenshot_command,
                               args=(con, ip, sname),
                               daemon=True,
                               name='Screenshot Thread')
@@ -263,8 +264,8 @@ class App(tk.Tk):
         file.add_separator()
         file.add_command(label="Exit", command=self.on_closing)
 
-        tools.add_command(label="Refresh", command=self.refresh)
-        tools.add_command(label="Clear Details", command=self.clear_notebook)
+        tools.add_command(label="Refresh", command=self.refresh_command)
+        tools.add_command(label="Clear Details", command=self.clear_notebook_command)
         tools.add_command(label="Save Connection History", command=self.save_connection_history_thread)
         tools.add_command(label="Restart All Clients", command=self.restart_all_clients_thread)
         tools.add_command(label="Update All Clients", command=self.update_all_clients_thread, state=NORMAL)
@@ -278,25 +279,6 @@ class App(tk.Tk):
 
         self.config(menu=menubar)
         return
-
-    # ==++==++==++== SIDEBAR BUTTONS ==++==++==++==
-    # Refresh server info & connected stations table with vital signs
-    def refresh(self) -> None:
-        self.local_tools.logIt_thread(self.log_path, msg=f'Running refresh()...')
-        self.local_tools.logIt_thread(self.log_path, msg=f'Calling self_disable_buttons_thread(sidebar=False)...')
-        self.disable_buttons_thread(sidebar=False)
-        self.local_tools.logIt_thread(self.log_path, msg=f'Resetting self.tmp_availables list...')
-        self.tmp_availables = []
-        self.local_tools.logIt_thread(self.log_path, msg=f'Calling self.vital_signs_thread()...')
-        self.vital_signs_thread()
-        self.local_tools.logIt_thread(self.log_path, msg=f'Calling self.server_information()...')
-        self.server_information()
-        self.local_tools.logIt_thread(self.log_path, msg=f'Calling self.show_available_connections()...')
-        self.show_available_connections()
-        self.local_tools.logIt_thread(self.log_path, msg=f'Calling connection_history()...')
-        self.connection_history()
-        self.update_statusbar_messages_thread(msg='refresh complete.')
-    # ==++==++==++== END SIDEBAR BUTTONS ==++==++==++==
 
     # Build Main Frame GUI
     def build_main_window_frames(self) -> None:
@@ -393,7 +375,7 @@ class App(tk.Tk):
         self.local_tools.logIt_thread(self.log_path, msg=f'Building refresh button...')
         self.refresh_btn = Button(self.controller_btns, text="Refresh", width=10,
                                   pady=5,
-                                  command=lambda: self.refresh())
+                                  command=lambda: self.refresh_command())
         self.refresh_btn.grid(row=0, column=0, sticky="w", pady=5, padx=2, ipadx=2)
         self.local_tools.logIt_thread(self.log_path, msg=f'Building screenshot button...')
         self.screenshot_btn = Button(self.controller_btns, text="Screenshot", width=10,
@@ -407,7 +389,7 @@ class App(tk.Tk):
         self.buttons.append(self.screenshot_btn)
         self.local_tools.logIt_thread(self.log_path, msg=f'Building anydesk button...')
         self.anydesk_btn = Button(self.controller_btns, text="Anydesk", width=14, pady=5,
-                                  command=lambda: self.anydesk(clientConn, clientIP, sname))
+                                  command=lambda: self.anydesk_command(clientConn, clientIP, sname))
         self.anydesk_btn.grid(row=0, column=2, sticky="w", pady=5, padx=2, ipadx=2)
         self.local_tools.logIt_thread(self.log_path,
                                       msg=f'Updating controller buttons list...')
@@ -415,8 +397,8 @@ class App(tk.Tk):
         self.local_tools.logIt_thread(self.log_path, msg=f'Building last restart button...')
         self.last_restart_btn = Button(self.controller_btns, text="Last Restart", width=14,
                                        pady=5,
-                                       command=lambda: self.last_restart(clientConn, clientIP,
-                                                                         sname))
+                                       command=lambda: self.last_restart_command(clientConn, clientIP,
+                                                                                 sname))
         self.last_restart_btn.grid(row=0, column=3, sticky="w", pady=5, padx=2, ipadx=2)
         self.local_tools.logIt_thread(self.log_path,
                                       msg=f'Updating controller buttons list...')
@@ -439,14 +421,14 @@ class App(tk.Tk):
         self.buttons.append(self.tasks_btn)
         self.local_tools.logIt_thread(self.log_path, msg=f'Building restart button...')
         self.restart_btn = Button(self.controller_btns, text="Restart", width=14, pady=5,
-                                  command=lambda: self.restart(clientConn, clientIP, sname))
+                                  command=lambda: self.restart_command(clientConn, clientIP, sname))
         self.restart_btn.grid(row=0, column=6, sticky="w", pady=5, padx=2, ipadx=2)
         self.local_tools.logIt_thread(self.log_path,
                                       msg=f'Updating controller buttons list...')
         self.buttons.append(self.restart_btn)
         self.local_tools.logIt_thread(self.log_path, msg=f'Building local files button...')
         self.browse_btn = Button(self.controller_btns, text="Local Files", width=14, pady=5,
-                                 command=lambda: self.browse_local_files(sname))
+                                 command=lambda: self.browse_local_files_command(sname))
         self.browse_btn.grid(row=0, column=7, sticky="w", pady=5, padx=2, ipadx=2)
         self.local_tools.logIt_thread(self.log_path,
                                       msg=f'Updating controller buttons list...')
@@ -459,8 +441,8 @@ class App(tk.Tk):
         self.buttons.append(self.update_client)
         self.maintenance = Button(self.controller_btns, text="Maintenance", width=14,
                                   pady=5,
-                                  command=lambda: self.run_maintenance(clientConn, clientIP,
-                                                                       sname))
+                                  command=lambda: self.run_maintenance_command(clientConn, clientIP,
+                                                                               sname))
         self.maintenance.grid(row=0, column=9, sticky="w", pady=5, padx=2, ipadx=2)
         self.buttons.append(self.maintenance)
 
@@ -498,10 +480,6 @@ class App(tk.Tk):
         self.history_table.heading("#5", text="Logged User")
         self.history_table.column("#6", anchor=CENTER)
         self.history_table.heading("#6", text="Time")
-
-    # Clear Notebook
-    def clear_notebook(self):
-        return self.create_notebook()
 
     # Build Notebook
     def create_notebook(self):
@@ -615,92 +593,6 @@ class App(tk.Tk):
 
             return
 
-    # Broadcast update command to all connected stations
-    def update_all_clients(self) -> bool:
-        def submit_url(event=0):
-            url = self.update_url.get()
-            if not str(url).lower().endswith('client.exe'):
-                url_entry.delete(0, END)
-                print(f"url_entry: {url}")
-                return False
-
-            if not str(url).lower()[:4] == 'http':
-                url_entry.delete(0, END)
-                print(f"url_entry: {url}")
-                return False
-
-            sure = messagebox.askyesno(f"New URL: {url}", "Are you sure?")
-            if sure:
-                try:
-                    for t in self.targets:
-                        self.local_tools.logIt_thread(self.log_path,
-                                                      msg=f'Sending update command to all connected stations...')
-                        try:
-                            t.send('update'.encode())
-                            self.local_tools.logIt_thread(self.log_path, msg=f'Send completed.')
-                            t.send(str(url).encode())
-                            msg = t.recv(1024).decode()
-                            self.update_statusbar_messages_thread(msg=f'{msg}')
-                            self.local_tools.logIt_thread(self.log_path, msg=f'Station: {msg}')
-
-                        except (WindowsError, socket.error) as e:
-                            self.local_tools.logIt_thread(self.log_path, msg=f'ERROR: {e}')
-                            self.update_statusbar_messages_thread(msg=f'ERROR: {e}')
-                            continue
-
-                except RuntimeError:
-                    pass
-
-                self.local_tools.logIt_thread(self.log_path, msg=f'Calling self.refresh()...')
-                self.local_tools.logIt_thread(self.log_path, msg=f'Displaying update info popup window...')
-                time.sleep(2)
-                messagebox.showinfo("Update All Clients", "Update command sent.")
-                self.refresh()
-                url_window.destroy()
-                return True
-
-            else:
-                return False
-
-        url_window = tk.Toplevel()
-        url_window.title("HandsOff - client.exe URL")
-        url_window.iconbitmap('HandsOff.ico')
-
-        # Set Mid Screen Coordinates
-        x = (self.WIDTH / 2) - (300 / 2)
-        y = (self.HEIGHT / 2) - (100 / 2)
-
-        # Set Window Size & Location & Center Window
-        url_window.geometry(f'{300}x{100}+{int(x)}+{int(y)}')
-        url_window.configure(background='slate gray', takefocus=True)
-        url_window.grid_columnconfigure(0, weight=1)
-        url_window.grid_rowconfigure(2, weight=2)
-        url_window.maxsize(300, 100)
-        url_window.minsize(300, 100)
-        url_window.bind("<Return>", submit_url)
-
-        url_label = Label(url_window, text="EXE file URL",
-                          background='slate gray', foreground='white')
-        url_label.grid(row=0, sticky='n')
-
-        url_entry = Entry(url_window, textvariable=self.update_url)
-        url_entry.grid(row=1, column=0, sticky='news')
-        url_entry.delete(0, END)
-        url_entry.focus()
-
-        url_submit = Button(url_window, text="Submit", command=submit_url)
-        url_submit.grid(row=2, column=0, pady=5)
-
-        self.local_tools.logIt_thread(self.log_path, msg=f'Running update_all_clients()...')
-        if len(self.targets) == 0:
-            self.local_tools.logIt_thread(self.log_path, msg=f'Displaying popup window: "No connected stations"...')
-            messagebox.showwarning("Update All Clients", "No connected stations.")
-            return False
-
-        self.local_tools.logIt_thread(self.log_path, msg=f'Calling self.disable_buttons_thread()...')
-        self.disable_buttons_thread(sidebar=False)
-        url_window.wait_window(self)
-
     # Display file content in notebook
     def display_file_content(self, screenshot_path: str, filepath: str, tab: str, sname: str, txt='') -> bool:
         self.local_tools.logIt_thread(self.log_path,
@@ -737,7 +629,7 @@ class App(tk.Tk):
 
         def picture():
             self.local_tools.logIt_thread(self.log_path, msg=f'Building working frame...')
-            fr = Frame(self.notebook, height=350, background='black')
+            fr = Frame(self.notebook, height=350, background='slate gray')
             self.frames.append(fr)
             tab = self.frames[-1]
             button = Button(tab, image=self.last_screenshot, command=show_picture_thread, border=5, bd=3)
@@ -777,7 +669,7 @@ class App(tk.Tk):
 
             else:
                 self.local_tools.logIt_thread(self.log_path, msg=f'Building working frame...')
-                tab = Frame(self.notebook, height=350, background='black')
+                tab = Frame(self.notebook, height=350, background='slate gray')
 
                 button = Button(tab, image=self.last_screenshot, command=show_picture_thread, border=5, bd=3)
                 button.pack(padx=5, pady=10)
@@ -788,9 +680,30 @@ class App(tk.Tk):
                 self.tabs += 1
                 return True
 
-    # ==++==++==++== CONTROLLER BUTTONS ==++==++==++==
+    # ==++==++==++== CONTROLLER BUTTONS COMMANDS==++==++==++==
+    # Refresh server info & connected stations table with vital signs
+    def refresh_command(self) -> None:
+        self.local_tools.logIt_thread(self.log_path, msg=f'Running refresh()...')
+        self.local_tools.logIt_thread(self.log_path, msg=f'Calling self_disable_buttons_thread(sidebar=False)...')
+        self.disable_buttons_thread(sidebar=False)
+        self.local_tools.logIt_thread(self.log_path, msg=f'Resetting self.tmp_availables list...')
+        self.tmp_availables = []
+        self.local_tools.logIt_thread(self.log_path, msg=f'Calling self.vital_signs_thread()...')
+        self.vital_signs_thread()
+        self.local_tools.logIt_thread(self.log_path, msg=f'Calling self.server_information()...')
+        self.server_information()
+        self.local_tools.logIt_thread(self.log_path, msg=f'Calling self.show_available_connections()...')
+        self.show_available_connections()
+        self.local_tools.logIt_thread(self.log_path, msg=f'Calling connection_history()...')
+        self.connection_history()
+        self.update_statusbar_messages_thread(msg='refresh complete.')
+
+    # Clear Notebook
+    def clear_notebook_command(self):
+        return self.create_notebook()
+
     # Screenshot from Client
-    def screenshot(self, con: str, ip: str, sname: str) -> bool:
+    def screenshot_command(self, con: str, ip: str, sname: str) -> bool:
         self.local_tools.logIt_thread(self.log_path, msg=f'Running screenshot({con}, {ip}, {sname})...')
         self.local_tools.logIt_thread(self.log_path, msg=f'Calling self.disable_buttons_thread()...')
         self.disable_buttons_thread(sidebar=True)
@@ -821,7 +734,7 @@ class App(tk.Tk):
             return False
 
     # Run Anydesk on Client
-    def anydesk(self, con: str, ip: str, sname: str) -> bool:
+    def anydesk_command(self, con: str, ip: str, sname: str) -> bool:
         self.local_tools.logIt_thread(self.log_path, msg=f'Running anydesk({con}, {ip})...')
         self.update_statusbar_messages_thread(msg=f'running anydesk on {ip} | {sname}...')
         try:
@@ -882,7 +795,7 @@ class App(tk.Tk):
             return False
 
     # Display Clients Last Restart
-    def last_restart(self, con: str, ip: str, sname: str) -> bool:
+    def last_restart_command(self, con: str, ip: str, sname: str) -> bool:
         self.local_tools.logIt_thread(self.log_path, msg=f'Running last_restart({con}, {ip}, {sname})...')
         try:
             self.local_tools.logIt_thread(self.log_path, msg=f'Sending lr command to client...')
@@ -904,7 +817,7 @@ class App(tk.Tk):
             return False
 
     # Client System Information
-    def sysinfo(self, con: str, ip: str, sname: str):
+    def sysinfo_command(self, con: str, ip: str, sname: str):
         self.local_tools.logIt_thread(self.log_path, msg=f'Running self.sysinfo({con}, {ip}, {sname})...')
         self.local_tools.logIt_thread(self.log_path, msg=f'Calling self.disable_buttons_thread(sidebar=True)...')
         self.disable_buttons_thread(sidebar=True)
@@ -1127,51 +1040,8 @@ class App(tk.Tk):
                 self.remove_lost_connection(con, ip)
                 return False
 
-    # Restart All Clients
-    def restart_all_clients(self):
-        self.local_tools.logIt_thread(self.log_path, msg=f'Running restart_all_clients()...')
-        self.update_statusbar_messages_thread(msg=f'waiting for restart confirmation...')
-        self.local_tools.logIt_thread(self.log_path, msg=f'Displaying self.sure() popup window...')
-        self.sure = messagebox.askyesno(f"Restart All Clients\t", "Are you sure?")
-        self.local_tools.logIt_thread(self.log_path, msg=f'self.sure = {self.sure}')
-        for item in self.tmp_availables:
-            for conKey, ipValue in self.clients.items():
-                for macKey, ipVal in ipValue.items():
-                    for ipKey, identVal in ipVal.items():
-                        if item[2] == ipKey:
-                            session = item[0]
-                            stationMAC = item[1]
-                            stationIP = item[2]
-                            stationName = item[3]
-                            loggedUser = item[4]
-                            clientVersion = item[5]
-        if self.sure:
-            for t in self.targets:
-                try:
-                    self.update_statusbar_messages_thread(msg=f'Restarting {t}...')
-                    t.send('restart'.encode())
-                    msg = t.recv(1024).decode()
-                    self.update_statusbar_messages_thread(msg=f"{msg}")
-                    self.remove_lost_connection(t, stationIP)
-
-                except (WindowsError, socket.error) as e:
-                    self.local_tools.logIt_thread(self.log_path, msg=f'ERROR: {e}')
-                    self.remove_lost_connection(t, stationIP)
-                    pass
-
-            for i in range(len(self.targets)):
-                refreshThread = Thread(target=self.refresh)
-                refreshThread.start()
-                time.sleep(0.5)
-                # self.refresh()
-
-            return True
-
-        else:
-            return False
-
     # Restart Client
-    def restart(self, con: str, ip: str, sname: str) -> bool:
+    def restart_command(self, con: str, ip: str, sname: str) -> bool:
         self.local_tools.logIt_thread(self.log_path, msg=f'Running restart({con}, {ip}, {sname})')
         self.update_statusbar_messages_thread(msg=f' waiting for restart confirmation...')
         self.local_tools.logIt_thread(self.log_path, msg=f'Displaying self.sure() popup window...')
@@ -1186,7 +1056,7 @@ class App(tk.Tk):
                 self.local_tools.logIt_thread(self.log_path, msg=f'Calling self.remove_lost_connection({con}, {ip})...')
                 self.remove_lost_connection(con, ip)
                 self.local_tools.logIt_thread(self.log_path, msg=f'Calling self.refresh()...')
-                self.refresh()
+                self.refresh_command()
                 self.local_tools.logIt_thread(self.log_path, msg=f'Restart command completed.')
                 self.update_statusbar_messages_thread(msg=f'restart command sent to {ip} | {sname}.')
                 return True
@@ -1203,12 +1073,12 @@ class App(tk.Tk):
             return False
 
     # Browse local files by Clients Station Names
-    def browse_local_files(self, sname: str) -> subprocess:
+    def browse_local_files_command(self, sname: str) -> subprocess:
         self.local_tools.logIt_thread(self.log_path, msg=fr'Opening explorer window focused on "{self.path}\{sname}"')
         return subprocess.Popen(rf"explorer {self.path}\{sname}")
 
     # Update Selected Client
-    def update_selected_client(self, con: str, ip: str, sname: str) -> bool:
+    def update_selected_client_command(self, con: str, ip: str, sname: str) -> bool:
         self.local_tools.logIt_thread(self.log_path, msg=f'Running update_selected_client()...')
         self.local_tools.logIt_thread(self.log_path, msg=f'Calling self.disable_buttons_thread()...')
         self.disable_buttons_thread()
@@ -1228,16 +1098,15 @@ class App(tk.Tk):
         self.local_tools.logIt_thread(self.log_path, msg=f'Displaying update info popup window...')
         time.sleep(2)
         messagebox.showinfo(f"Update {sname}", "Update command sent.")
-        self.refresh()
+        self.refresh_command()
         return True
 
     # Run Maintenance on Client
-    def run_maintenance(self, con: str, ip: str, sname: str) -> None:
+    def run_maintenance_command(self, con: str, ip: str, sname: str) -> None:
         maintenance = Maintenance(con, ip, sname)
         maintenance.run()
 
     # ==++==++==++== END Controller Buttons ==++==++==++==
-
     # # ==++==++==++== Server Processes ==++==++==++==
     # Run Connect func in a new Thread
     def run(self) -> None:
@@ -1650,7 +1519,137 @@ class App(tk.Tk):
             self.local_tools.logIt_thread(self.log_path, msg=f'Runtime Error: {e}.')
             return False
 
-    # ==++==++==++== GENERAL ==++==++==++==
+    # ==++==++==++== MENUBAR ==++==++==++==
+    # Restart All Clients
+    def restart_all_clients_command(self):
+        self.local_tools.logIt_thread(self.log_path, msg=f'Running restart_all_clients()...')
+        self.update_statusbar_messages_thread(msg=f'waiting for restart confirmation...')
+        self.local_tools.logIt_thread(self.log_path, msg=f'Displaying self.sure() popup window...')
+        self.sure = messagebox.askyesno(f"Restart All Clients\t", "Are you sure?")
+        self.local_tools.logIt_thread(self.log_path, msg=f'self.sure = {self.sure}')
+        for item in self.tmp_availables:
+            for conKey, ipValue in self.clients.items():
+                for macKey, ipVal in ipValue.items():
+                    for ipKey, identVal in ipVal.items():
+                        if item[2] == ipKey:
+                            session = item[0]
+                            stationMAC = item[1]
+                            stationIP = item[2]
+                            stationName = item[3]
+                            loggedUser = item[4]
+                            clientVersion = item[5]
+        if self.sure:
+            for t in self.targets:
+                try:
+                    self.update_statusbar_messages_thread(msg=f'Restarting {t}...')
+                    t.send('restart'.encode())
+                    msg = t.recv(1024).decode()
+                    self.update_statusbar_messages_thread(msg=f"{msg}")
+                    self.remove_lost_connection(t, stationIP)
+
+                except (WindowsError, socket.error) as e:
+                    self.local_tools.logIt_thread(self.log_path, msg=f'ERROR: {e}')
+                    self.remove_lost_connection(t, stationIP)
+                    pass
+
+            for i in range(len(self.targets)):
+                refreshThread = Thread(target=self.refresh_command)
+                refreshThread.start()
+                time.sleep(0.5)
+                # self.refresh()
+
+            messagebox.showinfo("Restart All Clients", "Done!")
+            return True
+
+        else:
+            return False
+
+    # Broadcast update command to all connected stations
+    def update_all_clients_command(self) -> bool:
+        def submit_url(event=0):
+            url = self.update_url.get()
+            if not str(url).lower().endswith('client.exe'):
+                url_entry.delete(0, END)
+                print(f"url_entry: {url}")
+                return False
+
+            if not str(url).lower()[:4] == 'http':
+                url_entry.delete(0, END)
+                print(f"url_entry: {url}")
+                return False
+
+            sure = messagebox.askyesno(f"New URL: {url}", "Are you sure?")
+            if sure:
+                try:
+                    for t in self.targets:
+                        self.local_tools.logIt_thread(self.log_path,
+                                                      msg=f'Sending update command to all connected stations...')
+                        try:
+                            t.send('update'.encode())
+                            self.local_tools.logIt_thread(self.log_path, msg=f'Send completed.')
+                            t.send(str(url).encode())
+                            msg = t.recv(1024).decode()
+                            self.update_statusbar_messages_thread(msg=f'{msg}')
+                            self.local_tools.logIt_thread(self.log_path, msg=f'Station: {msg}')
+
+                        except (WindowsError, socket.error) as e:
+                            self.local_tools.logIt_thread(self.log_path, msg=f'ERROR: {e}')
+                            self.update_statusbar_messages_thread(msg=f'ERROR: {e}')
+                            continue
+
+                except RuntimeError:
+                    pass
+
+                self.local_tools.logIt_thread(self.log_path, msg=f'Calling self.refresh()...')
+                self.local_tools.logIt_thread(self.log_path, msg=f'Displaying update info popup window...')
+                time.sleep(2)
+                messagebox.showinfo("Update All Clients", "Update command sent.")
+                self.refresh_command()
+                url_window.destroy()
+                return True
+
+            else:
+                return False
+
+        url_window = tk.Toplevel()
+        url_window.title("HandsOff - client.exe URL")
+        url_window.iconbitmap('HandsOff.ico')
+
+        # Set Mid Screen Coordinates
+        x = (self.WIDTH / 2) - (300 / 2)
+        y = (self.HEIGHT / 2) - (100 / 2)
+
+        # Set Window Size & Location & Center Window
+        url_window.geometry(f'{300}x{100}+{int(x)}+{int(y)}')
+        url_window.configure(background='slate gray', takefocus=True)
+        url_window.grid_columnconfigure(0, weight=1)
+        url_window.grid_rowconfigure(2, weight=2)
+        url_window.maxsize(300, 100)
+        url_window.minsize(300, 100)
+        url_window.bind("<Return>", submit_url)
+
+        url_label = Label(url_window, text="EXE file URL",
+                          background='slate gray', foreground='white')
+        url_label.grid(row=0, sticky='n')
+
+        url_entry = Entry(url_window, textvariable=self.update_url)
+        url_entry.grid(row=1, column=0, sticky='news')
+        url_entry.delete(0, END)
+        url_entry.focus()
+
+        url_submit = Button(url_window, text="Submit", command=submit_url)
+        url_submit.grid(row=2, column=0, pady=5)
+
+        self.local_tools.logIt_thread(self.log_path, msg=f'Running update_all_clients()...')
+        if len(self.targets) == 0:
+            self.local_tools.logIt_thread(self.log_path, msg=f'Displaying popup window: "No connected stations"...')
+            messagebox.showwarning("Update All Clients", "No connected stations.")
+            return False
+
+        self.local_tools.logIt_thread(self.log_path, msg=f'Calling self.disable_buttons_thread()...')
+        self.disable_buttons_thread(sidebar=False)
+        url_window.wait_window(self)
+
     # Show Help
     def show_help(self):
         github_url = 'https://github.com/GShwartz/PeachGUI'
@@ -1664,6 +1663,10 @@ class App(tk.Tk):
     # Save History to file
     def save_connection_history(self) -> bool:
         self.local_tools.logIt_thread(self.log_path, msg=f'Running self.save_connection_history()...')
+        if len(self.targets) == 0:
+            messagebox.showwarning("Save Connection History", "Nothing to save yet.")
+            return
+
         file_types = {'CSV Files': '.csv', 'TXT Files': '.txt'}
 
         # Create Saved Files Dir
@@ -2082,7 +2085,8 @@ class Maintenance:
             return False
 
     def hard_disk(self) -> bool:
-        print(self.cleanup.get(), self.opt.get())
+        pass
+        # print(self.cleanup.get(), self.opt.get())
         # try:
         #     app.local_tools.logIt_thread(app.log_path, msg=f'Sending verify command to {self.ip}...')
         #     self.con.send('full'.encode())
