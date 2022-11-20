@@ -7,10 +7,22 @@ Do you love your job but hate the custumer's <b>technophobic</b> nature and unwi
 <b>ME TOO!</b> <br /><br />
 This is where <b>HandsOff</b> comes in. <br />
 The entire idea behind this solution is that the other side only holds the <b>phone</b> and nothing else<br />
-(Future add-ons will include locking the client's mouse and keyboard while you handle the tech issue). <br />
 You can also perform maintenance on the remote station and update the station's client remotely.
 * Since this is a pet project I don't have any steady hosting space to hold the exe files so I added a feature <br />
-  that allows you to manually enter the new download url. <br />
+  that allows you to manually enter the new download url which will be published here. <br />
+
+---
+
+### Main Features
+- Grab Screenshot from the Remote Machine
+- Run Anydesk On The Remote Machine
+- View Remote Machine's Last Restart Time
+- View Remote Machine'sSystem Information
+- View & Kill Remote Machine's Running Tasks
+- Restart Remote Machine
+- View Remote Machine's Files In Local Dir (screenshots, system information and tasks files)
+- Update Remote Machine's Client
+- Run Maintenance On The Remote Machine
 
 ---
 ### About
