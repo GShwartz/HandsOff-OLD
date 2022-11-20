@@ -29,9 +29,6 @@ from Modules import sysinfo
 from Modules import tasks
 
 
-# TODO: Find a way to save & display entire notebooks
-
-
 class App(tk.Tk):
     clients = {}
     connections = {}
@@ -103,7 +100,12 @@ class App(tk.Tk):
         self.geometry(f'{self.WIDTH}x{self.HEIGHT}+{int(x)}+{int(y)}')
         self.maxsize(f'{self.WIDTH}', f'{self.HEIGHT}')
         self.minsize(f'{self.WIDTH}', f'{self.HEIGHT}')
-        # TODO: Add Keyboad Bindings
+        self.bind("<F1>", self.about)
+        self.bind("<F5>", self.refresh_command)
+        self.bind("<F6>", self.clear_notebook_command)
+        self.bind("<F10>", self.save_connection_history_thread)
+        self.bind("<F11>", self.restart_all_clients_thread)
+        self.bind("<F12>", self.update_all_clients_thread)
 
         # Set Closing protocol
         self.protocol("WM_DELETE_WINDOW", self.on_closing)
@@ -149,7 +151,7 @@ class App(tk.Tk):
         vitalsThread.start()
 
     # Update Client Thread
-    def update_all_clients_thread(self):
+    def update_all_clients_thread(self, event=0):
         update = Thread(target=self.update_all_clients_command,
                         daemon=True,
                         name="Update All Clients Thread")
@@ -194,14 +196,14 @@ class App(tk.Tk):
         enable.start()
 
     # Save Connection History Thread
-    def save_connection_history_thread(self):
+    def save_connection_history_thread(self, event):
         saveThread = Thread(target=self.save_connection_history,
                             daemon=True,
                             name="Save Connection History Thread")
         saveThread.start()
 
     # Restart All Clients Thread
-    def restart_all_clients_thread(self):
+    def restart_all_clients_thread(self, event=0):
         restartThread = Thread(target=self.restart_all_clients_command,
                                daemon=True,
                                name="Restart All Clients Thread")
@@ -264,11 +266,11 @@ class App(tk.Tk):
         file.add_separator()
         file.add_command(label="Exit", command=self.on_closing)
 
-        tools.add_command(label="Refresh", command=self.refresh_command)
-        tools.add_command(label="Clear Details", command=self.clear_notebook_command)
-        tools.add_command(label="Save Connection History", command=self.save_connection_history_thread)
-        tools.add_command(label="Restart All Clients", command=self.restart_all_clients_thread)
-        tools.add_command(label="Update All Clients", command=self.update_all_clients_thread, state=NORMAL)
+        tools.add_command(label="Refresh......<F5>", command=self.refresh_command)
+        tools.add_command(label="Clear Details......<F6>", command=self.clear_notebook_command)
+        tools.add_command(label="Save Connection History......<F10>", command=self.save_connection_history_thread)
+        tools.add_command(label="Restart All Clients......<F11>", command=self.restart_all_clients_thread)
+        tools.add_command(label="Update All Clients......<F12>", command=self.update_all_clients_thread, state=NORMAL)
 
         helpbar.add_command(label="Help", command=self.show_help_thread)
         helpbar.add_command(label="About", command=self.about)
@@ -375,7 +377,7 @@ class App(tk.Tk):
         self.local_tools.logIt_thread(self.log_path, msg=f'Building refresh button...')
         self.refresh_btn = Button(self.controller_btns, text="Refresh", width=10,
                                   pady=5,
-                                  command=lambda: self.refresh_command())
+                                  command=lambda: self.refresh_command)
         self.refresh_btn.grid(row=0, column=0, sticky="w", pady=5, padx=2, ipadx=2)
         self.local_tools.logIt_thread(self.log_path, msg=f'Building screenshot button...')
         self.screenshot_btn = Button(self.controller_btns, text="Screenshot", width=10,
@@ -482,7 +484,7 @@ class App(tk.Tk):
         self.history_table.heading("#6", text="Time")
 
     # Build Notebook
-    def create_notebook(self):
+    def create_notebook(self, event=0):
         def on_tab_change(event):
             t = event.widget.tab('current')['text']
             if self.tabs == 0:
@@ -682,7 +684,7 @@ class App(tk.Tk):
 
     # ==++==++==++== CONTROLLER BUTTONS COMMANDS==++==++==++==
     # Refresh server info & connected stations table with vital signs
-    def refresh_command(self) -> None:
+    def refresh_command(self, event) -> None:
         self.local_tools.logIt_thread(self.log_path, msg=f'Running refresh()...')
         self.local_tools.logIt_thread(self.log_path, msg=f'Calling self_disable_buttons_thread(sidebar=False)...')
         self.disable_buttons_thread(sidebar=False)
@@ -699,8 +701,10 @@ class App(tk.Tk):
         self.update_statusbar_messages_thread(msg='refresh complete.')
 
     # Clear Notebook
-    def clear_notebook_command(self):
-        return self.create_notebook()
+    def clear_notebook_command(self, event):
+        self.create_notebook()
+        self.update_statusbar_messages_thread(msg='Details window cleared.')
+        return
 
     # Screenshot from Client
     def screenshot_command(self, con: str, ip: str, sname: str) -> bool:
@@ -1056,7 +1060,7 @@ class App(tk.Tk):
                 self.local_tools.logIt_thread(self.log_path, msg=f'Calling self.remove_lost_connection({con}, {ip})...')
                 self.remove_lost_connection(con, ip)
                 self.local_tools.logIt_thread(self.log_path, msg=f'Calling self.refresh()...')
-                self.refresh_command()
+                self.refresh_command(event=0)
                 self.local_tools.logIt_thread(self.log_path, msg=f'Restart command completed.')
                 self.update_statusbar_messages_thread(msg=f'restart command sent to {ip} | {sname}.')
                 return True
@@ -1098,7 +1102,7 @@ class App(tk.Tk):
         self.local_tools.logIt_thread(self.log_path, msg=f'Displaying update info popup window...')
         time.sleep(2)
         messagebox.showinfo(f"Update {sname}", "Update command sent.")
-        self.refresh_command()
+        self.refresh_command(event=0)
         return True
 
     # Run Maintenance on Client
@@ -1561,7 +1565,8 @@ class App(tk.Tk):
                 time.sleep(0.5)
                 # self.refresh()
 
-            messagebox.showinfo("Restart All Clients", "Done!")
+            messagebox.showinfo("Restart All Clients", "Done!\t\t\t\t")
+            self.update_statusbar_messages_thread(msg='Restart command completed.')
             return True
 
         else:
@@ -1607,7 +1612,7 @@ class App(tk.Tk):
                 self.local_tools.logIt_thread(self.log_path, msg=f'Displaying update info popup window...')
                 time.sleep(2)
                 messagebox.showinfo("Update All Clients", "Update command sent.")
-                self.refresh_command()
+                self.refresh_command(event=0)
                 url_window.destroy()
                 return True
 
@@ -1659,7 +1664,7 @@ class App(tk.Tk):
         return webbrowser.open_new_tab(github_url)
 
     # About Window
-    def about(self) -> None:
+    def about(self, event=0) -> None:
         about = About()
         about.run()
 
@@ -2159,7 +2164,7 @@ class Locals:
 
 def on_icon_clicked(icon, item):
     if str(item) == "About":
-        app.about()
+        app.about(event=0)
 
     if str(item) == "Restore":
         app.deiconify()
