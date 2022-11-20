@@ -14,15 +14,22 @@ You can also perform maintenance on the remote station and update the station's 
 ---
 
 ### Main Features
-- Grab Screenshot from the Remote Machine
-- Run Anydesk On The Remote Machine
-- View Remote Machine's Last Restart Time
-- View Remote Machine'sSystem Information
-- View & Kill Remote Machine's Running Tasks
-- Restart Remote Machine
-- View Remote Machine's Files In Local Dir (screenshots, system information and tasks files)
-- Update Remote Machine's Client
-- Run Maintenance On The Remote Machine
+- Grab Screenshot from the Remote Station
+- Run Anydesk On The Remote Station
+- View Remote Station's Last Restart Time
+- View Remote Station'sSystem Information
+- View & Kill Remote Station's Running Tasks
+- Restart Remote Station
+- View Remote Station's Files In Local Dir (screenshots, system information and tasks files)
+- Update Remote Station's Client
+- Run Maintenance On The Remote Station
+
+### Menubar Tools
+- Refresh Connections
+- Clear Details Window
+- Save Connection History
+- Restart All Connected Stations
+- Update All Connected Stations
 
 ---
 ### About
