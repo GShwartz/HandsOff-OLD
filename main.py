@@ -119,7 +119,8 @@ class App(tk.Tk):
         self.build_main_window_frames()
         self.build_connected_table()
         self.server_information()
-        self.build_buttons(None, None, None)
+        self.build_controller_buttons(None, None, None)
+        self.create_notebook()
         self.show_available_connections()
         self.connection_history()
 
@@ -226,7 +227,6 @@ class App(tk.Tk):
                               daemon=True,
                               name='Screenshot Thread')
         screenThread.start()
-
     # ==++==++==++== END THREADED FUNCS ==++==++==++== #
 
     # ==++==++==++== GUI ==++==++==++==
@@ -264,9 +264,10 @@ class App(tk.Tk):
         file.add_command(label="Exit", command=self.on_closing)
 
         tools.add_command(label="Refresh", command=self.refresh)
-        tools.add_command(label="Save connection history", command=self.save_connection_history_thread)
-        tools.add_command(label="Restart all clients", command=self.restart_all_clients_thread)
-        tools.add_command(label="Update all clients", command=self.update_all_clients_thread, state=NORMAL)
+        tools.add_command(label="Clear Details", command=self.clear_notebook)
+        tools.add_command(label="Save Connection History", command=self.save_connection_history_thread)
+        tools.add_command(label="Restart All Clients", command=self.restart_all_clients_thread)
+        tools.add_command(label="Update All Clients", command=self.update_all_clients_thread, state=NORMAL)
 
         helpbar.add_command(label="Help", command=self.show_help_thread)
         helpbar.add_command(label="About", command=self.about)
@@ -295,7 +296,6 @@ class App(tk.Tk):
         self.local_tools.logIt_thread(self.log_path, msg=f'Calling connection_history()...')
         self.connection_history()
         self.update_statusbar_messages_thread(msg='refresh complete.')
-
     # ==++==++==++== END SIDEBAR BUTTONS ==++==++==++==
 
     # Build Main Frame GUI
@@ -388,6 +388,82 @@ class App(tk.Tk):
         self.connected_table.tag_configure('oddrow', background='snow')
         self.connected_table.tag_configure('evenrow', background='ghost white')
 
+    # Create Controller Buttons
+    def build_controller_buttons(self, clientConn, clientIP, sname):
+        self.local_tools.logIt_thread(self.log_path, msg=f'Building refresh button...')
+        self.refresh_btn = Button(self.controller_btns, text="Refresh", width=10,
+                                  pady=5,
+                                  command=lambda: self.refresh())
+        self.refresh_btn.grid(row=0, column=0, sticky="w", pady=5, padx=2, ipadx=2)
+        self.local_tools.logIt_thread(self.log_path, msg=f'Building screenshot button...')
+        self.screenshot_btn = Button(self.controller_btns, text="Screenshot", width=10,
+                                     pady=5, padx=10,
+                                     command=lambda: self.screenshot_thread(clientConn,
+                                                                            clientIP,
+                                                                            sname))
+        self.screenshot_btn.grid(row=0, column=1, sticky="w", pady=5, padx=2, ipadx=2)
+        self.local_tools.logIt_thread(self.log_path,
+                                      msg=f'Updating controller buttons list...')
+        self.buttons.append(self.screenshot_btn)
+        self.local_tools.logIt_thread(self.log_path, msg=f'Building anydesk button...')
+        self.anydesk_btn = Button(self.controller_btns, text="Anydesk", width=14, pady=5,
+                                  command=lambda: self.anydesk(clientConn, clientIP, sname))
+        self.anydesk_btn.grid(row=0, column=2, sticky="w", pady=5, padx=2, ipadx=2)
+        self.local_tools.logIt_thread(self.log_path,
+                                      msg=f'Updating controller buttons list...')
+        self.buttons.append(self.anydesk_btn)
+        self.local_tools.logIt_thread(self.log_path, msg=f'Building last restart button...')
+        self.last_restart_btn = Button(self.controller_btns, text="Last Restart", width=14,
+                                       pady=5,
+                                       command=lambda: self.last_restart(clientConn, clientIP,
+                                                                         sname))
+        self.last_restart_btn.grid(row=0, column=3, sticky="w", pady=5, padx=2, ipadx=2)
+        self.local_tools.logIt_thread(self.log_path,
+                                      msg=f'Updating controller buttons list...')
+        self.buttons.append(self.last_restart_btn)
+        self.local_tools.logIt_thread(self.log_path,
+                                      msg=f'Building system information button...')
+        self.sysinfo_btn = Button(self.controller_btns, text="SysInfo", width=14, pady=5,
+                                  command=lambda: self.client_system_information_thread(
+                                      clientConn, clientIP, sname))
+        self.sysinfo_btn.grid(row=0, column=4, sticky="w", pady=5, padx=2, ipadx=2)
+        self.local_tools.logIt_thread(self.log_path,
+                                      msg=f'Updating controller buttons list...')
+        self.buttons.append(self.sysinfo_btn)
+        self.local_tools.logIt_thread(self.log_path, msg=f'Building tasks button...')
+        self.tasks_btn = Button(self.controller_btns, text="Tasks", width=14, pady=5,
+                                command=lambda: self.tasks(clientConn, clientIP, sname))
+        self.tasks_btn.grid(row=0, column=5, sticky="w", pady=5, padx=2, ipadx=2)
+        self.local_tools.logIt_thread(self.log_path,
+                                      msg=f'Updating controller buttons list...')
+        self.buttons.append(self.tasks_btn)
+        self.local_tools.logIt_thread(self.log_path, msg=f'Building restart button...')
+        self.restart_btn = Button(self.controller_btns, text="Restart", width=14, pady=5,
+                                  command=lambda: self.restart(clientConn, clientIP, sname))
+        self.restart_btn.grid(row=0, column=6, sticky="w", pady=5, padx=2, ipadx=2)
+        self.local_tools.logIt_thread(self.log_path,
+                                      msg=f'Updating controller buttons list...')
+        self.buttons.append(self.restart_btn)
+        self.local_tools.logIt_thread(self.log_path, msg=f'Building local files button...')
+        self.browse_btn = Button(self.controller_btns, text="Local Files", width=14, pady=5,
+                                 command=lambda: self.browse_local_files(sname))
+        self.browse_btn.grid(row=0, column=7, sticky="w", pady=5, padx=2, ipadx=2)
+        self.local_tools.logIt_thread(self.log_path,
+                                      msg=f'Updating controller buttons list...')
+        self.buttons.append(self.browse_btn)
+        self.update_client = Button(self.controller_btns, text="Update Client", width=14,
+                                    pady=5,
+                                    command=lambda: self.update_selected_client_thread(
+                                        clientConn, clientIP, sname))
+        self.update_client.grid(row=0, column=8, sticky="w", pady=5, padx=2, ipadx=2)
+        self.buttons.append(self.update_client)
+        self.maintenance = Button(self.controller_btns, text="Maintenance", width=14,
+                                  pady=5,
+                                  command=lambda: self.run_maintenance(clientConn, clientIP,
+                                                                       sname))
+        self.maintenance.grid(row=0, column=9, sticky="w", pady=5, padx=2, ipadx=2)
+        self.buttons.append(self.maintenance)
+
     # Build Table for Connection History
     def create_connection_history_table(self) -> None:
         self.local_tools.logIt_thread(self.log_path, msg=f'Running create_connection_history_table()...')
@@ -423,14 +499,19 @@ class App(tk.Tk):
         self.history_table.column("#6", anchor=CENTER)
         self.history_table.heading("#6", text="Time")
 
+    # Clear Notebook
+    def clear_notebook(self):
+        return self.create_notebook()
+
     # Build Notebook
     def create_notebook(self):
         def on_tab_change(event):
-            tab = event.widget.tab('current')['text']
-            print(tab)
-            self.style.map("TNotebook.Tab", expand=[('selected', [1, 1, 100, 0])])
+            t = event.widget.tab('current')['text']
+            if self.tabs == 0:
+                return
 
-        self.local_tools.logIt_thread(self.log_path, msg=f'Clearing frames list...')
+            # print(self.notebook.index('current'))
+            # self.style.map("TNotebook.Tab", expand=[('selected', [1, 1, 20, 0])])
 
         self.local_tools.logIt_thread(self.log_path, msg=f'Building details LabelFrame...')
         self.details_labelFrame = LabelFrame(self.main_frame, text="Details", relief='solid',
@@ -442,7 +523,7 @@ class App(tk.Tk):
 
         self.local_tools.logIt_thread(self.log_path, msg=f'Building notebook...')
         self.notebook = ttk.Notebook(self.details_labelFrame, height=250)
-        self.notebook.pack(expand=False, pady=5, fill=X)
+        self.notebook.pack(expand=True, pady=5, fill=X)
         self.notebook.bind("<<NotebookTabChanged>>", on_tab_change)
 
         self.local_tools.logIt_thread(self.log_path, msg=f'Building tabs...')
@@ -1634,81 +1715,6 @@ class App(tk.Tk):
                                 c += 1
                     return True
 
-    # Create Controller Buttons
-    def build_buttons(self, clientConn, clientIP, sname):
-        self.local_tools.logIt_thread(self.log_path, msg=f'Building screenshot button...')
-        self.screenshot_btn = Button(self.controller_btns, text="Screenshot", width=10,
-                                     pady=5, padx=10,
-                                     command=lambda: self.screenshot_thread(clientConn,
-                                                                            clientIP,
-                                                                            sname))
-        self.screenshot_btn.grid(row=0, column=1, sticky="w", pady=5, padx=2, ipadx=2)
-        self.local_tools.logIt_thread(self.log_path,
-                                      msg=f'Updating controller buttons list...')
-        self.buttons.append(self.screenshot_btn)
-        self.local_tools.logIt_thread(self.log_path, msg=f'Building anydesk button...')
-        self.anydesk_btn = Button(self.controller_btns, text="Anydesk", width=14, pady=5,
-                                  command=lambda: self.anydesk(clientConn, clientIP, sname))
-        self.anydesk_btn.grid(row=0, column=2, sticky="w", pady=5, padx=2, ipadx=2)
-        self.local_tools.logIt_thread(self.log_path,
-                                      msg=f'Updating controller buttons list...')
-        self.buttons.append(self.anydesk_btn)
-        self.local_tools.logIt_thread(self.log_path, msg=f'Building last restart button...')
-        self.last_restart_btn = Button(self.controller_btns, text="Last Restart", width=14,
-                                       pady=5,
-                                       command=lambda: self.last_restart(clientConn, clientIP,
-                                                                         sname))
-        self.last_restart_btn.grid(row=0, column=3, sticky="w", pady=5, padx=2, ipadx=2)
-        self.local_tools.logIt_thread(self.log_path,
-                                      msg=f'Updating controller buttons list...')
-        self.buttons.append(self.last_restart_btn)
-        self.local_tools.logIt_thread(self.log_path,
-                                      msg=f'Building system information button...')
-        self.sysinfo_btn = Button(self.controller_btns, text="SysInfo", width=14, pady=5,
-                                  command=lambda: self.client_system_information_thread(
-                                      clientConn, clientIP, sname))
-        self.sysinfo_btn.grid(row=0, column=4, sticky="w", pady=5, padx=2, ipadx=2)
-        self.local_tools.logIt_thread(self.log_path,
-                                      msg=f'Updating controller buttons list...')
-        self.buttons.append(self.sysinfo_btn)
-        self.local_tools.logIt_thread(self.log_path, msg=f'Building tasks button...')
-        self.tasks_btn = Button(self.controller_btns, text="Tasks", width=14, pady=5,
-                                command=lambda: self.tasks(clientConn, clientIP, sname))
-        self.tasks_btn.grid(row=0, column=5, sticky="w", pady=5, padx=2, ipadx=2)
-        self.local_tools.logIt_thread(self.log_path,
-                                      msg=f'Updating controller buttons list...')
-        self.buttons.append(self.tasks_btn)
-        self.local_tools.logIt_thread(self.log_path, msg=f'Building restart button...')
-        self.restart_btn = Button(self.controller_btns, text="Restart", width=14, pady=5,
-                                  command=lambda: self.restart(clientConn, clientIP, sname))
-        self.restart_btn.grid(row=0, column=6, sticky="w", pady=5, padx=2, ipadx=2)
-        self.local_tools.logIt_thread(self.log_path,
-                                      msg=f'Updating controller buttons list...')
-        self.buttons.append(self.restart_btn)
-        self.local_tools.logIt_thread(self.log_path, msg=f'Building local files button...')
-        self.browse_btn = Button(self.controller_btns, text="Local Files", width=14, pady=5,
-                                 command=lambda: self.browse_local_files(sname))
-        self.browse_btn.grid(row=0, column=7, sticky="w", pady=5, padx=2, ipadx=2)
-        self.local_tools.logIt_thread(self.log_path,
-                                      msg=f'Updating controller buttons list...')
-        self.buttons.append(self.browse_btn)
-        self.update_client = Button(self.controller_btns, text="Update Client", width=14,
-                                    pady=5,
-                                    command=lambda: self.update_selected_client_thread(
-                                        clientConn, clientIP, sname))
-        self.update_client.grid(row=0, column=8, sticky="w", pady=5, padx=2, ipadx=2)
-        self.buttons.append(self.update_client)
-        self.maintenance = Button(self.controller_btns, text="Maintenance", width=14,
-                                  pady=5,
-                                  command=lambda: self.run_maintenance(clientConn, clientIP,
-                                                                       sname))
-        self.maintenance.grid(row=0, column=9, sticky="w", pady=5, padx=2, ipadx=2)
-        self.buttons.append(self.maintenance)
-        self.refresh_btn = Button(self.controller_btns, text="Refresh", width=9,
-                                  pady=5,
-                                  command=lambda: self.refresh())
-        self.refresh_btn.grid(row=0, column=0, sticky="w", pady=5, padx=2, ipadx=2)
-
     # Manage Connected Table & Controller LabelFrame Buttons
     def select_item(self, event) -> bool:
         self.local_tools.logIt_thread(self.log_path, msg=f'Running select_item()...')
@@ -1735,7 +1741,11 @@ class App(tk.Tk):
                     for clientIP, vals in clientIPv.items():
                         if clientIP == ip:
                             for sname in vals.keys():
-                                self.build_buttons(clientConn, clientIP, sname)
+                                temp_notebook = {clientIP: {sname: self.notebook}}
+                                if not temp_notebook[clientIP][sname] in self.notebooks:
+                                    self.notebooks.update(temp_notebook)
+
+                                self.build_controller_buttons(clientConn, clientIP, sname)
                                 self.local_tools.logIt_thread(self.log_path,
                                                               msg=f'Calling self.enable_buttons_thread...')
                                 self.enable_buttons_thread()
@@ -1748,9 +1758,6 @@ class App(tk.Tk):
 
                                 self.local_tools.logIt_thread(self.log_path, msg=f'Clearing self.temp dictionary...')
                                 self.temp.clear()
-                                temp_notebook = {clientIP: {sname: self.notebook}}
-                                if not temp_notebook[clientIP][sname] in self.notebooks:
-                                    self.notebooks.update(temp_notebook)
                                 return True
 
 
