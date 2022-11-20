@@ -12,3 +12,9 @@ A solution for IT | HD specialists
 
 ### Screenshot
 ![screenshot](https://github.com/GShwartz/HandsOff/raw/main/Images/POC/screenshot.JPG)
+
+### System Information
+![system information](https://github.com/GShwartz/HandsOff/raw/main/Images/POC/sysinfo.JPG)
+
+### Tasks
+![tasks](https://github.com/GShwartz/HandsOff/raw/main/Images/POC/tasks.JPG)
