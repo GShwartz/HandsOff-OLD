@@ -1875,8 +1875,6 @@ class About:
 
 
 class Maintenance:
-    # TODO: Create Maintenance for clients
-
     def __init__(self, con, ip, sname):
         self.con = con
         self.ip = ip
@@ -1896,49 +1894,49 @@ class Maintenance:
 
         # Set Mid Screen Coordinates
         x = (self.WIDTH / 2) - (500 / 2)
-        y = (self.HEIGHT / 2) - (500 / 2)
+        y = (self.HEIGHT / 2) - (370 / 2)
 
         # Set Window Size & Location & Center Window
-        self.maintenance_window.geometry(f'{500}x{500}+{int(x)}+{int(y)}')
+        self.maintenance_window.geometry(f'{500}x{370}+{int(x)}+{int(y)}')
         self.maintenance_window.configure(background='slate gray', takefocus=True)
         self.maintenance_window.grid_columnconfigure(0, weight=1)
         self.maintenance_window.grid_rowconfigure(11, weight=1)
-        self.maintenance_window.maxsize(500, 500)
-        self.maintenance_window.minsize(500, 500)
+        self.maintenance_window.maxsize(500, 370)
+        self.maintenance_window.minsize(500, 370)
         self.maintenance_window.focus_set()
 
     def run(self):
-        self.sfc_label = Label(self.maintenance_window, relief='solid',
+        self.sfc_label = Label(self.maintenance_window, relief='sunken',
                                background='slate gray', foreground='white')
         self.sfc_label.configure(width=20)
         self.sfc_label.configure(text="OS Scan & Repair")
         self.sfc_label.grid(row=0, column=0, sticky='we', pady=5)
 
         self.sfc_verify_button = Button(self.maintenance_window, text='SFC Verify Only',
-                                        relief='raised', background='SkyBlue2',
+                                        relief='raised', background='SkyBlue2', anchor=CENTER, width=40,
                                         command=self.verify_thread)
-        self.sfc_verify_button.grid(row=1, column=0, sticky='we', pady=5, ipadx=10)
+        self.sfc_verify_button.grid(row=1, column=0, pady=5, ipadx=10)
         self.sfc_verify_button.bind("<Enter>", self.on_verify_hover)
         self.sfc_verify_button.bind("<Leave>", self.on_verify_leave)
         app.maintenance_buttons.append(self.sfc_verify_button)
 
         self.sfc_scan_button = Button(self.maintenance_window, text='SFC Scan & Repair',
-                                      relief='raised', background='SkyBlue2',
+                                      relief='raised', background='SkyBlue2', anchor=CENTER, width=40,
                                       command='')
-        self.sfc_scan_button.grid(row=2, column=0, sticky='we', pady=5, ipadx=10)
+        self.sfc_scan_button.grid(row=2, column=0, pady=5, ipadx=10)
         self.sfc_scan_button.bind("<Enter>", self.on_scan_hover)
         self.sfc_scan_button.bind("<Leave>", self.on_scan_leave)
         app.maintenance_buttons.append(self.sfc_scan_button)
 
         self.dism_online_button = Button(self.maintenance_window, text='DISM Online Health Restoration',
-                                         relief='raised', background='SkyBlue2',
+                                         relief='raised', background='SkyBlue2', anchor=CENTER, width=40,
                                          command='')
-        self.dism_online_button.grid(row=3, column=0, sticky='we', pady=5, ipadx=10)
+        self.dism_online_button.grid(row=3, column=0, pady=5, ipadx=10)
         self.dism_online_button.bind("<Enter>", self.on_dism_online_hover)
         self.dism_online_button.bind("<Leave>", self.on_dism_online_leave)
         app.maintenance_buttons.append(self.dism_online_button)
 
-        self.hard_disk_label = Label(self.maintenance_window, relief='solid', background='slate gray',
+        self.hard_disk_label = Label(self.maintenance_window, relief='sunken', background='slate gray',
                                      foreground='white')
         self.hard_disk_label.configure(width=20)
         self.hard_disk_label.configure(text='Hard Disk Maintenance')
@@ -1964,9 +1962,9 @@ class Maintenance:
         self.optimize_checkbox.grid(row=8, column=0)
 
         self.run_optimize_button = Button(self.maintenance_window, text='Run Disk Maintenance',
-                                          relief='raised', background='SkyBlue2',
+                                          relief='raised', background='SkyBlue2', anchor=CENTER, width=40,
                                           command=self.optimize_thread)
-        self.run_optimize_button.grid(row=9, column=0, sticky='we', pady=5, ipadx=10)
+        self.run_optimize_button.grid(row=9, column=0, pady=5, ipadx=10)
         self.run_optimize_button.bind("<Enter>", self.on_run_optimize_hover)
         self.run_optimize_button.bind("<Leave>", self.on_run_optimize_leave)
         app.maintenance_buttons.append(self.run_optimize_button)
@@ -2093,24 +2091,56 @@ class Maintenance:
             return False
 
     def hard_disk(self) -> bool:
-        pass
-        # print(self.cleanup.get(), self.opt.get())
-        # try:
-        #     app.local_tools.logIt_thread(app.log_path, msg=f'Sending verify command to {self.ip}...')
-        #     self.con.send('full'.encode())
-        #     app.local_tools.logIt_thread(app.log_path, msg=f'Send complete.')
-        #     app.local_tools.logIt_thread(app.log_path, msg=f'Waiting for response from {self.ip}...')
-        #     msg = self.con.recv(1024).decode()
-        #     app.local_tools.logIt_thread(app.log_path, msg=f'Response: {msg}')
-        #     app.update_statusbar_messages_thread(msg=f'{self.ip}| {self.sname}: {self.msg}')
-        #     print(msg)
-        #     return True
-        #
-        # except (WindowsError, socket.error) as e:
-        #     app.local_tools.logIt_thread(app.log_path, msg=f'ERROR: {e}...')
-        #     app.local_tools.logIt_thread(app.log_path, msg=f'Calling self.remove_lost_connection({self.con}, {self.ip})')
-        #     app.remove_lost_connection(self.con, self.ip)
-        #     return False
+        if self.cleanup.get() and self.opt.get():
+            try:
+                app.local_tools.logIt_thread(app.log_path, msg=f'Sending verify command to {self.ip}...')
+                self.con.send('full'.encode())
+                app.local_tools.logIt_thread(app.log_path, msg=f'Waiting for response from {self.ip}...')
+                msg = self.con.recv(1024).decode()
+                app.local_tools.logIt_thread(app.log_path, msg=f'Response: {msg}')
+                app.update_statusbar_messages_thread(msg=f'{self.ip}| {self.sname}: {self.msg}')
+                print(msg)
+                return True
+
+            except (WindowsError, socket.error) as e:
+                app.local_tools.logIt_thread(app.log_path, msg=f'ERROR: {e}...')
+                app.local_tools.logIt_thread(app.log_path, msg=f'Calling self.remove_lost_connection({self.con}, {self.ip})')
+                app.remove_lost_connection(self.con, self.ip)
+                return False
+
+        if self.cleanup.get():
+            try:
+                app.local_tools.logIt_thread(app.log_path, msg=f'Sending verify command to {self.ip}...')
+                self.con.send('cleanup'.encode())
+                app.local_tools.logIt_thread(app.log_path, msg=f'Waiting for response from {self.ip}...')
+                msg = self.con.recv(1024).decode()
+                app.local_tools.logIt_thread(app.log_path, msg=f'Response: {msg}')
+                app.update_statusbar_messages_thread(msg=f'{self.ip}| {self.sname}: {self.msg}')
+                print(msg)
+                return True
+
+            except (WindowsError, socket.error) as e:
+                app.local_tools.logIt_thread(app.log_path, msg=f'ERROR: {e}...')
+                app.local_tools.logIt_thread(app.log_path, msg=f'Calling self.remove_lost_connection({self.con}, {self.ip})')
+                app.remove_lost_connection(self.con, self.ip)
+                return False
+
+        if self.opt.get():
+            try:
+                app.local_tools.logIt_thread(app.log_path, msg=f'Sending verify command to {self.ip}...')
+                self.con.send('opt'.encode())
+                app.local_tools.logIt_thread(app.log_path, msg=f'Waiting for response from {self.ip}...')
+                msg = self.con.recv(1024).decode()
+                app.local_tools.logIt_thread(app.log_path, msg=f'Response: {msg}')
+                app.update_statusbar_messages_thread(msg=f'{self.ip}| {self.sname}: {self.msg}')
+                print(msg)
+                return True
+
+            except (WindowsError, socket.error) as e:
+                app.local_tools.logIt_thread(app.log_path, msg=f'ERROR: {e}...')
+                app.local_tools.logIt_thread(app.log_path, msg=f'Calling self.remove_lost_connection({self.con}, {self.ip})')
+                app.remove_lost_connection(self.con, self.ip)
+                return False
 
 
 class Locals:
