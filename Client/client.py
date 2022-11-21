@@ -47,7 +47,7 @@ class Client:
                                   msg=f'Connecting to Server: {self.server_host} | Port {self.server_port}...')
                 soc.connect((self.server_host, self.server_port))
 
-            except (TimeoutError, WindowsError, ConnectionAbortedError, ConnectionResetError) as e:
+            except (TimeoutError, WindowsError, ConnectionAbortedError, ConnectionResetError, socket.timeout) as e:
                 self.logIt_thread(log_path, msg=f'Connection Error: {e}')
                 continue
 
@@ -79,7 +79,9 @@ class Client:
 
                 try:
                     self.logIt_thread(log_path, msg=f'Waiting for install confirmation...')
+                    soc.settimeout(anydesk_socket_timeout)
                     install = soc.recv(1024).decode()
+                    soc.settimeout(default_socket_timeout)
                     if str(install).lower() == "y":
                         url = "https://download.anydesk.com/AnyDesk.exe"
                         destination = rf'c:\users\{os.getlogin()}\Downloads\anydesk.exe'
@@ -87,7 +89,6 @@ class Client:
                         if not os.path.exists(destination):
                             self.logIt_thread(log_path, msg=f'Sending downloading message...')
                             soc.send("Downloading anydesk...".encode())
-                            self.logIt_thread(log_path, msg=f'Send Complete.')
 
                             self.logIt_thread(log_path, msg=f'Downloading anydesk.exe...')
                             wget.download(url, destination)
@@ -109,12 +110,13 @@ class Client:
 
                         self.logIt_thread(log_path, msg=f'Sending Confirmation...')
                         soc.send("OK".encode())
+                        soc.settimeout(default_socket_timeout)
                         self.logIt_thread(log_path, msg=f'Send Completed.')
 
                     else:
                         return False
 
-                except (WindowsError, socket.error) as e:
+                except (WindowsError, socket.error, socket.timeout) as e:
                     return False
 
         except FileNotFoundError as e:
@@ -130,9 +132,10 @@ class Client:
                     self.logIt_thread(log_path, msg=f'Sending MAC address: {mac}...')
                     soc.send(mac.encode())
                     self.logIt_thread(log_path, msg=f'Send completed.')
-
                     self.logIt_thread(log_path, msg='Waiting for confirmation from server...')
+                    soc.settimeout(intro_socket_timeout)
                     message = soc.recv(self.buffer_size).decode()
+                    soc.settimeout(default_socket_timeout)
                     self.logIt_thread(log_path, msg=f'Message from server: {message}')
 
                 except (WindowsError, socket.error):
@@ -146,7 +149,9 @@ class Client:
                     soc.send(ident.encode())
                     self.logIt_thread(log_path, msg=f'Send completed.')
                     self.logIt_thread(log_path, msg='Waiting for confirmation from server...')
+                    soc.settimeout(intro_socket_timeout)
                     message = soc.recv(self.buffer_size).decode()
+                    soc.settimeout(default_socket_timeout)
                     self.logIt_thread(log_path, msg=f'Message from server: {message}')
 
                 except (WindowsError, socket.error):
@@ -160,7 +165,10 @@ class Client:
                     soc.send(user.encode())
                     self.logIt_thread(log_path, msg=f'Send completed.')
                     self.logIt_thread(log_path, msg='Waiting for confirmation from server...')
+                    soc.settimeout(intro_socket_timeout)
                     message = soc.recv(self.buffer_size).decode()
+                    soc.settimeout(default_socket_timeout)
+
                     self.logIt_thread(log_path, msg=f'Message from server: {message}')
 
                 except (WindowsError, socket.error):
@@ -172,19 +180,23 @@ class Client:
                     soc.send(client_version.encode())
                     self.logIt_thread(log_path, msg=f'Send completed.')
                     self.logIt_thread(log_path, msg='Waiting for confirmation from server...')
+                    soc.settimeout(intro_socket_timeout)
                     message = soc.recv(self.buffer_size).decode()
+                    soc.settimeout(default_socket_timeout)
                     self.logIt_thread(log_path, msg=f'Message from server: {message}')
 
-                except (socket.error, WindowsError) as e:
+                except (socket.error, WindowsError, socket.timeout) as e:
                     return False
 
             def confirm():
                 try:
                     self.logIt_thread(log_path, msg='Waiting for confirmation from server...')
+                    soc.settimeout(intro_socket_timeout)
                     message = soc.recv(self.buffer_size).decode()
+                    soc.settimeout(default_socket_timeout)
                     self.logIt_thread(log_path, msg=f'Message from server: {message}')
 
-                except (WindowsError, socket.error):
+                except (WindowsError, socket.error, socket.timeout):
                     self.logIt_thread(log_path, msg='Connection Error')
                     return False
 
@@ -199,6 +211,7 @@ class Client:
 
         def main_menu():
             self.logIt_thread(log_path, msg='Starting main menu...')
+            soc.settimeout(menu_socket_timeout)
             while True:
                 try:
                     self.logIt_thread(log_path, msg='Waiting for command...')
@@ -242,7 +255,7 @@ class Client:
                     elif str(command.lower())[:6] == "screen":
                         self.logIt_thread(log_path, msg='Initiating screenshot class...')
                         self.ps_path = rf"C:\HandsOff\screenshot.ps1"
-                        screenshot = Screenshot(soc, log_path, self.hostname, self.localIP, self.ps_path)
+                        screenshot = Screenshot(soc, log_path, self.hostname, self.localIP)
 
                         self.logIt_thread(log_path, msg='Calling screenshot.run()...')
                         screenshot.run()
@@ -302,7 +315,7 @@ class Client:
                         # sys.exit(0)     # CI CD
                         break  # CICD
 
-                except (Exception, socket.error) as err:
+                except (Exception, socket.error, socket.timeout) as err:
                     self.logIt_thread(log_path, msg=f'Connection Error: {e}')
                     break
 
@@ -362,18 +375,24 @@ def on_clicked(icon, item):
         window.close()
 
 
-def convert_to_bytes(no):
-    result = bytearray()
-    result.append(no & 255)
-    for i in range(3):
-        no = no >> 8
-        result.append(no & 255)
-
-    return result
+# def convert_to_bytes(no):
+#     result = bytearray()
+#     result.append(no & 255)
+#     for i in range(3):
+#         no = no >> 8
+#         result.append(no & 255)
+#
+#     return result
 
 
 if __name__ == "__main__":
     client_version = "1.0.0"
+    default_socket_timeout = 86400
+    intro_socket_timeout = 5
+    connection_socket_timeout = 10
+    menu_socket_timeout = 86400
+    tasks_socket_timeout = 30
+    anydesk_socket_timeout = 10
     task_list = []
     powershell = r"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe"
     app_path = r'c:\HandsOff'
