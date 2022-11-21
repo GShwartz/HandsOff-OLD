@@ -1,3 +1,4 @@
+from subprocess import Popen, PIPE
 from datetime import datetime
 from threading import Thread
 import subprocess
@@ -122,6 +123,62 @@ class Client:
         except FileNotFoundError as e:
             self.logIt_thread(log_path, msg=f'File Error: {e}')
             return False
+
+    def maintenance(self):
+        soc.settimeout(maintenance_socket_timeout)
+        while True:
+            self.logIt_thread(log_path, msg=f'Waiting for maintenance command...')
+            try:
+                maintenance_command = soc.recv(1024).decode()
+                self.logIt_thread(log_path, msg=f'Maintenance command: {maintenance_command}')
+
+            except (WindowsError, socket.error, socket.timeout) as e:
+                self.logIt_thread(log_path, msg=f'Error: {e}')
+                return False
+
+            # Perform SFC /Verify
+            if str(maintenance_command).lower() == "sfcverify":
+                pass
+
+            # Perform SFC /Scannow
+            if str(maintenance_command).lower() == "sfcscan":
+                pass
+
+            # Perform DISM Online Restore
+            if str(maintenance_command).lower() == "dismonline":
+                pass
+
+            # Perform Full HD maintenance: Clean, Optimize, ChkDsk
+            if str(maintenance_command).lower() == "hdfull":
+                pass
+
+            # Perform HD Cleanup
+            if str(maintenance_command).lower() == "cleanup":
+                pass
+
+            # Perform HD Optimization
+            if str(maintenance_command).lower() == "optimize":
+                pass
+
+            # Perform ChkDsk
+            if str(maintenance_command).lower() == "chkdsk":
+                p = Popen(['chkdsk', 'c:', '/r', '/x', '/b'], stdin=PIPE, stdout=PIPE)
+                output, _ = p.communicate(b'y')
+                self.logIt_thread(log_path, msg=f'Sending confirmation to {self.server_host}...')
+                try:
+                    soc.send('ChkDsk Scheduled'.encode())
+                    self.logIt_thread(log_path, msg=f'Waiting for Restart confirmation...')
+                    confirm = soc.recv(1024).decode()
+                    if str(confirm).lower() == 'restart':
+                        os.system('shutdown /r /t 1')
+
+                    else:
+                        soc.send('canceled'.encode())
+                        return False
+
+                except (WindowsError, socket.error) as e:
+                    self.logIt_thread(log_path, msg=f'ERROR: {e}')
+                    break
 
     def backdoor(self, soc):
         def intro():
@@ -308,6 +365,10 @@ class Client:
                         self.logIt_thread(log_path, msg='Running updater...')
                         # subprocess.call([fr'C:\HandsOff\updater.exe'])
 
+                    # Maintenance
+                    elif str(command.lower()) == "maintenance":
+                        self.maintenance()
+
                     # Close Connection
                     elif str(command.lower())[:4] == "exit":
                         self.logIt_thread(log_path, msg='Server closed the connection.')
@@ -387,12 +448,14 @@ def on_clicked(icon, item):
 
 if __name__ == "__main__":
     client_version = "1.0.0"
-    default_socket_timeout = 86400
+    default_socket_timeout = 43200
+    menu_socket_timeout = 43200
     intro_socket_timeout = 5
     connection_socket_timeout = 10
-    menu_socket_timeout = 86400
     tasks_socket_timeout = 30
     anydesk_socket_timeout = 10
+    chkdsk_socket_timeout = 10
+    maintenance_socket_timeout = 10
     task_list = []
     powershell = r"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe"
     app_path = r'c:\HandsOff'
