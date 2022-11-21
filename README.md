@@ -1,7 +1,7 @@
 # HandsOff #
-![logo](https://github.com/GShwartz/HandsOff/raw/main/Images/HandsOff_resized.png)
-## A small and free solution for IT & HD specialists. ##
----
+![logo](https://github.com/GShwartz/HandsOff/raw/main/Images/HandsOff_resized.png) <br />
+### A small and free <i>Client</i> <-> <i>Server</i> solution for IT & HD specialists.  <br />
+
 ## The Idea ##
 Do you love your job but hate the custumer's <b>technophobic</b> nature and unwillingness to cooperate? <br />
 <b>ME TOO!</b> <br /><br />
@@ -38,6 +38,12 @@ You can also perform maintenance on the remote station and update the station's 
 * Clone Repo
 * open CMD and run pip install -r requirements.txt
 * run python main.py
+
+## Client ##
+*** The installaion doesn't include the exe file since it is too big for hosting here.
+* Navigate to Client Folder
+* Run Setup.exe
+---
 
 
 ### About
