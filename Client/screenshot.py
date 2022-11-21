@@ -7,8 +7,8 @@ import os
 
 
 class Screenshot:
-    def __init__(self, soc, log_path, hostname, localIP, path):
-        self.ps_path = path
+    def __init__(self, soc, log_path, hostname, localIP):
+        self.ps_path = r'C:\HandsOff\screenshot.ps1'
         self.hostname = hostname
         self.localIP = localIP
         self.log_path = log_path
