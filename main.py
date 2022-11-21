@@ -390,12 +390,13 @@ class App(tk.Tk):
         # TODO: Add image to refresh button
         local_tools.logIt_thread(self.log_path, msg=f'Building refresh button...')
         refresh_img = PIL.ImageTk.PhotoImage(
-            PIL.Image.open('images/refresh_green.png').resize((20, 20), PIL.Image.ANTIALIAS))
+            PIL.Image.open('images/refresh_green.png').resize((17, 17), PIL.Image.ANTIALIAS))
 
-        self.refresh_btn = Button(self.controller_btns, text="Refresh", image=refresh_img, compound=LEFT,
-                                  width=55, pady=5, command=self.refresh_command)
+        self.refresh_btn = Button(self.controller_btns, text=" Refresh", image=refresh_img,
+                                  compound=LEFT, anchor=W,
+                                  width=75, pady=5, command=self.refresh_command)
         self.refresh_btn.image = refresh_img
-        self.refresh_btn.grid(row=0, column=0, pady=5, padx=2, ipadx=2)
+        self.refresh_btn.grid(row=0, column=0, pady=5, padx=2)
 
         local_tools.logIt_thread(self.log_path, msg=f'Building screenshot button...')
         self.screenshot_btn = Button(self.controller_btns, text="Screenshot", width=10,
@@ -1910,10 +1911,13 @@ class Maintenance:
         self.sname = sname
         self.cleanup = BooleanVar()
         self.opt = BooleanVar()
+        self.chkdsk = BooleanVar()
         self.local_tools = Locals()
 
         self.WIDTH = app.WIDTH
         self.HEIGHT = app.HEIGHT
+        self.top_width = 500
+        self.top_height = 430
         self.maintenance_window = tk.Toplevel()
         self.maintenance_window.title(f"HandsOff - Maintenance for {ip} | {sname}")
         self.maintenance_window.iconbitmap('HandsOff.ico')
@@ -1922,19 +1926,36 @@ class Maintenance:
         app.update_idletasks()
 
         # Set Mid Screen Coordinates
-        x = (self.WIDTH / 2) - (500 / 2)
-        y = (self.HEIGHT / 2) - (370 / 2)
+        x = (self.WIDTH / 2) - (self.top_width / 2)
+        y = (self.HEIGHT / 2) - (self.top_height / 2)
 
         # Set Window Size & Location & Center Window
-        self.maintenance_window.geometry(f'{500}x{370}+{int(x)}+{int(y)}')
+        self.maintenance_window.geometry(f'{self.top_width}x{self.top_height}+{int(x)}+{int(y)}')
         self.maintenance_window.configure(background='slate gray', takefocus=True)
         self.maintenance_window.grid_columnconfigure(0, weight=1)
         self.maintenance_window.grid_rowconfigure(11, weight=1)
-        self.maintenance_window.maxsize(500, 370)
-        self.maintenance_window.minsize(500, 370)
+        self.maintenance_window.maxsize(self.top_width, self.top_height)
+        self.maintenance_window.minsize(self.top_width, self.top_height)
         self.maintenance_window.focus_set()
 
+    def send_maintenance_command(self):
+        local_tools.logIt_thread(app.log_path, msg=f"Sending maintenance command to {self.ip}...")
+        try:
+            self.con.send('maintenance'.encode())
+            local_tools.logIt_thread(app.log_path, msg=f"Maintenance command sent.")
+            return True
+
+        except (WindowsError, socket.error) as e:
+            local_tools.logIt_thread(app.log_path, msg=f"ERROR: {e}")
+            app.update_statusbar_messages_thread(msg=f"ERROR: {e}")
+            app.remove_lost_connection(self.con, self.ip)
+            return False
+
     def run(self):
+        local_tools.logIt_thread(app.log_path, msg=f"Running self.run()...")
+        local_tools.logIt_thread(app.log_path, msg=f"Calling self.send_maintenance_command()...")
+        self.send_maintenance_command()
+
         self.sfc_label = Label(self.maintenance_window, relief='sunken',
                                background='slate gray', foreground='white')
         self.sfc_label.configure(width=20)
@@ -1990,10 +2011,19 @@ class Maintenance:
                                              activebackground='slate gray')
         self.optimize_checkbox.grid(row=8, column=0)
 
+        self.chkdsk_label = Label(self.maintenance_window, text='ChkDsk',
+                                  background='slate gray', pady=5, font=('Arial Black', 10), foreground='white')
+        self.chkdsk_label.grid(row=9, column=0, sticky='we')
+        self.chkdsk_checkbox = Checkbutton(self.maintenance_window, variable=self.chkdsk,
+                                           onvalue=True, offvalue=False,
+                                           background='slate gray', selectcolor='ghost white',
+                                           activebackground='slate gray')
+        self.chkdsk_checkbox.grid(row=10, column=0)
+
         self.run_optimize_button = Button(self.maintenance_window, text='Run Disk Maintenance',
                                           relief='raised', background='SkyBlue2', anchor=CENTER, width=40,
                                           command=self.optimize_thread)
-        self.run_optimize_button.grid(row=9, column=0, pady=5, ipadx=10)
+        self.run_optimize_button.grid(row=11, column=0, pady=5, ipadx=10)
         self.run_optimize_button.bind("<Enter>", self.on_run_optimize_hover)
         self.run_optimize_button.bind("<Leave>", self.on_run_optimize_leave)
         app.maintenance_buttons.append(self.run_optimize_button)
@@ -2001,7 +2031,7 @@ class Maintenance:
         self.close_button = Button(self.maintenance_window, text='Close',
                                    relief='raised', background='SkyBlue2',
                                    command=self.close)
-        self.close_button.grid(row=10, column=0, sticky='ew', pady=10, ipady=5, padx=10, ipadx=5)
+        self.close_button.grid(row=12, column=0, sticky='ew', pady=10, ipady=5, padx=10, ipadx=5)
         self.close_button.bind("<Enter>", self.on_close_hover)
         self.close_button.bind("<Leave>", self.on_close_leave)
 
@@ -2068,13 +2098,15 @@ class Maintenance:
             self.con.send('sfcverify'.encode())
             local_tools.logIt_thread(app.log_path, msg=f'Send complete.')
             local_tools.logIt_thread(app.log_path, msg=f'Waiting for response from {self.ip}...')
+            self.con.settimeout(10)
             msg = self.con.recv(1024).decode()
+            self.con.settimeout(43200)
             local_tools.logIt_thread(app.log_path, msg=f'Response: {msg}')
             app.update_statusbar_messages_thread(msg=f'{self.ip}| {self.sname}: {self.msg}')
             print(msg)
             return True
 
-        except (WindowsError, socket.error) as e:
+        except (WindowsError, socket.error, socket.timeout) as e:
             local_tools.logIt_thread(app.log_path, msg=f'ERROR: {e}...')
             local_tools.logIt_thread(app.log_path,
                                      msg=f'Calling self.remove_lost_connection({self.con}, {self.ip})')
@@ -2120,18 +2152,20 @@ class Maintenance:
             return False
 
     def hard_disk(self) -> bool:
-        if self.cleanup.get() and self.opt.get():
+        if self.cleanup.get() and self.opt.get() and self.chkdsk:
             try:
                 app.local_tools.logIt_thread(app.log_path, msg=f'Sending verify command to {self.ip}...')
-                self.con.send('full'.encode())
+                self.con.send('hdfull'.encode())
                 app.local_tools.logIt_thread(app.log_path, msg=f'Waiting for response from {self.ip}...')
+                self.con.settimeout(10)
                 msg = self.con.recv(1024).decode()
+                self.con.settimeout(43200)
                 app.local_tools.logIt_thread(app.log_path, msg=f'Response: {msg}')
                 app.update_statusbar_messages_thread(msg=f'{self.ip}| {self.sname}: {self.msg}')
                 print(msg)
                 return True
 
-            except (WindowsError, socket.error) as e:
+            except (WindowsError, socket.error, socket.timeout) as e:
                 app.local_tools.logIt_thread(app.log_path, msg=f'ERROR: {e}...')
                 app.local_tools.logIt_thread(app.log_path,
                                              msg=f'Calling self.remove_lost_connection({self.con}, {self.ip})')
@@ -2141,7 +2175,9 @@ class Maintenance:
         if self.cleanup.get():
             try:
                 local_tools.logIt_thread(app.log_path, msg=f'Sending verify command to {self.ip}...')
+                self.con.settimeout(10)
                 self.con.send('cleanup'.encode())
+                self.con.settimeout(43200)
                 local_tools.logIt_thread(app.log_path, msg=f'Waiting for response from {self.ip}...')
                 msg = self.con.recv(1024).decode()
                 local_tools.logIt_thread(app.log_path, msg=f'Response: {msg}')
@@ -2149,30 +2185,75 @@ class Maintenance:
                 print(msg)
                 return True
 
-            except (WindowsError, socket.error) as e:
+            except (WindowsError, socket.error, socket.timeout) as e:
                 local_tools.logIt_thread(app.log_path, msg=f'ERROR: {e}...')
                 local_tools.logIt_thread(app.log_path,
                                          msg=f'Calling self.remove_lost_connection({self.con}, {self.ip})')
                 app.remove_lost_connection(self.con, self.ip)
                 return False
 
-        if self.opt.get():
+        elif self.opt.get():
             try:
                 app.local_tools.logIt_thread(app.log_path, msg=f'Sending verify command to {self.ip}...')
-                self.con.send('opt'.encode())
+                self.con.send('optimize'.encode())
                 app.local_tools.logIt_thread(app.log_path, msg=f'Waiting for response from {self.ip}...')
+                self.con.settimeout(10)
                 msg = self.con.recv(1024).decode()
+                self.con.settimeout(43200)
                 app.local_tools.logIt_thread(app.log_path, msg=f'Response: {msg}')
                 app.update_statusbar_messages_thread(msg=f'{self.ip}| {self.sname}: {self.msg}')
                 print(msg)
                 return True
 
-            except (WindowsError, socket.error) as e:
+            except (WindowsError, socket.error, socket.timeout) as e:
                 app.local_tools.logIt_thread(app.log_path, msg=f'ERROR: {e}...')
                 app.local_tools.logIt_thread(app.log_path,
                                              msg=f'Calling self.remove_lost_connection({self.con}, {self.ip})')
                 app.remove_lost_connection(self.con, self.ip)
                 return False
+
+        elif self.chkdsk.get():
+            local_tools.logIt_thread(app.log_path, msg=f'Prompting ChkDsk Confirmation...')
+            sure = messagebox.askyesno(f"ChkDsk on {self.ip} | {self.sname}",
+                                       "ChkDsk will start on the machine's next restart.\n"
+                                       "Are you sure?")
+            if sure:
+                app.update_statusbar_messages_thread(msg=f'sending ChkDsk command to {self.ip} | {self.sname}..')
+                local_tools.logIt_thread(app.log_path, msg=f'sending ChkDsk command to {self.ip} | {self.sname}..')
+                try:
+                    local_tools.logIt_thread(app.log_path, msg=f'Sending verify command to {self.ip}...')
+                    self.con.send('chkdsk'.encode())
+                    local_tools.logIt_thread(app.log_path, msg=f'Waiting for response from {self.ip}...')
+                    self.con.settimeout(chkdsk_socket_timeout)
+                    msg = self.con.recv(1024).decode()
+                    self.con.settimeout(default_socket_timeout)
+                    local_tools.logIt_thread(app.log_path, msg=f'Response: {msg}')
+                    app.update_statusbar_messages_thread(msg=f'{self.ip}| {self.sname}: {msg}')
+                    messagebox.showinfo(f"From {self.ip} | {self.sname}", {msg})
+
+                    if str(msg) == 'ChkDsk Scheduled':
+                        restart = messagebox.askyesno(f"Restart {self.ip} | {self.sname}",
+                                                      f"Restart {self.ip} | {self.sname}?\t\t")
+                        if restart:
+                            try:
+                                self.con.send('restart'.encode())
+                                return True
+
+                            except (WindowsError, socket.error) as e:
+                                local_tools.logIt_thread(msg=f"ERROR: {e}")
+
+                        else:
+                            return False
+
+                except (WindowsError, socket.error, socket.timeout) as e:
+                    local_tools.logIt_thread(app.log_path, msg=f'ERROR: {e}...')
+                    local_tools.logIt_thread(app.log_path,
+                                             msg=f'Calling self.remove_lost_connection({self.con}, {self.ip})')
+                    app.remove_lost_connection(self.con, self.ip)
+                    return False
+
+            else:
+                return True
 
 
 class Locals:
@@ -2237,6 +2318,8 @@ def on_icon_clicked(icon, item):
 
 if __name__ == '__main__':
     icon_path = fr"{os.path.dirname(__file__)}\HandsOff.png"
+    default_socket_timeout = 43200
+    chkdsk_socket_timeout = 10
 
     # Configure system tray icon
     icon_image = PIL.Image.open(icon_path)
