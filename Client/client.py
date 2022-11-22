@@ -1,4 +1,4 @@
-from subprocess import Popen, PIPE
+from subprocess import Popen, PIPE, check_output
 from datetime import datetime
 from threading import Thread
 import subprocess
@@ -39,7 +39,7 @@ class Client:
         if not os.path.exists(f'{self.main_path}'):
             os.makedirs(self.main_path)
 
-    def connection(self):
+    def connection(self) -> None:
         self.logIt_thread(log_path, msg=f'Running connection()...')
         while True:
             time.sleep(1)
@@ -52,7 +52,7 @@ class Client:
                 self.logIt_thread(log_path, msg=f'Connection Error: {e}')
                 continue
 
-    def anydeskThread(self):
+    def anydeskThread(self) -> None:
         self.logIt_thread(log_path, msg=f'Starting Anydesk app...')
         return subprocess.call([r"C:\Program Files (x86)\AnyDesk\anydesk.exe"])
 
@@ -124,8 +124,16 @@ class Client:
             self.logIt_thread(log_path, msg=f'File Error: {e}')
             return False
 
-    def maintenance(self):
-        soc.settimeout(maintenance_socket_timeout)
+    def sfc_scan(self) -> bool:
+        soc.send('Starting SFC Verification...'.encode())
+        output = check_output(["sfc", "/scannow"]).decode()
+        try:
+            soc.send(str(output).encode())
+
+        except (ConnectionResetError, WindowsError, socket.error):
+            return False
+
+    def maintenance(self) -> bool:
         while True:
             self.logIt_thread(log_path, msg=f'Waiting for maintenance command...')
             try:
@@ -136,9 +144,16 @@ class Client:
                 self.logIt_thread(log_path, msg=f'Error: {e}')
                 return False
 
+            # Close Maintenance
+            if str(maintenance_command).lower() == "break":
+                break
+
             # Perform SFC /Verify
             if str(maintenance_command).lower() == "sfcverify":
-                pass
+                soc.send('Starting SFC Verification...'.encode())
+                p = Popen(['sfc', '/verifyonly'])
+                soc.close()
+                break
 
             # Perform SFC /Scannow
             if str(maintenance_command).lower() == "sfcscan":
@@ -173,12 +188,13 @@ class Client:
                         os.system('shutdown /r /t 1')
 
                     else:
-                        soc.send('canceled'.encode())
-                        return False
+                        soc.send('Restart Canceled'.encode())
+                        continue
 
                 except (WindowsError, socket.error) as e:
                     self.logIt_thread(log_path, msg=f'ERROR: {e}')
-                    break
+                    return False
+        return True
 
     def backdoor(self, soc):
         def intro():
@@ -195,7 +211,7 @@ class Client:
                     soc.settimeout(default_socket_timeout)
                     self.logIt_thread(log_path, msg=f'Message from server: {message}')
 
-                except (WindowsError, socket.error):
+                except (WindowsError, socket.error, socket.timeout):
                     self.logIt_thread(log_path, msg='Connection Error')
                     return False
 
@@ -436,26 +452,16 @@ def on_clicked(icon, item):
         window.close()
 
 
-# def convert_to_bytes(no):
-#     result = bytearray()
-#     result.append(no & 255)
-#     for i in range(3):
-#         no = no >> 8
-#         result.append(no & 255)
-#
-#     return result
-
-
 if __name__ == "__main__":
     client_version = "1.0.0"
-    default_socket_timeout = 43200
-    menu_socket_timeout = 43200
+    default_socket_timeout = None
+    menu_socket_timeout = None
     intro_socket_timeout = 5
     connection_socket_timeout = 10
     tasks_socket_timeout = 30
-    anydesk_socket_timeout = 10
-    chkdsk_socket_timeout = 10
-    maintenance_socket_timeout = 10
+    anydesk_socket_timeout = 30
+    chkdsk_socket_timeout = 30
+    maintenance_socket_timeout = 30
     task_list = []
     powershell = r"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe"
     app_path = r'c:\HandsOff'
