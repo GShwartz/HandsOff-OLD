@@ -235,11 +235,19 @@ class App(tk.Tk):
                               name='Screenshot Thread')
         screenThread.start()
 
+    # Show Available Connections
     def show_available_connections_thread(self):
         historyThread = Thread(target=self.show_available_connections,
                                daemon=True,
                                name="Available Connections Thread")
         historyThread.start()
+
+    def run_maintenance_thread(self, con: str, ip: str, sname: str):
+        maintenanceThread = Thread(target=self.run_maintenance_command,
+                                   args=(con, ip, sname),
+                                   daemon=True,
+                                   name="Run Maintenance Thread")
+        maintenanceThread.start()
 
     # ==++==++==++== END THREADED FUNCS ==++==++==++== #
 
@@ -396,7 +404,6 @@ class App(tk.Tk):
 
     # Create Controller Buttons
     def build_controller_buttons(self, clientConn, clientIP, sname):
-        # TODO: Add image to refresh button
         local_tools.logIt_thread(self.log_path, msg=f'Building refresh button...')
         refresh_img = PIL.ImageTk.PhotoImage(
             PIL.Image.open('images/refresh_green.png').resize((17, 17), PIL.Image.ANTIALIAS))
@@ -474,8 +481,7 @@ class App(tk.Tk):
         local_tools.logIt_thread(self.log_path, msg=f'Building Maintenance button...')
         self.maintenance = Button(self.controller_btns, text="Maintenance", width=14,
                                   pady=5,
-                                  command=lambda: self.run_maintenance_command(clientConn, clientIP,
-                                                                               sname))
+                                  command=lambda: self.run_maintenance_thread(clientConn, clientIP, sname))
         self.maintenance.grid(row=0, column=9, sticky="w", pady=5, padx=2, ipadx=2)
         self.buttons.append(self.maintenance)
 
@@ -1158,8 +1164,18 @@ class App(tk.Tk):
 
     # Run Maintenance on Client
     def run_maintenance_command(self, con: str, ip: str, sname: str) -> None:
-        maintenance = Maintenance(con, ip, sname)
-        maintenance.run()
+        try:
+            con.send('maintenance'.encode())
+            self.remove_lost_connection(con, ip)
+            time.sleep(0.5)
+            self.refresh_command()
+            return True
+
+        except (WindowsError, socket.error):
+            self.remove_lost_connection(con, ip)
+            time.sleep(0.5)
+            self.refresh_command()
+            return False
 
     # ==++==++==++== END Controller Buttons ==++==++==++==
     # # ==++==++==++== Server Processes ==++==++==++==
@@ -1510,6 +1526,23 @@ class App(tk.Tk):
         self.update_statusbar_messages_thread(msg=f'Vitals check completed.')
         local_tools.logIt_thread(self.log_path, msg=f'=== End of vital_signs() ===')
         return True
+
+    # Get Connected Targets
+    def connected_targets(self):
+        local_tools.logIt_thread(self.log_path, msg=f'Running connected_targets()...')
+        for item in self.tmp_availables:
+            for conKey, ipValue in self.clients.items():
+                for macKey, ipVal in ipValue.items():
+                    for ipKey, identVal in ipVal.items():
+                        if item[2] == ipKey:
+                            session = item[0]
+                            stationMAC = item[1]
+                            stationIP = item[2]
+                            stationName = item[3]
+                            loggedUser = item[4]
+                            clientVersion = item[5]
+
+                            return session, stationMAC, stationIP, stationName, loggedUser, clientVersion
 
     # Shell Connection to Client
     def shell(self, con: str, ip: str, sname: str) -> None:
@@ -2120,69 +2153,6 @@ class Maintenance:
     def close_top(self) -> None:
         self.maintenance_window.destroy()
 
-    def verify(self) -> bool:
-        try:
-            local_tools.logIt_thread(app.log_path, msg=f'Sending verify command to {self.ip}...')
-            app.update_statusbar_messages_thread(msg=f'Sending verify command to {self.ip}...')
-            self.con.send('sfcverify'.encode())
-            local_tools.logIt_thread(app.log_path, msg=f'Send complete.')
-            local_tools.logIt_thread(app.log_path, msg=f'Waiting for response from {self.ip}...')
-            msg = self.con.recv(1024).decode()
-            messagebox.showinfo(f"From: {self.ip} | {self.sname}", f"{msg}")
-            app.update_statusbar_messages_thread(msg=f'{self.ip} | {self.sname}: {msg}')
-            time.sleep(0.3)
-            self.close_top()
-            app.remove_lost_connection(self.con, self.ip)
-            app.refresh_command()
-            return True
-
-        except (WindowsError, socket.errork) as e:
-            app.update_statusbar_messages_thread(msg=f'ERROR: {e}...')
-            local_tools.logIt_thread(app.log_path, msg=f'ERROR: {e}...')
-            local_tools.logIt_thread(app.log_path,
-                                     msg=f'Calling self.remove_lost_connection({self.con}, {self.ip})')
-            app.remove_lost_connection(self.con, self.ip)
-            app.refresh_command()
-            return False
-
-    def sfc_scan(self) -> bool:
-        try:
-            local_tools.logIt_thread(app.log_path, msg=f'Sending verify command to {self.ip}...')
-            self.con.send('sfcscan'.encode())
-            local_tools.logIt_thread(app.log_path, msg=f'Send complete.')
-            local_tools.logIt_thread(app.log_path, msg=f'Waiting for response from {self.ip}...')
-            msg = self.con.recv(1024).decode()
-            local_tools.logIt_thread(app.log_path, msg=f'Response: {msg}')
-            app.update_statusbar_messages_thread(msg=f'{self.ip}| {self.sname}: {self.msg}')
-            print(msg)
-            return True
-
-        except (WindowsError, socket.error) as e:
-            app.local_tools.logIt_thread(app.log_path, msg=f'ERROR: {e}...')
-            app.local_tools.logIt_thread(app.log_path,
-                                         msg=f'Calling self.remove_lost_connection({self.con}, {self.ip})')
-            app.remove_lost_connection(self.con, self.ip)
-            return False
-
-    def dism_online(self) -> bool:
-        try:
-            local_tools.logIt_thread(app.log_path, msg=f'Sending verify command to {self.ip}...')
-            self.con.send('dismonline'.encode())
-            local_tools.logIt_thread(app.log_path, msg=f'Send complete.')
-            local_tools.logIt_thread(app.log_path, msg=f'Waiting for response from {self.ip}...')
-            msg = self.con.recv(1024).decode()
-            local_tools.logIt_thread(app.log_path, msg=f'Response: {msg}')
-            app.update_statusbar_messages_thread(msg=f'{self.ip}| {self.sname}: {self.msg}')
-            print(msg)
-            return True
-
-        except (WindowsError, socket.error) as e:
-            local_tools.logIt_thread(app.log_path, msg=f'ERROR: {e}...')
-            local_tools.logIt_thread(app.log_path,
-                                     msg=f'Calling self.remove_lost_connection({self.con}, {self.ip})')
-            app.remove_lost_connection(self.con, self.ip)
-            return False
-
     def hard_disk(self) -> bool:
         if self.cleanup.get() and self.opt.get() and self.chkdsk:
             try:
@@ -2361,6 +2331,7 @@ if __name__ == '__main__':
     icon_path = fr"{os.path.dirname(__file__)}\HandsOff.png"
     default_socket_timeout = None
     chkdsk_socket_timeout = 10
+    sfc_socket_timeout = 5
 
     # Configure system tray icon
     icon_image = PIL.Image.open(icon_path)
