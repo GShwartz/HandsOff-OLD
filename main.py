@@ -1,3 +1,4 @@
+import tkinter
 from datetime import datetime
 from threading import Thread
 import PIL.ImageTk
@@ -35,6 +36,7 @@ class App(tk.Tk):
     connHistory = []
     ips = []
     targets = []
+    top_windows = []
     buttons = []
     sidebar_buttons = []
     social_buttons = []
@@ -225,12 +227,19 @@ class App(tk.Tk):
                                                name="Client System Information Thread")
         clientSystemInformationThread.start()
 
+    # Grab Screenshot
     def screenshot_thread(self, con: str, ip: str, sname: str):
         screenThread = Thread(target=self.screenshot_command,
                               args=(con, ip, sname),
                               daemon=True,
                               name='Screenshot Thread')
         screenThread.start()
+
+    def show_available_connections_thread(self):
+        historyThread = Thread(target=self.show_available_connections,
+                               daemon=True,
+                               name="Available Connections Thread")
+        historyThread.start()
 
     # ==++==++==++== END THREADED FUNCS ==++==++==++== #
 
@@ -567,6 +576,14 @@ class App(tk.Tk):
             local_tools.logIt_thread(self.log_path, msg=f'Hiding app window...')
             self.withdraw()
             local_tools.logIt_thread(self.log_path, msg=f'Destroying app window...')
+            if len(self.targets) > 0:
+                for t in self.targets:
+                    try:
+                        t.send('exit'.encode())
+
+                    except socket.error:
+                        pass
+
             self.destroy()
 
     # Minimize Window
@@ -1266,9 +1283,8 @@ class App(tk.Tk):
             local_tools.logIt_thread(self.log_path, msg=f'Connection added to connection history.')
 
             local_tools.logIt_thread(self.log_path, msg=f'Calling self.welcome_message()...')
-            self.server_information()
-            self.show_available_connections()
-            self.connection_history_thread()
+
+            self.display_server_information_thread()
             self.welcome_message()
 
     # Server listener
@@ -2036,6 +2052,15 @@ class Maintenance:
         self.close_button.bind("<Leave>", self.on_close_leave)
 
     def close(self) -> None:
+        try:
+            self.con.send('break'.encode())
+
+        except (WindowsError, socket.error) as e:
+            app.update_statusbar_messages_thread(msg=f"ERROR: {e}")
+            local_tools.logIt_thread(app.log_path, msg=f"ERROR: {e}")
+            local_tools.logIt_thread(app.log_path, msg=f"Calling self.remove_lost_connection({self.con}, {self.ip})")
+            app.remove_lost_connection(self.con, self.ip)
+
         self.maintenance_window.destroy()
 
     def on_verify_hover(self, event) -> None:
@@ -2092,25 +2117,32 @@ class Maintenance:
                                 name="Maintenance Optimize Thread")
         optimizeThread.start()
 
+    def close_top(self) -> None:
+        self.maintenance_window.destroy()
+
     def verify(self) -> bool:
         try:
             local_tools.logIt_thread(app.log_path, msg=f'Sending verify command to {self.ip}...')
+            app.update_statusbar_messages_thread(msg=f'Sending verify command to {self.ip}...')
             self.con.send('sfcverify'.encode())
             local_tools.logIt_thread(app.log_path, msg=f'Send complete.')
             local_tools.logIt_thread(app.log_path, msg=f'Waiting for response from {self.ip}...')
-            self.con.settimeout(10)
             msg = self.con.recv(1024).decode()
-            self.con.settimeout(43200)
-            local_tools.logIt_thread(app.log_path, msg=f'Response: {msg}')
-            app.update_statusbar_messages_thread(msg=f'{self.ip}| {self.sname}: {self.msg}')
-            print(msg)
+            messagebox.showinfo(f"From: {self.ip} | {self.sname}", f"{msg}")
+            app.update_statusbar_messages_thread(msg=f'{self.ip} | {self.sname}: {msg}')
+            time.sleep(0.3)
+            self.close_top()
+            app.remove_lost_connection(self.con, self.ip)
+            app.refresh_command()
             return True
 
-        except (WindowsError, socket.error, socket.timeout) as e:
+        except (WindowsError, socket.errork) as e:
+            app.update_statusbar_messages_thread(msg=f'ERROR: {e}...')
             local_tools.logIt_thread(app.log_path, msg=f'ERROR: {e}...')
             local_tools.logIt_thread(app.log_path,
                                      msg=f'Calling self.remove_lost_connection({self.con}, {self.ip})')
             app.remove_lost_connection(self.con, self.ip)
+            app.refresh_command()
             return False
 
     def sfc_scan(self) -> bool:
@@ -2241,8 +2273,10 @@ class Maintenance:
 
                             except (WindowsError, socket.error) as e:
                                 local_tools.logIt_thread(msg=f"ERROR: {e}")
+                                return False
 
                         else:
+                            self.con.send('cancel'.encode())
                             return False
 
                 except (WindowsError, socket.error, socket.timeout) as e:
@@ -2313,12 +2347,19 @@ def on_icon_clicked(icon, item):
         app.deiconify()
 
     if str(item) == "Exit":
+        for t in app.targets:
+            try:
+                t.send('exit'.encode())
+
+            except socket.error:
+                pass
+
         app.destroy()
 
 
 if __name__ == '__main__':
     icon_path = fr"{os.path.dirname(__file__)}\HandsOff.png"
-    default_socket_timeout = 43200
+    default_socket_timeout = None
     chkdsk_socket_timeout = 10
 
     # Configure system tray icon
