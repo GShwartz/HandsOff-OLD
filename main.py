@@ -1,4 +1,3 @@
-import tkinter
 from datetime import datetime
 from threading import Thread
 import PIL.ImageTk
@@ -21,6 +20,7 @@ from tkinter import messagebox
 from tkinter import ttk
 from tkinter import *
 import tkinter as tk
+import tkinter
 
 # Local Modules
 from Modules import vital_signs
