@@ -83,7 +83,7 @@ class App(tk.Tk):
 
         # ======== GUI Config ===========
         # Set main window preferences
-        self.title("HandsOff - By Gil Shwartz @2022")
+        self.title("HandsOff")
         self.iconbitmap('HandsOff.ico')
 
         # Update screen geometry variables
