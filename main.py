@@ -32,6 +32,7 @@ from Modules import tasks
 
 class App(tk.Tk):
     clients = {}
+    clients_backup = {}
     connections = {}
     connHistory = []
     ips = []
@@ -184,15 +185,14 @@ class App(tk.Tk):
         connhistThread.start()
 
     # Disable Controller Buttons Thread
-    def disable_buttons_thread(self, sidebar=None, maintenance=None) -> None:
+    def disable_buttons_thread(self) -> None:
         disable = Thread(target=self.disable_buttons,
-                         args=(sidebar,),
                          daemon=True,
                          name="Disable Controller Buttons Thread")
         disable.start()
 
     # Enable Controller Buttons Thread
-    def enable_buttons_thread(self, maintenance=None) -> None:
+    def enable_buttons_thread(self) -> None:
         enable = Thread(target=self.enable_buttons,
                         daemon=True,
                         name="Enable Controller Buttons Thread")
@@ -597,7 +597,7 @@ class App(tk.Tk):
         return self.withdraw()
 
     # Enable Controller Buttons
-    def enable_buttons(self, maintenance=None):
+    def enable_buttons(self):
         local_tools.logIt_thread(self.log_path, msg=f'Running enable_buttons()...')
         for button in list(self.buttons):
             local_tools.logIt_thread(self.log_path, msg=f'Enabling {button.config("text")[-1]} button...')
@@ -608,37 +608,14 @@ class App(tk.Tk):
                                      msg=f'Enabling sidebar {sbutton.config("text")[-1]} button...')
             sbutton.config(state=NORMAL)
 
-        if maintenance:
-            for mbutton in list(self.maintenance_buttons):
-                local_tools.logIt_thread(self.log_path,
-                                         msg=f'Enabling maintenance {sbutton.config("text")[-1]} button...')
-                mbutton.config(state=NORMAL)
-
     # Disable Controller Buttons
-    def disable_buttons(self, sidebar=None, maintenance=None):
+    def disable_buttons(self):
         local_tools.logIt_thread(self.log_path, msg=f'Running disable_buttons(sidebar=None)...')
-        if sidebar:
-            for button in list(self.buttons):
-                local_tools.logIt_thread(self.log_path, msg=f'Disabling {button.config("text")[-1]} button...')
-                button.config(state=DISABLED)
+        for button in list(self.buttons):
+            local_tools.logIt_thread(self.log_path, msg=f'Disabling {button.config("text")[-1]}...')
+            button.config(state=DISABLED)
 
-            for sbutton in list(self.sidebar_buttons):
-                local_tools.logIt_thread(self.log_path,
-                                         msg=f'Disabling sidebar {sbutton.config("text")[-1]} button...')
-                sbutton.config(state=DISABLED)
-
-        if maintenance:
-            for mbutton in list(self.maintenance_buttons):
-                local_tools.logIt_thread(self.log_path,
-                                         msg=f'Disabling maintenance {mbutton.config("text")[-1]} button...')
-                mbutton.config(state=DISABLED)
-
-        else:
-            for button in list(self.buttons):
-                local_tools.logIt_thread(self.log_path, msg=f'Disabling {button.config("text")[-1]}...')
-                button.config(state=DISABLED)
-
-            return
+        return
 
     # Display file content in notebook
     def display_file_content(self, screenshot_path: str, filepath: str, tab: str, sname: str, txt='') -> bool:
@@ -744,7 +721,7 @@ class App(tk.Tk):
     def refresh_command(self, event=0) -> None:
         local_tools.logIt_thread(self.log_path, msg=f'Running refresh()...')
         local_tools.logIt_thread(self.log_path, msg=f'Calling self_disable_buttons_thread(sidebar=False)...')
-        self.disable_buttons_thread(sidebar=False)
+        self.disable_buttons_thread()
         local_tools.logIt_thread(self.log_path, msg=f'Resetting self.tmp_availables list...')
         self.tmp_availables = []
         local_tools.logIt_thread(self.log_path, msg=f'Calling self.vital_signs_thread()...')
@@ -767,7 +744,7 @@ class App(tk.Tk):
     def screenshot_command(self, con: str, ip: str, sname: str) -> bool:
         local_tools.logIt_thread(self.log_path, msg=f'Running screenshot({con}, {ip}, {sname})...')
         local_tools.logIt_thread(self.log_path, msg=f'Calling self.disable_buttons_thread()...')
-        self.disable_buttons_thread(sidebar=True)
+        self.disable_buttons_thread()
         self.update_statusbar_messages_thread(msg=f'fetching screenshot from {ip} | {sname}...')
         try:
             local_tools.logIt_thread(self.log_path, msg=f'Sending screen command to client...')
@@ -881,7 +858,7 @@ class App(tk.Tk):
     def sysinfo_command(self, con: str, ip: str, sname: str):
         local_tools.logIt_thread(self.log_path, msg=f'Running self.sysinfo({con}, {ip}, {sname})...')
         local_tools.logIt_thread(self.log_path, msg=f'Calling self.disable_buttons_thread(sidebar=True)...')
-        self.disable_buttons_thread(sidebar=True)
+        self.disable_buttons_thread()
         self.update_statusbar_messages_thread(msg=f'waiting for system information from {ip} | {sname}...')
         try:
             local_tools.logIt_thread(self.log_path, msg=f'Initializing Module: sysinfo...')
@@ -1030,7 +1007,7 @@ class App(tk.Tk):
 
         # Disable controller buttons
         local_tools.logIt_thread(self.log_path, msg=f'Calling self.disable_buttons_thread()...')
-        self.disable_buttons_thread(sidebar=True)
+        self.disable_buttons_thread()
         self.update_statusbar_messages_thread(msg=f'running tasks command on {ip} | {sname}.')
         local_tools.logIt_thread(self.log_path, debug=False, msg=f'Initializing Module: tasks...')
         tsks = tasks.Tasks(con, ip, self.clients, self.connections,
@@ -1164,17 +1141,33 @@ class App(tk.Tk):
 
     # Run Maintenance on Client
     def run_maintenance_command(self, con: str, ip: str, sname: str) -> None:
-        try:
-            con.send('maintenance'.encode())
-            self.remove_lost_connection(con, ip)
-            time.sleep(0.5)
-            self.refresh_command()
-            return True
+        local_tools.logIt_thread(app.log_path, msg=f"Sending maintenance command to {ip} | {sname}...")
+        self.update_statusbar_messages_thread(msg=f"Waiting for maintenance confirmation on {ip} | {sname}...")
+        sure = messagebox.askyesno(f"Maintenance for {ip} | {sname}", "Are you sure?")
+        if sure:
+            self.update_statusbar_messages_thread(msg=f"Sending maintenance command to {ip} | {sname}...")
+            try:
+                con.send('maintenance'.encode())
+                local_tools.logIt_thread(app.log_path, msg=f"Maintenance command sent.")
+                local_tools.logIt_thread(app.log_path, msg=f"Calling self.remove_lost_connection({con}, {ip})")
+                self.update_statusbar_messages_thread(msg=f"Maintenance command sent to {ip} | {sname}.")
+                local_tools.logIt_thread(msg=f"Calling self.remove_lost_connection({con}, {ip})")
+                self.remove_lost_connection(con, ip)
+                time.sleep(0.5)
+                local_tools.logIt_thread(app.log_path, msg=f"Calling self.refresh_command()...")
+                self.refresh_command()
+                return True
 
-        except (WindowsError, socket.error):
-            self.remove_lost_connection(con, ip)
-            time.sleep(0.5)
-            self.refresh_command()
+            except (WindowsError, socket.error) as e:
+                local_tools.logIt_thread(app.log_path, msg=f"ERROR: {e}.")
+                local_tools.logIt_thread(app.log_path, msg=f"Calling self.remove_lost_connection({con}, {ip})")
+                self.remove_lost_connection(con, ip)
+                time.sleep(0.5)
+                local_tools.logIt_thread(app.log_path, msg=f"Calling self.refresh_command()...")
+                self.refresh_command()
+                return False
+
+        else:
             return False
 
     # ==++==++==++== END Controller Buttons ==++==++==++==
@@ -1337,27 +1330,22 @@ class App(tk.Tk):
                 return False
 
     # Display Server Information
-    def server_information(self) -> dict:
+    def server_information(self) -> None:
         local_tools.logIt_thread(self.log_path, msg=f'Running show server information...')
         last_reboot = psutil.boot_time()
-        data = {
-            'Server_IP': self.serverIP,
-            'Server_Port': self.port,
-            'Last_Boot': datetime.fromtimestamp(last_reboot).replace(microsecond=0),
-            'Connected_Stations': len(self.targets)
-        }
         local_tools.logIt_thread(self.log_path, msg=f'Displaying Label: '
                                                     f'{self.serverIP} | {self.port} | '
                                                     f'{datetime.fromtimestamp(last_reboot).replace(microsecond=0)}" | '
                                                     f'{len(self.targets)}')
-        label = Label(self.top_bar_label,
-                      text=f"\t\t\t\t    Server IP: {self.serverIP}\t\tServer Port: {self.port}\t\t"
-                           f"Last Boot: {datetime.fromtimestamp(last_reboot).replace(microsecond=0)}\t\t"
-                           f"Connected Stations: {len(self.targets)}", anchor=CENTER, background='gainsboro')
+        label = Label(self.top_bar_label, background='ghost white',
+                      text=f"\t\t\tServer IP: {self.serverIP}\t\tServer Port: {self.port}\t\t"
+                           f"Last Boot: {datetime.fromtimestamp(last_reboot).replace(microsecond=0)}\t"
+                           f"Connected Stations: {len(self.targets)}                                 "
+                           f"                                           ", anchor=CENTER)
         label.grid(row=0, sticky='news')
-        return data
+        return
 
-    # Display Available Connections
+    # Display Available Stations
     def show_available_connections(self) -> None:
         local_tools.logIt_thread(self.log_path, msg=f'Running show_available_connections()...')
         if len(self.ips) == 0 and len(self.targets) == 0:
@@ -1431,7 +1419,7 @@ class App(tk.Tk):
         local_tools.logIt_thread(self.log_path, msg=f'Calling self.show_available_connections()...')
         self.show_available_connections()
         local_tools.logIt_thread(self.log_path, msg=f'Calling self.disable_buttons_thread(sidebar=False)...')
-        self.disable_buttons_thread(sidebar=False)
+        self.disable_buttons_thread()
         local_tools.logIt_thread(self.log_path, msg=f'Calling self.create_connection_history_table()...')
         self.create_connection_history_table()
 
@@ -1495,6 +1483,7 @@ class App(tk.Tk):
             if str(ans) == str(callback):
                 try:
                     local_tools.logIt_thread(self.log_path, msg=f'Iterating self.clients dictionary...')
+                    # TODO: Replace with
                     for conKey, ipValue in self.clients.items():
                         for ipKey, identValue in ipValue.items():
                             if t == conKey:
@@ -1526,23 +1515,6 @@ class App(tk.Tk):
         self.update_statusbar_messages_thread(msg=f'Vitals check completed.')
         local_tools.logIt_thread(self.log_path, msg=f'=== End of vital_signs() ===')
         return True
-
-    # Get Connected Targets
-    def connected_targets(self):
-        local_tools.logIt_thread(self.log_path, msg=f'Running connected_targets()...')
-        for item in self.tmp_availables:
-            for conKey, ipValue in self.clients.items():
-                for macKey, ipVal in ipValue.items():
-                    for ipKey, identVal in ipVal.items():
-                        if item[2] == ipKey:
-                            session = item[0]
-                            stationMAC = item[1]
-                            stationIP = item[2]
-                            stationName = item[3]
-                            loggedUser = item[4]
-                            clientVersion = item[5]
-
-                            return session, stationMAC, stationIP, stationName, loggedUser, clientVersion
 
     # Shell Connection to Client
     def shell(self, con: str, ip: str, sname: str) -> None:
@@ -1737,7 +1709,7 @@ class App(tk.Tk):
             return False
 
         local_tools.logIt_thread(self.log_path, msg=f'Calling self.disable_buttons_thread()...')
-        self.disable_buttons_thread(sidebar=False)
+        self.disable_buttons_thread()
         url_window.wait_window(self)
 
     # Show Help
@@ -1951,313 +1923,6 @@ class About:
 
     def on_linkedin_click(self, url):
         return webbrowser.open_new_tab(url)
-
-
-class Maintenance:
-    def __init__(self, con, ip, sname):
-        self.con = con
-        self.ip = ip
-        self.sname = sname
-        self.cleanup = BooleanVar()
-        self.opt = BooleanVar()
-        self.chkdsk = BooleanVar()
-        self.local_tools = Locals()
-
-        self.WIDTH = app.WIDTH
-        self.HEIGHT = app.HEIGHT
-        self.top_width = 500
-        self.top_height = 430
-        self.maintenance_window = tk.Toplevel()
-        self.maintenance_window.title(f"HandsOff - Maintenance for {ip} | {sname}")
-        self.maintenance_window.iconbitmap('HandsOff.ico')
-
-        # Update screen geometry variables
-        app.update_idletasks()
-
-        # Set Mid Screen Coordinates
-        x = (self.WIDTH / 2) - (self.top_width / 2)
-        y = (self.HEIGHT / 2) - (self.top_height / 2)
-
-        # Set Window Size & Location & Center Window
-        self.maintenance_window.geometry(f'{self.top_width}x{self.top_height}+{int(x)}+{int(y)}')
-        self.maintenance_window.configure(background='slate gray', takefocus=True)
-        self.maintenance_window.grid_columnconfigure(0, weight=1)
-        self.maintenance_window.grid_rowconfigure(11, weight=1)
-        self.maintenance_window.maxsize(self.top_width, self.top_height)
-        self.maintenance_window.minsize(self.top_width, self.top_height)
-        self.maintenance_window.focus_set()
-
-    def send_maintenance_command(self):
-        local_tools.logIt_thread(app.log_path, msg=f"Sending maintenance command to {self.ip}...")
-        try:
-            self.con.send('maintenance'.encode())
-            local_tools.logIt_thread(app.log_path, msg=f"Maintenance command sent.")
-            return True
-
-        except (WindowsError, socket.error) as e:
-            local_tools.logIt_thread(app.log_path, msg=f"ERROR: {e}")
-            app.update_statusbar_messages_thread(msg=f"ERROR: {e}")
-            app.remove_lost_connection(self.con, self.ip)
-            return False
-
-    def run(self):
-        local_tools.logIt_thread(app.log_path, msg=f"Running self.run()...")
-        local_tools.logIt_thread(app.log_path, msg=f"Calling self.send_maintenance_command()...")
-        self.send_maintenance_command()
-
-        self.sfc_label = Label(self.maintenance_window, relief='sunken',
-                               background='slate gray', foreground='white')
-        self.sfc_label.configure(width=20)
-        self.sfc_label.configure(text="OS Scan & Repair")
-        self.sfc_label.grid(row=0, column=0, sticky='we', pady=5)
-
-        self.sfc_verify_button = Button(self.maintenance_window, text='SFC Verify Only',
-                                        relief='raised', background='SkyBlue2', anchor=CENTER, width=40,
-                                        command=self.verify_thread)
-        self.sfc_verify_button.grid(row=1, column=0, pady=5, ipadx=10)
-        self.sfc_verify_button.bind("<Enter>", self.on_verify_hover)
-        self.sfc_verify_button.bind("<Leave>", self.on_verify_leave)
-        app.maintenance_buttons.append(self.sfc_verify_button)
-
-        self.sfc_scan_button = Button(self.maintenance_window, text='SFC Scan & Repair',
-                                      relief='raised', background='SkyBlue2', anchor=CENTER, width=40,
-                                      command='')
-        self.sfc_scan_button.grid(row=2, column=0, pady=5, ipadx=10)
-        self.sfc_scan_button.bind("<Enter>", self.on_scan_hover)
-        self.sfc_scan_button.bind("<Leave>", self.on_scan_leave)
-        app.maintenance_buttons.append(self.sfc_scan_button)
-
-        self.dism_online_button = Button(self.maintenance_window, text='DISM Online Health Restoration',
-                                         relief='raised', background='SkyBlue2', anchor=CENTER, width=40,
-                                         command='')
-        self.dism_online_button.grid(row=3, column=0, pady=5, ipadx=10)
-        self.dism_online_button.bind("<Enter>", self.on_dism_online_hover)
-        self.dism_online_button.bind("<Leave>", self.on_dism_online_leave)
-        app.maintenance_buttons.append(self.dism_online_button)
-
-        self.hard_disk_label = Label(self.maintenance_window, relief='sunken', background='slate gray',
-                                     foreground='white')
-        self.hard_disk_label.configure(width=20)
-        self.hard_disk_label.configure(text='Hard Disk Maintenance')
-        self.hard_disk_label.grid(row=4, column=0, sticky='ew', pady=5)
-
-        self.disk_cleanup_label = Label(self.maintenance_window, text='Disk Cleanup',
-                                        background='slate gray', pady=5, font=('Arial Black', 10), foreground='white')
-        self.disk_cleanup_label.grid(row=5, column=0, sticky='we')
-        self.disk_cleanup_checkbox = Checkbutton(self.maintenance_window, variable=self.cleanup,
-                                                 onvalue=True, offvalue=False,
-                                                 background='slate gray', selectcolor='ghost white',
-                                                 activebackground='slate gray')
-        self.disk_cleanup_checkbox.grid(row=6, column=0)
-
-        self.optimize_label = Label(self.maintenance_window, text='Optimize HD', font=('Arial Black', 10),
-                                    foreground='white',
-                                    background='slate gray', pady=5)
-        self.optimize_label.grid(row=7, sticky='we')
-        self.optimize_checkbox = Checkbutton(self.maintenance_window, variable=self.opt,
-                                             onvalue=True, offvalue=False,
-                                             background='slate gray', selectcolor='ghost white',
-                                             activebackground='slate gray')
-        self.optimize_checkbox.grid(row=8, column=0)
-
-        self.chkdsk_label = Label(self.maintenance_window, text='ChkDsk',
-                                  background='slate gray', pady=5, font=('Arial Black', 10), foreground='white')
-        self.chkdsk_label.grid(row=9, column=0, sticky='we')
-        self.chkdsk_checkbox = Checkbutton(self.maintenance_window, variable=self.chkdsk,
-                                           onvalue=True, offvalue=False,
-                                           background='slate gray', selectcolor='ghost white',
-                                           activebackground='slate gray')
-        self.chkdsk_checkbox.grid(row=10, column=0)
-
-        self.run_optimize_button = Button(self.maintenance_window, text='Run Disk Maintenance',
-                                          relief='raised', background='SkyBlue2', anchor=CENTER, width=40,
-                                          command=self.optimize_thread)
-        self.run_optimize_button.grid(row=11, column=0, pady=5, ipadx=10)
-        self.run_optimize_button.bind("<Enter>", self.on_run_optimize_hover)
-        self.run_optimize_button.bind("<Leave>", self.on_run_optimize_leave)
-        app.maintenance_buttons.append(self.run_optimize_button)
-
-        self.close_button = Button(self.maintenance_window, text='Close',
-                                   relief='raised', background='SkyBlue2',
-                                   command=self.close)
-        self.close_button.grid(row=12, column=0, sticky='ew', pady=10, ipady=5, padx=10, ipadx=5)
-        self.close_button.bind("<Enter>", self.on_close_hover)
-        self.close_button.bind("<Leave>", self.on_close_leave)
-
-    def close(self) -> None:
-        try:
-            self.con.send('break'.encode())
-
-        except (WindowsError, socket.error) as e:
-            app.update_statusbar_messages_thread(msg=f"ERROR: {e}")
-            local_tools.logIt_thread(app.log_path, msg=f"ERROR: {e}")
-            local_tools.logIt_thread(app.log_path, msg=f"Calling self.remove_lost_connection({self.con}, {self.ip})")
-            app.remove_lost_connection(self.con, self.ip)
-
-        self.maintenance_window.destroy()
-
-    def on_verify_hover(self, event) -> None:
-        self.sfc_verify_button.config(background='ghost white')
-
-    def on_verify_leave(self, event) -> None:
-        self.sfc_verify_button.config(background='SkyBlue2')
-
-    def on_scan_hover(self, event) -> None:
-        self.sfc_scan_button.config(background='ghost white')
-
-    def on_scan_leave(self, event) -> None:
-        self.sfc_scan_button.config(background='SkyBlue2')
-
-    def on_dism_online_hover(self, event) -> None:
-        self.dism_online_button.config(background='ghost white')
-
-    def on_dism_online_leave(self, event) -> None:
-        self.dism_online_button.config(background='SkyBlue2')
-
-    def on_run_optimize_hover(self, event) -> None:
-        self.run_optimize_button.config(background='ghost white')
-
-    def on_run_optimize_leave(self, event) -> None:
-        self.run_optimize_button.config(background='SkyBlue2')
-
-    def on_close_hover(self, event) -> None:
-        self.close_button.config(background='ghost white')
-
-    def on_close_leave(self, event) -> None:
-        self.close_button.config(background='SkyBlue2')
-
-    def verify_thread(self) -> None:
-        verifyThread = Thread(target=self.verify,
-                              daemon=True,
-                              name="Maintenance Verify Thread")
-        verifyThread.start()
-
-    def scan_thread(self) -> None:
-        scanThread = Thread(target=self.sfc_scan,
-                            daemon=True,
-                            name="Maintenance Scan Thread")
-        scanThread.start()
-
-    def dism_online_thread(self) -> None:
-        dismOnlineThread = Thread(target=self.dism_online,
-                                  daemon=True,
-                                  name="Maintenance DISM Online Thread")
-        dismOnlineThread.start()
-
-    def optimize_thread(self) -> None:
-        optimizeThread = Thread(target=self.hard_disk,
-                                daemon=True,
-                                name="Maintenance Optimize Thread")
-        optimizeThread.start()
-
-    def close_top(self) -> None:
-        self.maintenance_window.destroy()
-
-    def hard_disk(self) -> bool:
-        if self.cleanup.get() and self.opt.get() and self.chkdsk:
-            try:
-                app.local_tools.logIt_thread(app.log_path, msg=f'Sending verify command to {self.ip}...')
-                self.con.send('hdfull'.encode())
-                app.local_tools.logIt_thread(app.log_path, msg=f'Waiting for response from {self.ip}...')
-                self.con.settimeout(10)
-                msg = self.con.recv(1024).decode()
-                self.con.settimeout(43200)
-                app.local_tools.logIt_thread(app.log_path, msg=f'Response: {msg}')
-                app.update_statusbar_messages_thread(msg=f'{self.ip}| {self.sname}: {self.msg}')
-                print(msg)
-                return True
-
-            except (WindowsError, socket.error, socket.timeout) as e:
-                app.local_tools.logIt_thread(app.log_path, msg=f'ERROR: {e}...')
-                app.local_tools.logIt_thread(app.log_path,
-                                             msg=f'Calling self.remove_lost_connection({self.con}, {self.ip})')
-                app.remove_lost_connection(self.con, self.ip)
-                return False
-
-        if self.cleanup.get():
-            try:
-                local_tools.logIt_thread(app.log_path, msg=f'Sending verify command to {self.ip}...')
-                self.con.settimeout(10)
-                self.con.send('cleanup'.encode())
-                self.con.settimeout(43200)
-                local_tools.logIt_thread(app.log_path, msg=f'Waiting for response from {self.ip}...')
-                msg = self.con.recv(1024).decode()
-                local_tools.logIt_thread(app.log_path, msg=f'Response: {msg}')
-                app.update_statusbar_messages_thread(msg=f'{self.ip}| {self.sname}: {msg}')
-                print(msg)
-                return True
-
-            except (WindowsError, socket.error, socket.timeout) as e:
-                local_tools.logIt_thread(app.log_path, msg=f'ERROR: {e}...')
-                local_tools.logIt_thread(app.log_path,
-                                         msg=f'Calling self.remove_lost_connection({self.con}, {self.ip})')
-                app.remove_lost_connection(self.con, self.ip)
-                return False
-
-        elif self.opt.get():
-            try:
-                app.local_tools.logIt_thread(app.log_path, msg=f'Sending verify command to {self.ip}...')
-                self.con.send('optimize'.encode())
-                app.local_tools.logIt_thread(app.log_path, msg=f'Waiting for response from {self.ip}...')
-                self.con.settimeout(10)
-                msg = self.con.recv(1024).decode()
-                self.con.settimeout(43200)
-                app.local_tools.logIt_thread(app.log_path, msg=f'Response: {msg}')
-                app.update_statusbar_messages_thread(msg=f'{self.ip}| {self.sname}: {self.msg}')
-                print(msg)
-                return True
-
-            except (WindowsError, socket.error, socket.timeout) as e:
-                app.local_tools.logIt_thread(app.log_path, msg=f'ERROR: {e}...')
-                app.local_tools.logIt_thread(app.log_path,
-                                             msg=f'Calling self.remove_lost_connection({self.con}, {self.ip})')
-                app.remove_lost_connection(self.con, self.ip)
-                return False
-
-        elif self.chkdsk.get():
-            local_tools.logIt_thread(app.log_path, msg=f'Prompting ChkDsk Confirmation...')
-            sure = messagebox.askyesno(f"ChkDsk on {self.ip} | {self.sname}",
-                                       "ChkDsk will start on the machine's next restart.\n"
-                                       "Are you sure?")
-            if sure:
-                app.update_statusbar_messages_thread(msg=f'sending ChkDsk command to {self.ip} | {self.sname}..')
-                local_tools.logIt_thread(app.log_path, msg=f'sending ChkDsk command to {self.ip} | {self.sname}..')
-                try:
-                    local_tools.logIt_thread(app.log_path, msg=f'Sending verify command to {self.ip}...')
-                    self.con.send('chkdsk'.encode())
-                    local_tools.logIt_thread(app.log_path, msg=f'Waiting for response from {self.ip}...')
-                    self.con.settimeout(chkdsk_socket_timeout)
-                    msg = self.con.recv(1024).decode()
-                    self.con.settimeout(default_socket_timeout)
-                    local_tools.logIt_thread(app.log_path, msg=f'Response: {msg}')
-                    app.update_statusbar_messages_thread(msg=f'{self.ip}| {self.sname}: {msg}')
-                    messagebox.showinfo(f"From {self.ip} | {self.sname}", {msg})
-
-                    if str(msg) == 'ChkDsk Scheduled':
-                        restart = messagebox.askyesno(f"Restart {self.ip} | {self.sname}",
-                                                      f"Restart {self.ip} | {self.sname}?\t\t")
-                        if restart:
-                            try:
-                                self.con.send('restart'.encode())
-                                return True
-
-                            except (WindowsError, socket.error) as e:
-                                local_tools.logIt_thread(msg=f"ERROR: {e}")
-                                return False
-
-                        else:
-                            self.con.send('cancel'.encode())
-                            return False
-
-                except (WindowsError, socket.error, socket.timeout) as e:
-                    local_tools.logIt_thread(app.log_path, msg=f'ERROR: {e}...')
-                    local_tools.logIt_thread(app.log_path,
-                                             msg=f'Calling self.remove_lost_connection({self.con}, {self.ip})')
-                    app.remove_lost_connection(self.con, self.ip)
-                    return False
-
-            else:
-                return True
 
 
 class Locals:
