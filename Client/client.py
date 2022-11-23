@@ -39,6 +39,8 @@ class Client:
         if not os.path.exists(f'{self.main_path}'):
             os.makedirs(self.main_path)
 
+        self.ps_path = self.ps_path = rf'{self.main_path}\maintenance.ps1'
+
     def connection(self) -> None:
         self.logIt_thread(log_path, msg=f'Running connection()...')
         while True:
@@ -124,77 +126,62 @@ class Client:
             self.logIt_thread(log_path, msg=f'File Error: {e}')
             return False
 
-    def sfc_scan(self) -> bool:
-        soc.send('Starting SFC Verification...'.encode())
-        output = check_output(["sfc", "/scannow"]).decode()
-        try:
-            soc.send(str(output).encode())
+    def maintenance_socket_thread(self):
+        pass
 
-        except (ConnectionResetError, WindowsError, socket.error):
-            return False
+    def maintenance_socket(self):
+        pass
+
+    def maintenance_thread(self):
+        mThread = Thread(target=self.maintenance,
+                         daemon=True,
+                         name="Maintenance Thread")
+        mThread.start()
 
     def maintenance(self) -> bool:
-        while True:
-            self.logIt_thread(log_path, msg=f'Waiting for maintenance command...')
-            try:
-                maintenance_command = soc.recv(1024).decode()
-                self.logIt_thread(log_path, msg=f'Maintenance command: {maintenance_command}')
+        self.logIt_thread(self.log_path, msg='Running make_script()...')
 
-            except (WindowsError, socket.error, socket.timeout) as e:
-                self.logIt_thread(log_path, msg=f'Error: {e}')
-                return False
+        # Schedule ChkDsk
+        self.logIt_thread(self.log_path, msg=f"Scheduling ChkDsk...")
+        p = Popen(['chkdsk', 'c:', '/r', '/x', '/b'], stdin=PIPE, stdout=PIPE)
+        output, _ = p.communicate(b'y')
 
-            # Close Maintenance
-            if str(maintenance_command).lower() == "break":
-                break
+        self.logIt_thread(self.log_path, msg=f'Writing script to {self.ps_path}...')
+        with open(self.ps_path, 'w') as file:
+            file.write(r"""
+$HKLM = [UInt32] “0x80000002”
+$strKeyPath = “SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\VolumeCaches”
+$strValueName = “StateFlags0065”
 
-            # Perform SFC /Verify
-            if str(maintenance_command).lower() == "sfcverify":
-                soc.send('Starting SFC Verification...'.encode())
-                p = Popen(['sfc', '/verifyonly'])
-                soc.close()
-                break
+$subkeys = gci -Path HKLM:\$strKeyPath -Name
+Try {
+New-ItemProperty -Path HKLM:\$strKeyPath\$subkey -Name $strValueName -PropertyType DWord -Value 2 -ErrorAction SilentlyContinue| Out-Null
+}
+Catch {
+}
+try {
+Start-Process cleanmgr -ArgumentList “/sagerun:65” -Wait -NoNewWindow -ErrorAction SilentlyContinue -WarningAction SilentlyContinue
+}
+catch {
+}
+Try {
+Remove-ItemProperty -Path HKLM:\$strKeyPath\$subkey -Name $strValueName | Out-Null
+}
+Catch {
+}
 
-            # Perform SFC /Scannow
-            if str(maintenance_command).lower() == "sfcscan":
-                pass
+sfc /scannow
+DISM /Online /Cleanup-Image /Restorehealth
+""")
+            file.write('\nshutdown /r /t 1')
+        self.logIt_thread(self.log_path, msg=f'Writing script to {self.ps_path} completed.')
+        time.sleep(0.2)
 
-            # Perform DISM Online Restore
-            if str(maintenance_command).lower() == "dismonline":
-                pass
+        self.logIt_thread(self.log_path, msg=f'Running maintenance script...')
+        ps = subprocess.Popen(["powershell.exe", rf"{self.ps_path}"], stdout=sys.stdout)
+        ps.communicate()
 
-            # Perform Full HD maintenance: Clean, Optimize, ChkDsk
-            if str(maintenance_command).lower() == "hdfull":
-                pass
-
-            # Perform HD Cleanup
-            if str(maintenance_command).lower() == "cleanup":
-                pass
-
-            # Perform HD Optimization
-            if str(maintenance_command).lower() == "optimize":
-                pass
-
-            # Perform ChkDsk
-            if str(maintenance_command).lower() == "chkdsk":
-                p = Popen(['chkdsk', 'c:', '/r', '/x', '/b'], stdin=PIPE, stdout=PIPE)
-                output, _ = p.communicate(b'y')
-                self.logIt_thread(log_path, msg=f'Sending confirmation to {self.server_host}...')
-                try:
-                    soc.send('ChkDsk Scheduled'.encode())
-                    self.logIt_thread(log_path, msg=f'Waiting for Restart confirmation...')
-                    confirm = soc.recv(1024).decode()
-                    if str(confirm).lower() == 'restart':
-                        os.system('shutdown /r /t 1')
-
-                    else:
-                        soc.send('Restart Canceled'.encode())
-                        continue
-
-                except (WindowsError, socket.error) as e:
-                    self.logIt_thread(log_path, msg=f'ERROR: {e}')
-                    return False
-        return True
+        self.logIt_thread(self.log_path, msg=f'Rebooting.')
 
     def backdoor(self, soc):
         def intro():
@@ -383,7 +370,9 @@ class Client:
 
                     # Maintenance
                     elif str(command.lower()) == "maintenance":
-                        self.maintenance()
+                        self.maintenance_thread()
+                        self.connection()
+                        self.backdoor(soc)
 
                     # Close Connection
                     elif str(command.lower())[:4] == "exit":
@@ -450,6 +439,29 @@ def on_clicked(icon, item):
                 break
 
         window.close()
+
+
+def maintenance_channel():
+    while True:
+        for server in servers:
+            client = Client(server, app_path, log_path)
+
+            try:
+                client.logIt_thread(log_path, msg='Creating Socket...')
+                soc2 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                client.logIt_thread(log_path, msg='Defining socket to Reuse address...')
+                soc2.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                client.logIt_thread(log_path, msg=f'connecting to {server}...')
+                soc2.connect(server)
+                client.logIt_thread(log_path, msg=f'Calling backdoor({soc2})...')
+                client.backdoor(soc2)
+
+            except (WindowsError, socket.error) as e:
+                client.logIt_thread(log_path, msg=f'Connection Error: {e}')
+                soc2.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                client.logIt_thread(log_path, msg=f'Closing socket...')
+                soc2.close()
+                time.sleep(1)
 
 
 if __name__ == "__main__":
