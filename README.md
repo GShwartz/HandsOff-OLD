@@ -15,7 +15,8 @@ You can also perform maintenance on the remote station and update the station's 
 
 ### Main Features ###
 - Grab Screenshot from the Remote Station
-- Run Anydesk On The Remote Station
+- Run Anydesk On The Remote Station: <br />
+  * If anydesk isn't installed on the remote machine, the app downloads and installs & runs it. <br />
 - View Remote Station's Last Restart Time
 - View Remote Station'sSystem Information
 - View & Kill Remote Station's Running Tasks
@@ -34,15 +35,16 @@ You can also perform maintenance on the remote station and update the station's 
 ---
 # Installation #
 ## Controller ##
-* HandsOff needs Python 3.10.8 at least.
+* HandsOff runs on Python <= 3.10.8
 * Clone Repo
-* open CMD and run pip install -r requirements.txt
+* open CMD, navigate to dir and run pip install -r requirements.txt
 * run python main.py
 
 ## Client ##
-*** The installaion doesn't include the exe file since it is too big for hosting here.
 * Navigate to Client Folder
-* Run Setup.exe
+* Run python client.py
+  - you can also setup autorun @startup using registery or creating a bat file inside StartUp folder that runs the client, <br />
+  or use the scripts [here](https://github.com/GShwartz/HandsOff/tree/main/Client).
 ---
 
 
