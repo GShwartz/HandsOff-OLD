@@ -52,9 +52,6 @@ You can also perform maintenance on the remote station and update the station's 
 ![about](https://github.com/GShwartz/HandsOff/raw/main/Images/POC/about.JPG)
 
 ------
-### Maintenance
-![maintenance](https://github.com/GShwartz/HandsOff/raw/main/Images/POC/maintenance.JPG)
-
 ### Main Window
 ![main window](https://github.com/GShwartz/HandsOff/raw/main/Images/POC/main_window.JPG)
 
