@@ -42,14 +42,14 @@ You can also perform maintenance on the remote station and update the station's 
 * run python main.py
 
 ## Client ##
-### Important!!! <br />
+### Important!!!
   the server runs on local ip addr so it needs to be changed on the client script.
 * Navigate to Client Folder
 * Run python client.py
   - you can also setup autorun @startup using registery or creating a bat file inside StartUp folder that runs the client, <br />
   or use the scripts [here](https://github.com/GShwartz/HandsOff/tree/main/Client).
 
-the client runs an icon inside system tray, no exit options.
+#### the client runs an icon inside system tray, no exit options.
 ---
 
 
