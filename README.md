@@ -38,9 +38,12 @@ You can also perform maintenance on the remote station and update the station's 
 * HandsOff runs on Python <= 3.10.8
 * Clone Repo
 * open CMD, navigate to dir and run pip install -r requirements.txt
+* change the ip addr/port according to your wished inside main.py
 * run python main.py
 
 ## Client ##
+### Important!!! <br />
+  the server runs on local ip addr so it needs to be changed on the client script.
 * Navigate to Client Folder
 * Run python client.py
   - you can also setup autorun @startup using registery or creating a bat file inside StartUp folder that runs the client, <br />
