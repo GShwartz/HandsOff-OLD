@@ -4,7 +4,7 @@ import time
 
 
 class Server:
-    def __init__(self, local_tools, log_path, app):
+    def __init__(self, local_tools, log_path, app, ip, port):
         self.clients = {}
         self.clients_backup = {}
         self.connections = {}
@@ -12,9 +12,9 @@ class Server:
         self.ips = []
         self.targets = []
         self.ttl = 5
-        self.port = 55400
+        self.port = port
         self.hostname = socket.gethostname()
-        self.serverIP = str(socket.gethostbyname(self.hostname))
+        self.serverIP = ip
         self.local_tools = local_tools
         self.log_path = log_path
         self.app = app
