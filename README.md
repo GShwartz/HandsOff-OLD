@@ -1,19 +1,16 @@
-# HandsOff #
+# HandsOff
 ![logo](https://github.com/GShwartz/HandsOff/raw/main/Images/HandsOff_resized.png) <br />
 ### A small and free <i>Client</i> <-> <i>Server</i> solution for IT & HD specialists.  <br />
 
-## The Idea ##
+### The Idea
 Do you love your job but hate the custumer's <b>technophobic</b> nature and unwillingness to cooperate? <br />
-<b>ME TOO!</b> <br /><br />
+<b>ME TOO!</b> <br /><br /> 
 This is where <b>HandsOff</b> comes in. <br />
 The entire idea behind this solution is that the other side only holds the <b>phone</b> and nothing else<br />
-You can also perform maintenance on the remote station and update the station's client remotely.
-* Since this is a pet project I don't have any steady hosting space to hold the exe files so I added a feature <br />
-  that allows you to manually enter the new download url which will be published here. <br />
+** Maintenance & Update options are unavailable ATM.
 
 ---
-
-### Main Features ###
+### Main Features
 - Grab Screenshot from the Remote Station
 - Run Anydesk On The Remote Station: <br />
   * If anydesk isn't installed on the remote machine, the app downloads and installs & runs it. <br />
@@ -25,7 +22,7 @@ You can also perform maintenance on the remote station and update the station's 
 - Update Remote Station's Client
 - Run Maintenance On The Remote Station
 
-### Menubar Tools ###
+### Menubar Tools
 - Refresh Connections
 - Clear Details Window
 - Save Connection History
@@ -38,18 +35,20 @@ You can also perform maintenance on the remote station and update the station's 
 * HandsOff runs on Python >= 3.10.8
 * Clone Repo
 * open CMD, navigate to dir and run pip install -r requirements.txt
-* change the ip addr/port according to your wished inside main.py
+* change the ip addr/port according to your wished inside main.py OR <br />
+  run python main.py -i [ip] -p [port] <br />
+  -- keep in mind you'll have to change the ip address in the client file or run the client the same as you run the server.
 * run python main.py
 
 ## Client ##
 ### Important!!!
-  the server runs on local ip addr so it needs to be changed on the client script.
+  Remember to use the same IP address and port for both main & client files.
 * Navigate to Client Folder
-* Run python client.py
+* Run python client.py OR python client -i [ip_to_connect_to] -p [port]
   - you can also setup autorun @startup using registery or creating a bat file inside StartUp folder that runs the client, <br />
   or use the scripts [here](https://github.com/GShwartz/HandsOff/tree/main/Client).
 
-#### the client runs an icon inside system tray, no exit options.
+#### the client runs an icon inside system tray, no exit options on purpse.
 ---
 
 
