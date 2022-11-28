@@ -13,7 +13,7 @@ The entire idea behind this solution is that the other side only holds the <b>ph
 ### Main Features
 - Grab Screenshot from the Remote Station
 - Run Anydesk On The Remote Station: <br />
-  * If anydesk isn't installed on the remote machine, the app downloads and installs & runs it. <br />
+  * If anydesk isn't installed on the remote machine, the app downloads, installs & runs it. <br />
 - View Remote Station's Last Restart Time
 - View Remote Station'sSystem Information
 - View & Kill Remote Station's Running Tasks
