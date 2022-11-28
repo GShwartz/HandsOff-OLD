@@ -35,7 +35,7 @@ You can also perform maintenance on the remote station and update the station's 
 ---
 # Installation #
 ## Controller ##
-* HandsOff runs on Python <= 3.10.8
+* HandsOff runs on Python >= 3.10.8
 * Clone Repo
 * open CMD, navigate to dir and run pip install -r requirements.txt
 * change the ip addr/port according to your wished inside main.py
