@@ -8,7 +8,7 @@ import os
 
 
 class Tasks:
-    def __init__(self, con, ip, clients, connections, targets, ips, tmp_availables, root, log_path, path, sname):
+    def __init__(self, con, ip, clients, connections, targets, ips, tmp_availables, log_path, path, sname):
         self.con = con
         self.ip = ip
         self.clients = clients
@@ -16,7 +16,6 @@ class Tasks:
         self.targets = targets
         self.ips = ips
         self.tmp_availables = tmp_availables
-        self.root = root
         self.log_path = log_path
         self.path = path
         self.sname = sname
@@ -92,14 +91,18 @@ class Tasks:
             self.logIt_thread(self.log_path, msg=f'Send complete.')
 
             self.logIt_thread(self.log_path, msg=f'Waiting for filename from {ip}...')
+            self.con.settimeout(10)
             filenameRecv = self.con.recv(1024).decode()
+            self.con.settimeout(None)
             self.logIt_thread(self.log_path, msg=f'Filename: {filenameRecv}.')
 
             self.logIt_thread(self.log_path, msg=f'Sleeping for {0.5} seconds...')
             time.sleep(1)
 
             self.logIt_thread(self.log_path, msg=f'Waiting for file size from {ip}...')
+            self.con.settimeout(10)
             size = self.con.recv(4)
+            self.con.settimeout(None)
             self.logIt_thread(self.log_path, msg=f'Size: {size}.')
 
             self.logIt_thread(self.log_path, msg=f'Converting size bytes to numbers...')
@@ -115,6 +118,7 @@ class Tasks:
 
             self.logIt_thread(self.log_path, msg=f'Writing content to {filenameRecv}...')
             with open(filenameRecv, 'wb') as tsk_file:
+                self.con.settimeout(60)
                 while current_size < size:
                     self.logIt_thread(self.log_path, msg=f'Receiving file content from {ip}...')
                     data = self.con.recv(1024)
@@ -127,6 +131,7 @@ class Tasks:
                     buffer += data
                     current_size += len(data)
                     tsk_file.write(data)
+                self.con.settimeout(None)
 
             self.logIt_thread(self.log_path, msg=f'Printing file content to screen...')
             with open(filenameRecv, 'r') as file:
@@ -137,7 +142,9 @@ class Tasks:
             self.logIt_thread(self.log_path, msg=f'Send complete.')
 
             self.logIt_thread(self.log_path, msg=f'Waiting for closer from {ip}...')
+            self.con.settimeout(10)
             msg = self.con.recv(1024).decode()
+            self.con.settimeout(None)
             self.logIt_thread(self.log_path, msg=f'{ip}: {msg}')
 
             # Move screenshot file to directory
