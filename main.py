@@ -34,6 +34,7 @@ from Modules import screenshot
 from Modules import freestyle
 from Modules import sysinfo
 from Modules import tasks
+from Modules.server import Server
 
 
 class App(tk.Tk):
@@ -60,17 +61,18 @@ class App(tk.Tk):
         self.style = ttk.Style()
         self.update_url = StringVar()
         self.new_url = ''
+        self.server = Server(local_tools, log_path, self)
 
         # ======== Server Config ==========
         # Start listener
-        server.listener()
+        self.server.listener()
 
         # Create local app DIR
         if not os.path.exists(path):
             os.makedirs(path)
 
         # Run Listener Thread
-        listenerThread = Thread(target=server.run,
+        listenerThread = Thread(target=self.server.run,
                                 daemon=True,
                                 name="Listener Thread")
         listenerThread.start()
@@ -142,7 +144,7 @@ class App(tk.Tk):
 
     # Vitals Thread
     def vital_signs_thread(self) -> None:
-        vitalsThread = Thread(target=server.vital_signs,
+        vitalsThread = Thread(target=self.server.vital_signs,
                               daemon=True,
                               name="Vitals Thread")
         vitalsThread.start()
@@ -283,7 +285,7 @@ class App(tk.Tk):
         tools.add_command(label="Save Connection History    <F10>", command=self.save_connection_history_thread)
         tools.add_command(label="Restart All Clients                 <F11>", command=self.restart_all_clients_thread)
         tools.add_command(label="Update All Clients                <F12>", command=self.update_all_clients_thread,
-                          state=NORMAL)
+                          state=DISABLED)
 
         helpbar.add_command(label="Help", command=self.show_help_thread)
         helpbar.add_command(label="About", command=self.about)
@@ -708,7 +710,7 @@ class App(tk.Tk):
         local_tools.logIt_thread(log_path, msg=f'Calling self_disable_buttons_thread(sidebar=False)...')
         self.disable_buttons_thread()
         local_tools.logIt_thread(log_path, msg=f'Resetting self.tmp_availables list...')
-        server.tmp_availables = []
+        self.server.tmp_availables = []
         local_tools.logIt_thread(log_path, msg=f'Calling self.vital_signs_thread()...')
         self.vital_signs_thread()
         local_tools.logIt_thread(log_path, msg=f'Calling self.server_information()...')
@@ -736,8 +738,8 @@ class App(tk.Tk):
             con.send('screen'.encode())
             local_tools.logIt_thread(log_path, msg=f'Send Completed.')
             local_tools.logIt_thread(log_path, msg=f'Initializing screenshot module...')
-            scrnshot = screenshot.Screenshot(con, path, server.tmp_availables,
-                                             server.clients, log_path, server.targets)
+            scrnshot = screenshot.Screenshot(con, path, self.server.tmp_availables,
+                                             self.server.clients, log_path, self.server.targets)
             local_tools.logIt_thread(log_path, msg=f'Calling screenshot.recv_file({ip})...')
             scrnshot.recv_file(ip)
             self.update_statusbar_messages_thread(msg=f'screenshot received from  {ip} | {sname}.')
@@ -847,8 +849,8 @@ class App(tk.Tk):
         self.update_statusbar_messages_thread(msg=f'waiting for system information from {ip} | {sname}...')
         try:
             local_tools.logIt_thread(log_path, msg=f'Initializing Module: sysinfo...')
-            sinfo = sysinfo.Sysinfo(con, server.ttl, self.path, server.tmp_availables,
-                                    server.clients, server.log_path, ip)
+            sinfo = sysinfo.Sysinfo(con, self.server.ttl, path, self.server.tmp_availables,
+                                    self.server.clients, log_path, ip)
             local_tools.logIt_thread(log_path, msg=f'Calling sysinfo.run()...')
             filepath = sinfo.run(ip)
             self.update_statusbar_messages_thread(msg=f'system information file received from {ip} | {sname}.')
@@ -994,8 +996,8 @@ class App(tk.Tk):
         self.disable_buttons_thread()
         self.update_statusbar_messages_thread(msg=f'running tasks command on {ip} | {sname}.')
         local_tools.logIt_thread(log_path, debug=False, msg=f'Initializing Module: tasks...')
-        tsks = tasks.Tasks(con, ip, server.clients, server.connections,
-                           server.targets, server.ips, server.tmp_availables,
+        tsks = tasks.Tasks(con, ip, self.server.clients, self.server.connections,
+                           self.server.targets, self.server.ips, self.server.tmp_availables,
                            log_path, path, sname)
         local_tools.logIt_thread(log_path, debug=False, msg=f'Calling tasks.tasks()...')
         filepath = tsks.tasks(ip)
@@ -1096,8 +1098,8 @@ class App(tk.Tk):
 
     # Browse local files by Clients Station Names
     def browse_local_files_command(self, sname: str) -> subprocess:
-        local_tools.logIt_thread(log_path, msg=fr'Opening explorer window focused on "{self.path}\{sname}"')
-        return subprocess.Popen(rf"explorer {self.path}\{sname}")
+        local_tools.logIt_thread(log_path, msg=fr'Opening explorer window focused on "{path}\{sname}"')
+        return subprocess.Popen(rf"explorer {path}\{sname}")
 
     # Update Selected Client
     def update_selected_client_command(self, con: str, ip: str, sname: str) -> bool:
@@ -1162,45 +1164,45 @@ class App(tk.Tk):
         local_tools.logIt_thread(log_path, msg=f'Running show server information...')
         last_reboot = psutil.boot_time()
         local_tools.logIt_thread(log_path, msg=f'Displaying Label: '
-                                               f'{server.serverIP} | {server.port} | '
+                                               f'{self.server.serverIP} | {self.server.port} | '
                                                f'{datetime.fromtimestamp(last_reboot).replace(microsecond=0)}" | '
-                                               f'{len(server.targets)}')
+                                               f'{len(self.server.targets)}')
         label = Label(self.top_bar_label, background='ghost white',
-                      text=f"\t\t\t\tServer IP: {server.serverIP}\t\tServer Port: {server.port}\t"
+                      text=f"\t\t\t\tServer IP: {self.server.serverIP}\t\tServer Port: {self.server.port}\t"
                            f"\t\tLast Boot: {datetime.fromtimestamp(last_reboot).replace(microsecond=0)}"
-                           f"\t\tConnected Stations: {len(server.targets)}\t\t\t\t          ")
+                           f"\t\tConnected Stations: {len(self.server.targets)}\t\t\t\t          ")
         label.grid(row=0, sticky='news')
         return
 
     # Display Available Stations
     def show_available_connections(self) -> None:
         local_tools.logIt_thread(log_path, msg=f'Running show_available_connections()...')
-        if len(server.ips) == 0 and len(server.targets) == 0:
+        if len(self.server.ips) == 0 and len(self.server.targets) == 0:
             local_tools.logIt_thread(log_path, msg=f'No connected Stations')
 
         def make_tmp():
             local_tools.logIt_thread(log_path, msg=f'Running make_tmp()...')
             count = 0
-            for conKey, macValue in server.clients.items():
+            for conKey, macValue in self.server.clients.items():
                 for macKey, ipValue in macValue.items():
                     for ipKey, identValue in ipValue.items():
-                        for con in server.targets:
+                        for con in self.server.targets:
                             if con == conKey:
                                 for identKey, userValue in identValue.items():
                                     for userV, clientVer in userValue.items():
-                                        if (count, macKey, ipKey, identKey, userValue) in server.tmp_availables:
+                                        if (count, macKey, ipKey, identKey, userValue) in self.server.tmp_availables:
                                             continue
 
                                 local_tools.logIt_thread(log_path, msg=f'Updating self.tmp_availables list...')
-                                server.tmp_availables.append((count, macKey, ipKey, identKey, userV, clientVer))
+                                self.server.tmp_availables.append((count, macKey, ipKey, identKey, userV, clientVer))
                 count += 1
 
             local_tools.logIt_thread(log_path, msg=f'Available list created.')
 
         def extract():
             local_tools.logIt_thread(log_path, msg=f'Running extract()...')
-            for item in server.tmp_availables:
-                for conKey, ipValue in server.clients.items():
+            for item in self.server.tmp_availables:
+                for conKey, ipValue in self.server.clients.items():
                     for macKey, ipVal in ipValue.items():
                         for ipKey, identVal in ipVal.items():
                             if item[2] == ipKey:
@@ -1228,7 +1230,7 @@ class App(tk.Tk):
 
         # Cleaning availables list
         local_tools.logIt_thread(log_path, msg=f'Cleaning availables list...')
-        server.tmp_availables = []
+        self.server.tmp_availables = []
 
         # Clear previous entries in GUI table
         local_tools.logIt_thread(log_path, msg=f'Cleaning connected table entries...')
@@ -1252,7 +1254,7 @@ class App(tk.Tk):
         self.update_statusbar_messages_thread(msg=f'Status: displaying connection history.')
         c = 0  # Initiate Counter for Connection Number
         try:
-            for connection in server.connHistory:
+            for connection in self.server.connHistory:
                 for conKey, macValue in connection.items():
                     for macKey, ipVal in macValue.items():
                         for ipKey, identValue in ipVal.items():
@@ -1318,8 +1320,23 @@ class App(tk.Tk):
     # ==++==++==++== MENUBAR ==++==++==++==
     # Restart All Clients
     def restart_all_clients_command(self):
+        def extract():
+            for item in self.server.tmp_availables:
+                for conKey, ipValue in self.server.clients.items():
+                    for macKey, ipVal in ipValue.items():
+                        for ipKey, identVal in ipVal.items():
+                            if item[2] == ipKey:
+                                session = item[0]
+                                stationMAC = item[1]
+                                stationIP = item[2]
+                                stationName = item[3]
+                                loggedUser = item[4]
+                                clientVersion = item[5]
+
+                                return session, stationMAC, stationIP, stationName, loggedUser, clientVersion
+
         local_tools.logIt_thread(log_path, msg=f'Running restart_all_clients()...')
-        if len(self.targets) == 0:
+        if len(self.server.targets) == 0:
             local_tools.logIt_thread(log_path, msg=f'Displaying popup window: "No connected stations"...')
             messagebox.showwarning("Update All Clients", "No connected stations.")
             return False
@@ -1328,32 +1345,23 @@ class App(tk.Tk):
         local_tools.logIt_thread(log_path, msg=f'Displaying self.sure() popup window...')
         self.sure = messagebox.askyesno(f"Restart All Clients\t", "Are you sure?")
         local_tools.logIt_thread(log_path, msg=f'self.sure = {self.sure}')
-        for item in self.tmp_availables:
-            for conKey, ipValue in self.clients.items():
-                for macKey, ipVal in ipValue.items():
-                    for ipKey, identVal in ipVal.items():
-                        if item[2] == ipKey:
-                            session = item[0]
-                            stationMAC = item[1]
-                            stationIP = item[2]
-                            stationName = item[3]
-                            loggedUser = item[4]
-                            clientVersion = item[5]
+
+        session, stationMAC, stationIP, stationName, loggedUser, clientVersion = extract()
         if self.sure:
-            for t in self.targets:
+            for t in self.server.targets:
                 try:
                     self.update_statusbar_messages_thread(msg=f'Restarting {t}...')
                     t.send('restart'.encode())
                     msg = t.recv(1024).decode()
                     self.update_statusbar_messages_thread(msg=f"{msg}")
-                    server.remove_lost_connection(t, stationIP)
+                    self.server.remove_lost_connection(t, stationIP)
 
                 except (WindowsError, socket.error) as e:
                     local_tools.logIt_thread(log_path, msg=f'ERROR: {e}')
-                    server.remove_lost_connection(t, stationIP)
+                    self.server.remove_lost_connection(t, stationIP)
                     pass
 
-            for i in range(len(self.targets)):
+            for i in range(len(self.server.targets)):
                 refreshThread = Thread(target=self.refresh_command)
                 refreshThread.start()
                 time.sleep(0.5)
@@ -1459,7 +1467,7 @@ class App(tk.Tk):
     # Save History to file
     def save_connection_history(self, event=0) -> bool:
         local_tools.logIt_thread(log_path, msg=f'Running self.save_connection_history()...')
-        if len(server.targets) == 0:
+        if len(self.server.targets) == 0:
             messagebox.showwarning("Save Connection History", "Nothing to save yet.")
             return
 
@@ -1485,7 +1493,7 @@ class App(tk.Tk):
                     writer = csv.writer(file)
                     try:
                         writer.writerow(header)
-                        for connection in server.connHistory:
+                        for connection in self.server.connHistory:
                             for conKey, macValue in connection.items():
                                 for macKey, ipVal in macValue.items():
                                     for ipKey, identValue in ipVal.items():
@@ -1503,7 +1511,7 @@ class App(tk.Tk):
 
             else:
                 with open(filename, 'w') as file:
-                    for connection in server.connHistory:
+                    for connection in self.server.connHistory:
                         for conKey, macValue in connection.items():
                             for macKey, ipVal in macValue.items():
                                 for ipKey, identValue in ipVal.items():
@@ -1535,7 +1543,7 @@ class App(tk.Tk):
 
         # Create a Controller LabelFrame with Buttons and connect shell by TreeView Table selection
         for id, ip in self.temp.items():
-            for clientConn, clientValues in server.clients.items():
+            for clientConn, clientValues in self.server.clients.items():
                 for clientMac, clientIPv in clientValues.items():
                     for clientIP, vals in clientIPv.items():
                         if clientIP == ip:
@@ -1707,266 +1715,6 @@ class Locals:
                 pass
 
 
-class Server:
-    def __init__(self):
-        self.clients = {}
-        self.clients_backup = {}
-        self.connections = {}
-        self.connHistory = []
-        self.ips = []
-        self.targets = []
-        self.ttl = 5
-        self.port = 55400
-        self.hostname = socket.gethostname()
-        self.serverIP = str(socket.gethostbyname(self.hostname))
-
-    def run(self) -> None:
-        local_tools.logIt_thread(log_path, msg=f'Running run()...')
-        local_tools.logIt_thread(log_path, msg=f'Calling connect()...')
-        self.connectThread = Thread(target=self.connect,
-                                    daemon=True,
-                                    name=f"Connect Thread")
-        self.connectThread.start()
-
-    # Listen for connections and sort new connections to designated lists/dicts
-    def connect(self) -> None:
-        def get_mac_address() -> str:
-            local_tools.logIt_thread(log_path, msg=f'Waiting for MAC address from {self.ip}...')
-            self.mac = self.conn.recv(1024).decode()
-            local_tools.logIt_thread(log_path, msg=f'MAC Address: {self.mac}')
-            local_tools.logIt_thread(log_path, msg=f'Sending confirmation to {self.ip}...')
-            self.conn.send('OK'.encode())
-            local_tools.logIt_thread(log_path, msg=f'Send completed.')
-            return self.mac
-
-        def get_hostname() -> str:
-            local_tools.logIt_thread(log_path, msg=f'Waiting for remote station name...')
-            self.ident = self.conn.recv(1024).decode()
-            local_tools.logIt_thread(log_path, msg=f'Remote station name: {self.ident}')
-            local_tools.logIt_thread(log_path, msg=f'Sending Confirmation to {self.ip}...')
-            self.conn.send('OK'.encode())
-            local_tools.logIt_thread(log_path, msg=f'Send completed.')
-            return self.ident
-
-        def get_user() -> str:
-            local_tools.logIt_thread(log_path, msg=f'Waiting for remote station current logged user...')
-            self.user = self.conn.recv(1024).decode()
-            local_tools.logIt_thread(log_path, msg=f'Remote station user: {self.user}')
-            local_tools.logIt_thread(log_path, msg=f'Sending Confirmation to {self.ip}...')
-            self.conn.send('OK'.encode())
-            local_tools.logIt_thread(log_path, msg=f'Send completed.')
-            return self.user
-
-        def get_client_version() -> str:
-            local_tools.logIt_thread(log_path, msg=f'Waiting for client version...')
-            self.client_version = self.conn.recv(1024).decode()
-            local_tools.logIt_thread(log_path, msg=f'Client version: {self.client_version}')
-            local_tools.logIt_thread(log_path, msg=f'Sending confirmation to {self.ip}...')
-            self.conn.send('OK'.encode())
-            local_tools.logIt_thread(log_path, msg=f'Send completed.')
-            return self.client_version
-
-        local_tools.logIt_thread(log_path, msg=f'Running connect()...')
-        while True:
-            local_tools.logIt_thread(log_path, msg=f'Accepting connections...')
-            self.conn, (self.ip, self.port) = self.server.accept()
-            local_tools.logIt_thread(log_path, msg=f'Connection from {self.ip} accepted.')
-
-            try:
-                local_tools.logIt_thread(log_path, msg=f'Waiting for MAC Address...')
-                self.client_mac = get_mac_address()
-                local_tools.logIt_thread(log_path, msg=f'MAC: {self.client_mac}.')
-                local_tools.logIt_thread(log_path, msg=f'Waiting for station name...')
-                self.hostname = get_hostname()
-                local_tools.logIt_thread(log_path, msg=f'Station name: {self.hostname}.')
-                local_tools.logIt_thread(log_path, msg=f'Waiting for logged user...')
-                self.loggedUser = get_user()
-                local_tools.logIt_thread(log_path, msg=f'Logged user: {self.loggedUser}.')
-                local_tools.logIt_thread(log_path, msg=f'Waiting for client version...')
-                self.client_version = get_client_version()
-                local_tools.logIt_thread(log_path, msg=f'Client version: {self.client_version}.')
-
-            except (WindowsError, socket.error) as e:
-                local_tools.logIt_thread(log_path, msg=f'Connection Error: {e}')
-                return  # Restart The Loop
-
-            # Update Thread Dict and Connection Lists
-            if self.conn not in self.targets and self.ip not in self.ips:
-                local_tools.logIt_thread(log_path, msg=f'New Connection!')
-
-                # Add Socket Connection To Targets list
-                local_tools.logIt_thread(log_path, msg=f'Adding {self.conn} to targets list...')
-                self.targets.append(self.conn)
-                local_tools.logIt_thread(log_path, msg=f'targets list updated.')
-
-                # Add IP Address Connection To IPs list
-                local_tools.logIt_thread(log_path, msg=f'Adding {self.ip} to ips list...')
-                self.ips.append(self.ip)
-                local_tools.logIt_thread(log_path, msg=f'ips list updated.')
-
-                # Set Temp Dict To Update Live Connections List
-                local_tools.logIt_thread(log_path,
-                                         msg=f'Adding {self.conn} | {self.ip} to temp live connections dict...')
-                self.temp_connection = {self.conn: self.ip}
-                local_tools.logIt_thread(log_path, msg=f'Temp connections dict updated.')
-
-                # Add Temp Dict To Connections List
-                local_tools.logIt_thread(log_path, msg=f'Updating connections list...')
-                self.connections.update(self.temp_connection)
-                local_tools.logIt_thread(log_path, msg=f'Connections list updated.')
-
-                # Set Temp Idents Dict For Idents
-                local_tools.logIt_thread(log_path, msg=f'Creating dict to hold ident details...')
-                self.temp_ident = {
-                    self.conn: {self.client_mac: {self.ip: {self.ident: {self.user: self.client_version}}}}}
-                local_tools.logIt_thread(log_path, msg=f'Dict created: {self.temp_ident}')
-
-                # Add Temp Idents Dict To Idents Dict
-                local_tools.logIt_thread(log_path, msg=f'Updating live clients list...')
-                self.clients.update(self.temp_ident)
-                local_tools.logIt_thread(log_path, msg=f'Live clients list updated.')
-
-            # Create a Dict of Connection, IP, Computer Name, Date & Time
-            local_tools.logIt_thread(log_path, msg=f'Fetching current date & time...')
-            dt = local_tools.get_date()
-            local_tools.logIt_thread(log_path, msg=f'Creating a connection dict...')
-            self.temp_connection_record = {self.conn: {self.client_mac: {self.ip: {self.ident: {self.user: dt}}}}}
-            local_tools.logIt_thread(log_path, msg=f'Connection dict created: {self.temp_connection_record}')
-
-            # Add Connection to Connection History
-            local_tools.logIt_thread(log_path, msg=f'Adding connection to connection history...')
-            self.connHistory.append(self.temp_connection_record)
-            local_tools.logIt_thread(log_path, msg=f'Connection added to connection history.')
-
-            local_tools.logIt_thread(log_path, msg=f'Calling self.welcome_message()...')
-
-            app.display_server_information_thread()
-            self.welcome_message()
-
-    # Server listener
-    def listener(self) -> None:
-        local_tools.logIt_thread(log_path, msg=f'Running listener()...')
-        self.server = socket.socket()
-        self.server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        local_tools.logIt_thread(log_path, msg=f'Binding {self.serverIP}, {self.port}...')
-        self.server.bind((self.serverIP, self.port))
-        self.server.listen()
-
-    # Send welcome message to connected clients
-    def welcome_message(self) -> bool:
-        local_tools.logIt_thread(log_path, msg=f'Running welcome_message()...')
-        try:
-            self.welcome = "Connection Established!"
-            local_tools.logIt_thread(log_path, msg=f'Sending welcome message...')
-            self.conn.send(f"@Server: {self.welcome}".encode())
-            local_tools.logIt_thread(log_path, msg=f'{self.welcome} sent to {self.ident}.')
-            return True
-
-        except (WindowsError, socket.error) as e:
-            local_tools.logIt_thread(log_path, msg=f'Connection Error: {e}')
-            if self.conn in self.targets and self.ip in self.ips:
-                local_tools.logIt_thread(log_path, msg=f'Removing {self.conn} from self.targets...')
-                self.targets.remove(self.conn)
-                local_tools.logIt_thread(log_path, msg=f'Removing {self.ip} from self.ips list...')
-                self.ips.remove(self.ip)
-                local_tools.logIt_thread(log_path, msg=f'Deleting {self.conn} from self.connections.')
-                del self.connections[self.conn]
-                local_tools.logIt_thread(log_path, msg=f'Deleting {self.conn} from self.clients...')
-                del self.clients[self.conn]
-                local_tools.logIt_thread(log_path, msg=f'[V]{self.ip} removed from lists.')
-                return False
-
-    # Check if connected stations are still connected
-    def vital_signs(self) -> bool:
-        local_tools.logIt_thread(log_path, msg=f'Running vital_signs()...')
-        if len(self.targets) == 0:
-            app.update_statusbar_messages_thread(msg='No connected stations.')
-            return False
-
-        callback = 'yes'
-        i = 0
-        app.update_statusbar_messages_thread(msg=f'running vitals check...')
-        local_tools.logIt_thread(log_path, msg=f'Iterating Through Temp Connected Sockets List...')
-        for t in self.targets:
-            try:
-                local_tools.logIt_thread(log_path, msg=f'Sending "alive" to {t}...')
-                t.send('alive'.encode())
-                local_tools.logIt_thread(log_path, msg=f'Send completed.')
-                local_tools.logIt_thread(log_path, msg=f'Waiting for response from {t}...')
-                ans = t.recv(1024).decode()
-                local_tools.logIt_thread(log_path, msg=f'Response from {t}: {ans}.')
-                local_tools.logIt_thread(log_path, msg=f'Waiting for client version from {t}...')
-                ver = t.recv(1024).decode()
-                local_tools.logIt_thread(log_path, msg=f'Response from {t}: {ver}.')
-
-            except (WindowsError, socket.error):
-                self.remove_lost_connection(t, self.ips[i])
-                break
-
-            if str(ans) == str(callback):
-                try:
-                    local_tools.logIt_thread(log_path, msg=f'Iterating self.clients dictionary...')
-                    for conKey, ipValue in self.clients.items():
-                        for ipKey, identValue in ipValue.items():
-                            if t == conKey:
-                                for name, version in identValue.items():
-                                    for v, v1 in version.items():
-                                        for n, ver in v1.items():
-                                            app.update_statusbar_messages_thread(
-                                                msg=f'Station IP: {self.ips[i]} | Station Name: {v} | Client Version: {ver} - ALIVE!')
-                                            i += 1
-                                            time.sleep(0.5)
-
-                except (IndexError, RuntimeError):
-                    pass
-
-            else:
-                local_tools.logIt_thread(log_path, msg=f'Iterating self.clients dictionary...')
-                try:
-                    for conKey, macValue in self.clients.items():
-                        for con in self.targets:
-                            if conKey == con:
-                                for macKey, ipVal in macValue.items():
-                                    for ipKey, identValue in ipVal.items():
-                                        if ipKey == self.ips[i]:
-                                            self.remove_lost_connection(conKey, ipKey)
-
-                except (IndexError, RuntimeError):
-                    pass
-
-        app.update_statusbar_messages_thread(msg=f'Vitals check completed.')
-        local_tools.logIt_thread(log_path, msg=f'=== End of vital_signs() ===')
-        return True
-
-    # Remove Lost connections
-    def remove_lost_connection(self, con: str, ip: str) -> bool:
-        local_tools.logIt_thread(log_path, msg=f'Running remove_lost_connection({con}, {ip})...')
-        try:
-            local_tools.logIt_thread(log_path, msg=f'Removing connections...')
-            for conKey, macValue in self.clients.items():
-                if conKey == con:
-                    for macKey, ipVal in macValue.items():
-                        for ipKey, identValue in ipVal.items():
-                            if ipKey == ip:
-                                for identKey, userValue in identValue.items():
-                                    self.targets.remove(con)
-                                    self.ips.remove(ip)
-
-                                    del self.connections[con]
-                                    del self.clients[con]
-
-                                    # Update statusbar message
-                                    app.update_statusbar_messages_thread(
-                                        msg=f'{ip} | {identValue} | {userValue} removed from connected list.')
-
-            local_tools.logIt_thread(log_path, msg=f'Connections removed.')
-            return True
-
-        except RuntimeError as e:
-            local_tools.logIt_thread(log_path, msg=f'Runtime Error: {e}.')
-            return False
-
-
 def on_icon_clicked(icon, item):
     if str(item) == "About":
         app.about(event=0)
@@ -2011,7 +1759,6 @@ if __name__ == '__main__':
     path = r'c:\HandsOff'
     log_path = fr'{path}\server_log.txt'
     local_tools = Locals()
-    server = Server()
     app = App()
 
     main()
