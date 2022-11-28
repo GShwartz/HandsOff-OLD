@@ -61,7 +61,7 @@ class App(tk.Tk):
         self.style = ttk.Style()
         self.update_url = StringVar()
         self.new_url = ''
-        self.server = Server(local_tools, log_path, self)
+        self.server = Server(local_tools, log_path, self, args.ip, args.port)
 
         # ======== Server Config ==========
         # Start listener
@@ -569,7 +569,7 @@ class App(tk.Tk):
             local_tools.logIt_thread(log_path, msg=f'Hiding app window...')
             self.withdraw()
             local_tools.logIt_thread(log_path, msg=f'Destroying app window...')
-            if len(server.targets) > 0:
+            if len(self.server.targets) > 0:
                 for t in server.targets:
                     try:
                         t.send('exit'.encode())
@@ -1155,10 +1155,8 @@ class App(tk.Tk):
 
         else:
             return False
-
     # ==++==++==++== END Controller Buttons ==++==++==++==
 
-    # # ==++==++==++== Server Processes ==++==++==++==
     # Display Server Information
     def server_information(self) -> None:
         local_tools.logIt_thread(log_path, msg=f'Running show server information...')
@@ -1756,7 +1754,16 @@ def main():
 
 
 if __name__ == '__main__':
+    port = 55400
+    hostname = socket.gethostname()
+    serverIP = str(socket.gethostbyname(hostname))
     path = r'c:\HandsOff'
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-i', '--ip', action='store', default=serverIP, type=str, help='Server IP')
+    parser.add_argument('-p', '--port', action='store', default=port, type=int, help='Server Port')
+
+    args = parser.parse_args()
+
     log_path = fr'{path}\server_log.txt'
     local_tools = Locals()
     app = App()
