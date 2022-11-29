@@ -38,7 +38,6 @@ The entire idea behind this solution is that the other side only holds the <b>ph
 * change the ip addr/port according to your wished inside main.py OR <br />
   run python main.py -i [ip] -p [port] <br />
   -- keep in mind you'll have to change the ip address in the client file or run the client the same as you run the server.
-* run python main.py
 
 ## Client ##
 ### Important!!!
