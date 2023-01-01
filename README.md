@@ -74,6 +74,3 @@ The entire idea behind this solution is that the other side only holds the <b>ph
 ### Tasks
 ![tasks](https://github.com/GShwartz/HandsOff/raw/main/Images/POC/tasks.JPG)
 
----
-### CICD <br />
-![CICD](https://github.com/GShwartz/HandsOff/raw/a6bd7190bcda42f8335acecb94c4d6bffb060494/Images/POC/CICD.JPG)
