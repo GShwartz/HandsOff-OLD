@@ -3,12 +3,25 @@ from threading import Thread
 import time
 
 
+class Endpoints:
+    def __init__(self, conn, client_mac, ip, ident, user, client_version):
+        self.conn = conn
+        self.client_mac = client_mac
+        self.ip = ip
+        self.ident = ident
+        self.user = user
+        self.client_version = client_version
+
+    def __repr__(self):
+        return f"Endpoint({self.conn, self.client_mac, self.ip, self.ident, self.user, self.client_version})"
+
+
 class Server:
     def __init__(self, local_tools, log_path, app, ip, port):
         self.clients = {}
         self.clients_backup = {}
         self.connections = {}
-        self.connHistory = []
+        self.connHistory = {}
         self.ips = []
         self.targets = []
         self.ttl = 5
@@ -18,129 +31,7 @@ class Server:
         self.local_tools = local_tools
         self.log_path = log_path
         self.app = app
-
-    def run(self) -> None:
-        self.local_tools.logIt_thread(self.log_path, msg=f'Running run()...')
-        self.local_tools.logIt_thread(self.log_path, msg=f'Calling connect()...')
-        self.connectThread = Thread(target=self.connect,
-                                    daemon=True,
-                                    name=f"Connect Thread")
-        self.connectThread.start()
-
-    # Listen for connections and sort new connections to designated lists/dicts
-    def connect(self) -> None:
-        def get_mac_address() -> str:
-            self.local_tools.logIt_thread(self.log_path, msg=f'Waiting for MAC address from {self.ip}...')
-            self.mac = self.conn.recv(1024).decode()
-            self.local_tools.logIt_thread(self.log_path, msg=f'MAC Address: {self.mac}')
-            self.local_tools.logIt_thread(self.log_path, msg=f'Sending confirmation to {self.ip}...')
-            self.conn.send('OK'.encode())
-            self.local_tools.logIt_thread(self.log_path, msg=f'Send completed.')
-            return self.mac
-
-        def get_hostname() -> str:
-            self.local_tools.logIt_thread(self.log_path, msg=f'Waiting for remote station name...')
-            self.ident = self.conn.recv(1024).decode()
-            self.local_tools.logIt_thread(self.log_path, msg=f'Remote station name: {self.ident}')
-            self.local_tools.logIt_thread(self.log_path, msg=f'Sending Confirmation to {self.ip}...')
-            self.conn.send('OK'.encode())
-            self.local_tools.logIt_thread(self.log_path, msg=f'Send completed.')
-            return self.ident
-
-        def get_user() -> str:
-            self.local_tools.logIt_thread(self.log_path, msg=f'Waiting for remote station current logged user...')
-            self.user = self.conn.recv(1024).decode()
-            self.local_tools.logIt_thread(self.log_path, msg=f'Remote station user: {self.user}')
-            self.local_tools.logIt_thread(self.log_path, msg=f'Sending Confirmation to {self.ip}...')
-            self.conn.send('OK'.encode())
-            self.local_tools.logIt_thread(self.log_path, msg=f'Send completed.')
-            return self.user
-
-        def get_client_version() -> str:
-            self.local_tools.logIt_thread(self.log_path, msg=f'Waiting for client version...')
-            self.client_version = self.conn.recv(1024).decode()
-            self.local_tools.logIt_thread(self.log_path, msg=f'Client version: {self.client_version}')
-            self.local_tools.logIt_thread(self.log_path, msg=f'Sending confirmation to {self.ip}...')
-            self.conn.send('OK'.encode())
-            self.local_tools.logIt_thread(self.log_path, msg=f'Send completed.')
-            return self.client_version
-
-        self.local_tools.logIt_thread(self.log_path, msg=f'Running connect()...')
-        while True:
-            self.local_tools.logIt_thread(self.log_path, msg=f'Accepting connections...')
-            self.conn, (self.ip, self.port) = self.server.accept()
-            self.local_tools.logIt_thread(self.log_path, msg=f'Connection from {self.ip} accepted.')
-
-            try:
-                self.local_tools.logIt_thread(self.log_path, msg=f'Waiting for MAC Address...')
-                self.client_mac = get_mac_address()
-                self.local_tools.logIt_thread(self.log_path, msg=f'MAC: {self.client_mac}.')
-                self.local_tools.logIt_thread(self.log_path, msg=f'Waiting for station name...')
-                self.hostname = get_hostname()
-                self.local_tools.logIt_thread(self.log_path, msg=f'Station name: {self.hostname}.')
-                self.local_tools.logIt_thread(self.log_path, msg=f'Waiting for logged user...')
-                self.loggedUser = get_user()
-                self.local_tools.logIt_thread(self.log_path, msg=f'Logged user: {self.loggedUser}.')
-                self.local_tools.logIt_thread(self.log_path, msg=f'Waiting for client version...')
-                self.client_version = get_client_version()
-                self.local_tools.logIt_thread(self.log_path, msg=f'Client version: {self.client_version}.')
-
-            except (WindowsError, socket.error) as e:
-                self.local_tools.logIt_thread(self.log_path, msg=f'Connection Error: {e}')
-                return  # Restart The Loop
-
-            # Update Thread Dict and Connection Lists
-            if self.conn not in self.targets and self.ip not in self.ips:
-                self.local_tools.logIt_thread(self.log_path, msg=f'New Connection!')
-
-                # Add Socket Connection To Targets list
-                self.local_tools.logIt_thread(self.log_path, msg=f'Adding {self.conn} to targets list...')
-                self.targets.append(self.conn)
-                self.local_tools.logIt_thread(self.log_path, msg=f'targets list updated.')
-
-                # Add IP Address Connection To IPs list
-                self.local_tools.logIt_thread(self.log_path, msg=f'Adding {self.ip} to ips list...')
-                self.ips.append(self.ip)
-                self.local_tools.logIt_thread(self.log_path, msg=f'ips list updated.')
-
-                # Set Temp Dict To Update Live Connections List
-                self.local_tools.logIt_thread(self.log_path,
-                                              msg=f'Adding {self.conn} | {self.ip} to temp live connections dict...')
-                self.temp_connection = {self.conn: self.ip}
-                self.local_tools.logIt_thread(self.log_path, msg=f'Temp connections dict updated.')
-
-                # Add Temp Dict To Connections List
-                self.local_tools.logIt_thread(self.log_path, msg=f'Updating connections list...')
-                self.connections.update(self.temp_connection)
-                self.local_tools.logIt_thread(self.log_path, msg=f'Connections list updated.')
-
-                # Set Temp Idents Dict For Idents
-                self.local_tools.logIt_thread(self.log_path, msg=f'Creating dict to hold ident details...')
-                self.temp_ident = {
-                    self.conn: {self.client_mac: {self.ip: {self.ident: {self.user: self.client_version}}}}}
-                self.local_tools.logIt_thread(self.log_path, msg=f'Dict created: {self.temp_ident}')
-
-                # Add Temp Idents Dict To Idents Dict
-                self.local_tools.logIt_thread(self.log_path, msg=f'Updating live clients list...')
-                self.clients.update(self.temp_ident)
-                self.local_tools.logIt_thread(self.log_path, msg=f'Live clients list updated.')
-
-            # Create a Dict of Connection, IP, Computer Name, Date & Time
-            self.local_tools.logIt_thread(self.log_path, msg=f'Fetching current date & time...')
-            dt = self.local_tools.get_date()
-            self.local_tools.logIt_thread(self.log_path, msg=f'Creating a connection dict...')
-            self.temp_connection_record = {self.conn: {self.client_mac: {self.ip: {self.ident: {self.user: dt}}}}}
-            self.local_tools.logIt_thread(self.log_path, msg=f'Connection dict created: {self.temp_connection_record}')
-
-            # Add Connection to Connection History
-            self.local_tools.logIt_thread(self.log_path, msg=f'Adding connection to connection history...')
-            self.connHistory.append(self.temp_connection_record)
-            self.local_tools.logIt_thread(self.log_path, msg=f'Connection added to connection history.')
-
-            self.local_tools.logIt_thread(self.log_path, msg=f'Calling self.welcome_message()...')
-
-            self.app.display_server_information_thread()
-            self.welcome_message()
+        self.endpoints = []
 
     # Server listener
     def listener(self) -> None:
@@ -175,6 +66,99 @@ class Server:
                 self.local_tools.logIt_thread(self.log_path, msg=f'[V]{self.ip} removed from lists.')
                 return False
 
+    def run(self) -> None:
+        self.local_tools.logIt_thread(self.log_path, msg=f'Running run()...')
+        self.local_tools.logIt_thread(self.log_path, msg=f'Calling connect()...')
+        self.connectThread = Thread(target=self.connect,
+                                    daemon=True,
+                                    name=f"Connect Thread")
+        self.connectThread.start()
+
+    def get_mac_address(self) -> str:
+        self.local_tools.logIt_thread(self.log_path, msg=f'Waiting for MAC address from {self.ip}...')
+        self.mac = self.conn.recv(1024).decode()
+        self.local_tools.logIt_thread(self.log_path, msg=f'MAC Address: {self.mac}')
+        self.local_tools.logIt_thread(self.log_path, msg=f'Sending confirmation to {self.ip}...')
+        self.conn.send('OK'.encode())
+        self.local_tools.logIt_thread(self.log_path, msg=f'Send completed.')
+        return self.mac
+
+    def get_hostname(self) -> str:
+        self.local_tools.logIt_thread(self.log_path, msg=f'Waiting for remote station name...')
+        self.ident = self.conn.recv(1024).decode()
+        self.local_tools.logIt_thread(self.log_path, msg=f'Remote station name: {self.ident}')
+        self.local_tools.logIt_thread(self.log_path, msg=f'Sending Confirmation to {self.ip}...')
+        self.conn.send('OK'.encode())
+        self.local_tools.logIt_thread(self.log_path, msg=f'Send completed.')
+        return self.ident
+
+    def get_user(self) -> str:
+        self.local_tools.logIt_thread(self.log_path, msg=f'Waiting for remote station current logged user...')
+        self.user = self.conn.recv(1024).decode()
+        self.local_tools.logIt_thread(self.log_path, msg=f'Remote station user: {self.user}')
+        self.local_tools.logIt_thread(self.log_path, msg=f'Sending Confirmation to {self.ip}...')
+        self.conn.send('OK'.encode())
+        self.local_tools.logIt_thread(self.log_path, msg=f'Send completed.')
+        return self.user
+
+    def get_client_version(self) -> str:
+        self.local_tools.logIt_thread(self.log_path, msg=f'Waiting for client version...')
+        self.client_version = self.conn.recv(1024).decode()
+        self.local_tools.logIt_thread(self.log_path, msg=f'Client version: {self.client_version}')
+        self.local_tools.logIt_thread(self.log_path, msg=f'Sending confirmation to {self.ip}...')
+        self.conn.send('OK'.encode())
+        self.local_tools.logIt_thread(self.log_path, msg=f'Send completed.')
+        return self.client_version
+
+    # Listen for connections and sort new connections to designated lists/dicts
+    def connect(self) -> None:
+        self.local_tools.logIt_thread(self.log_path, msg=f'Running connect()...')
+        while True:
+            dt = self.local_tools.get_date()
+            self.local_tools.logIt_thread(self.log_path, msg=f'Accepting connections...')
+            self.conn, (self.ip, self.port) = self.server.accept()
+            self.local_tools.logIt_thread(self.log_path, msg=f'Connection from {self.ip} accepted.')
+
+            try:
+                self.local_tools.logIt_thread(self.log_path, msg=f'Waiting for MAC Address...')
+                self.client_mac = self.get_mac_address()
+                self.local_tools.logIt_thread(self.log_path, msg=f'MAC: {self.client_mac}.')
+                self.local_tools.logIt_thread(self.log_path, msg=f'Waiting for station name...')
+                self.hostname = self.get_hostname()
+                self.local_tools.logIt_thread(self.log_path, msg=f'Station name: {self.hostname}.')
+                self.local_tools.logIt_thread(self.log_path, msg=f'Waiting for logged user...')
+                self.loggedUser = self.get_user()
+                self.local_tools.logIt_thread(self.log_path, msg=f'Logged user: {self.loggedUser}.')
+                self.local_tools.logIt_thread(self.log_path, msg=f'Waiting for client version...')
+                self.client_version = self.get_client_version()
+                self.local_tools.logIt_thread(self.log_path, msg=f'Client version: {self.client_version}.')
+
+            except (WindowsError, socket.error, UnicodeDecodeError) as e:
+                self.local_tools.logIt_thread(self.log_path, msg=f'Connection Error: {e}')
+                return  # Restart The Loop
+
+            # Apply Data to dataclass Endpoints
+            fresh_endpoint = Endpoints(self.conn, self.client_mac, self.ip, self.ident, self.user, self.client_version)
+            if fresh_endpoint not in self.endpoints:
+                self.endpoints.append(fresh_endpoint)
+                self.targets.append(fresh_endpoint.conn)
+                self.ips.append(fresh_endpoint.ip)
+                # self.temp_connection = {fresh_endpoint.conn: fresh_endpoint.ip}
+                self.connections.update({fresh_endpoint.conn: fresh_endpoint.ip})
+                # self.connections.update(self.temp_connection)
+                self.temp_ident = {
+                    fresh_endpoint.conn: {fresh_endpoint.client_mac: {
+                        fresh_endpoint.ip: {
+                            fresh_endpoint.ident: {
+                                fresh_endpoint.user: fresh_endpoint.client_version}}}}}
+                self.clients.update(self.temp_ident)
+                self.temp_connection_record = {self.conn: {self.client_mac: {self.ip: {self.ident: {self.user: dt}}}}}
+
+            self.connHistory.update({fresh_endpoint: dt})
+
+            self.app.display_server_information_thread()
+            self.welcome_message()
+
     # Check if connected stations are still connected
     def vital_signs(self) -> bool:
         self.local_tools.logIt_thread(self.log_path, msg=f'Running vital_signs()...')
@@ -198,7 +182,7 @@ class Server:
                 ver = t.recv(1024).decode()
                 self.local_tools.logIt_thread(self.log_path, msg=f'Response from {t}: {ver}.')
 
-            except (WindowsError, socket.error):
+            except (WindowsError, socket.error, UnicodeDecodeError):
                 self.remove_lost_connection(t, self.ips[i])
                 break
 
@@ -242,21 +226,18 @@ class Server:
         self.local_tools.logIt_thread(self.log_path, msg=f'Running remove_lost_connection({con}, {ip})...')
         try:
             self.local_tools.logIt_thread(self.log_path, msg=f'Removing connections...')
-            for conKey, macValue in self.clients.items():
-                if conKey == con:
-                    for macKey, ipVal in macValue.items():
-                        for ipKey, identValue in ipVal.items():
-                            if ipKey == ip:
-                                for identKey, userValue in identValue.items():
-                                    self.targets.remove(con)
-                                    self.ips.remove(ip)
+            for endpoint in self.endpoints:
+                if endpoint.conn == con and endpoint.ip == ip:
+                    self.targets.remove(con)
+                    self.ips.remove(ip)
 
-                                    del self.connections[con]
-                                    del self.clients[con]
+                    del self.connections[con]
+                    del self.clients[con]
+                    self.endpoints.remove(endpoint)
 
-                                    # Update statusbar message
-                                    self.app.update_statusbar_messages_thread(
-                                        msg=f'{ip} | {identValue} | {userValue} removed from connected list.')
+                    # Update statusbar message
+                    self.app.update_statusbar_messages_thread(
+                        msg=f'{endpoint.ip} | {endpoint.ident} | {endpoint.user} removed from connected list.')
 
             self.local_tools.logIt_thread(self.log_path, msg=f'Connections removed.')
             return True
