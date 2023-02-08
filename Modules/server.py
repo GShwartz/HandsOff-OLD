@@ -13,13 +13,13 @@ class Endpoints:
         self.client_version = client_version
 
     def __repr__(self):
-        return f"Endpoint({self.conn, self.client_mac, self.ip, self.ident, self.user, self.client_version})"
+        return f"Endpoint({self.conn}, {self.client_mac}, " \
+               f"{self.ip}, {self.ident}, {self.user}, {self.client_version})"
 
 
 class Server:
     def __init__(self, local_tools, log_path, app, ip, port):
         self.clients = {}
-        self.clients_backup = {}
         self.connections = {}
         self.connHistory = {}
         self.ips = []
@@ -114,12 +114,12 @@ class Server:
     def connect(self) -> None:
         self.local_tools.logIt_thread(self.log_path, msg=f'Running connect()...')
         while True:
-            dt = self.local_tools.get_date()
             self.local_tools.logIt_thread(self.log_path, msg=f'Accepting connections...')
             self.conn, (self.ip, self.port) = self.server.accept()
             self.local_tools.logIt_thread(self.log_path, msg=f'Connection from {self.ip} accepted.')
 
             try:
+                dt = self.local_tools.get_date()
                 self.local_tools.logIt_thread(self.log_path, msg=f'Waiting for MAC Address...')
                 self.client_mac = self.get_mac_address()
                 self.local_tools.logIt_thread(self.log_path, msg=f'MAC: {self.client_mac}.')
@@ -138,31 +138,29 @@ class Server:
                 return  # Restart The Loop
 
             # Apply Data to dataclass Endpoints
-            fresh_endpoint = Endpoints(self.conn, self.client_mac, self.ip, self.ident, self.user, self.client_version)
+            fresh_endpoint = Endpoints(self.conn, self.client_mac, self.ip,
+                                       self.ident, self.user, self.client_version)
+
             if fresh_endpoint not in self.endpoints:
                 self.endpoints.append(fresh_endpoint)
                 self.targets.append(fresh_endpoint.conn)
                 self.ips.append(fresh_endpoint.ip)
-                # self.temp_connection = {fresh_endpoint.conn: fresh_endpoint.ip}
                 self.connections.update({fresh_endpoint.conn: fresh_endpoint.ip})
-                # self.connections.update(self.temp_connection)
                 self.temp_ident = {
                     fresh_endpoint.conn: {fresh_endpoint.client_mac: {
                         fresh_endpoint.ip: {
                             fresh_endpoint.ident: {
                                 fresh_endpoint.user: fresh_endpoint.client_version}}}}}
                 self.clients.update(self.temp_ident)
-                self.temp_connection_record = {self.conn: {self.client_mac: {self.ip: {self.ident: {self.user: dt}}}}}
 
             self.connHistory.update({fresh_endpoint: dt})
-
             self.app.display_server_information_thread()
             self.welcome_message()
 
     # Check if connected stations are still connected
     def vital_signs(self) -> bool:
         self.local_tools.logIt_thread(self.log_path, msg=f'Running vital_signs()...')
-        if len(self.targets) == 0:
+        if len(self.endpoints) == 0:
             self.app.update_statusbar_messages_thread(msg='No connected stations.')
             return False
 
@@ -170,78 +168,64 @@ class Server:
         i = 0
         self.app.update_statusbar_messages_thread(msg=f'running vitals check...')
         self.local_tools.logIt_thread(self.log_path, msg=f'Iterating Through Temp Connected Sockets List...')
-        for t in self.targets:
+        for endpoint in self.endpoints:
             try:
-                self.local_tools.logIt_thread(self.log_path, msg=f'Sending "alive" to {t}...')
-                t.send('alive'.encode())
+                self.local_tools.logIt_thread(self.log_path, msg=f'Sending "alive" to {endpoint.conn}...')
+                endpoint.conn.send('alive'.encode())
                 self.local_tools.logIt_thread(self.log_path, msg=f'Send completed.')
-                self.local_tools.logIt_thread(self.log_path, msg=f'Waiting for response from {t}...')
-                ans = t.recv(1024).decode()
-                self.local_tools.logIt_thread(self.log_path, msg=f'Response from {t}: {ans}.')
-                self.local_tools.logIt_thread(self.log_path, msg=f'Waiting for client version from {t}...')
-                ver = t.recv(1024).decode()
-                self.local_tools.logIt_thread(self.log_path, msg=f'Response from {t}: {ver}.')
+                self.local_tools.logIt_thread(self.log_path, msg=f'Waiting for response from {endpoint.conn}...')
+                ans = endpoint.conn.recv(1024).decode()
+                self.local_tools.logIt_thread(self.log_path, msg=f'Response from {endpoint.conn}: {ans}.')
+                self.local_tools.logIt_thread(self.log_path, msg=f'Waiting for client version from {endpoint.conn}...')
+                ver = endpoint.conn.recv(1024).decode()
+                self.local_tools.logIt_thread(self.log_path, msg=f'Response from {endpoint.conn}: {ver}.')
 
             except (WindowsError, socket.error, UnicodeDecodeError):
-                self.remove_lost_connection(t, self.ips[i])
-                break
+                self.remove_lost_connection(endpoint)
+                continue
 
             if str(ans) == str(callback):
                 try:
                     self.local_tools.logIt_thread(self.log_path, msg=f'Iterating self.clients dictionary...')
-                    for conKey, ipValue in self.clients.items():
-                        for ipKey, identValue in ipValue.items():
-                            if t == conKey:
-                                for name, version in identValue.items():
-                                    for v, v1 in version.items():
-                                        for n, ver in v1.items():
-                                            self.app.update_statusbar_messages_thread(
-                                                msg=f'Station IP: {self.ips[i]} | Station Name: {v} | Client Version: {ver} - ALIVE!')
-                                            i += 1
-                                            time.sleep(0.5)
+                    self.app.update_statusbar_messages_thread(
+                        msg=f'Station IP: {endpoint.ip} | Station Name: {endpoint.ident} | Client Version: {endpoint.client_version} - ALIVE!')
+                    i += 1
+                    time.sleep(0.5)
 
                 except (IndexError, RuntimeError):
-                    pass
+                    continue
 
             else:
                 self.local_tools.logIt_thread(self.log_path, msg=f'Iterating self.clients dictionary...')
                 try:
-                    for conKey, macValue in self.clients.items():
-                        for con in self.targets:
-                            if conKey == con:
-                                for macKey, ipVal in macValue.items():
-                                    for ipKey, identValue in ipVal.items():
-                                        if ipKey == self.ips[i]:
-                                            self.remove_lost_connection(conKey, ipKey)
+                    self.remove_lost_connection(endpoint)
 
                 except (IndexError, RuntimeError):
-                    pass
+                    continue
 
         self.app.update_statusbar_messages_thread(msg=f'Vitals check completed.')
         self.local_tools.logIt_thread(self.log_path, msg=f'=== End of vital_signs() ===')
         return True
 
     # Remove Lost connections
-    def remove_lost_connection(self, con: str, ip: str) -> bool:
-        self.local_tools.logIt_thread(self.log_path, msg=f'Running remove_lost_connection({con}, {ip})...')
+    def remove_lost_connection(self, endpoint) -> bool:
+        self.local_tools.logIt_thread(self.log_path, msg=f'Running remove_lost_connection({endpoint.conn}, {endpoint.ip})...')
         try:
             self.local_tools.logIt_thread(self.log_path, msg=f'Removing connections...')
-            for endpoint in self.endpoints:
-                if endpoint.conn == con and endpoint.ip == ip:
-                    self.targets.remove(con)
-                    self.ips.remove(ip)
+            self.targets.remove(endpoint.conn)
+            self.ips.remove(endpoint.ip)
 
-                    del self.connections[con]
-                    del self.clients[con]
-                    self.endpoints.remove(endpoint)
+            del self.connections[endpoint.conn]
+            del self.clients[endpoint.conn]
+            self.endpoints.remove(endpoint)
 
-                    # Update statusbar message
-                    self.app.update_statusbar_messages_thread(
-                        msg=f'{endpoint.ip} | {endpoint.ident} | {endpoint.user} removed from connected list.')
+            # Update statusbar message
+            self.app.update_statusbar_messages_thread(
+                msg=f'{endpoint.ip} | {endpoint.ident} | {endpoint.user} removed from connected list.')
 
             self.local_tools.logIt_thread(self.log_path, msg=f'Connections removed.')
             return True
 
-        except RuntimeError as e:
+        except (ValueError, RuntimeError) as e:
             self.local_tools.logIt_thread(self.log_path, msg=f'Runtime Error: {e}.')
-            return False
+
