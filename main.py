@@ -462,7 +462,7 @@ class App(tk.Tk):
         self.buttons.append(self.tasks_btn)
         local_tools.logIt_thread(log_path, msg=f'Building restart button...')
         self.restart_btn = Button(self.controller_btns, text="Restart", width=14, pady=5,
-                                  command=lambda: self.restart_command(clientConn, clientIP, sname))
+                                  command=lambda: self.restart_command(clientConn))
         self.restart_btn.grid(row=0, column=6, sticky="w", pady=5, padx=2, ipadx=2)
         local_tools.logIt_thread(log_path, msg=f'Updating controller buttons list...')
         self.buttons.append(self.restart_btn)
@@ -1080,32 +1080,38 @@ class App(tk.Tk):
                 return False
 
     # Restart Client
-    def restart_command(self, con: str, ip: str, sname: str) -> bool:
-        local_tools.logIt_thread(log_path, msg=f'Running restart({con}, {ip}, {sname})')
+    def restart_command(self, con: str) -> bool:
+        local_tools.logIt_thread(log_path, msg=f'Running restart({con})')
         self.update_statusbar_messages_thread(msg=f' waiting for restart confirmation...')
-        local_tools.logIt_thread(log_path, msg=f'Displaying self.sure() popup window...')
-        self.sure = messagebox.askyesno(f"Restart for: {ip} | {sname}",
-                                        f"Are you sure you want to restart {sname}?\t")
-        local_tools.logIt_thread(log_path, msg=f'self.sure = {self.sure}')
-        if self.sure:
-            try:
-                local_tools.logIt_thread(log_path, msg=f'Sending restart command to client...')
-                con.send('restart'.encode())
-                local_tools.logIt_thread(log_path, msg=f'Send completed.')
-                local_tools.logIt_thread(log_path, msg=f'Calling server.remove_lost_connection({con}, {ip})...')
-                self.server.remove_lost_connection(con, ip)
-                local_tools.logIt_thread(log_path, msg=f'Calling self.refresh()...')
-                self.refresh_command(event=0)
-                local_tools.logIt_thread(log_path, msg=f'Restart command completed.')
-                self.update_statusbar_messages_thread(msg=f'restart command sent to {ip} | {sname}.')
-                return True
+        for endpoint in self.server.endpoints:
+            if endpoint.conn == con:
+                local_tools.logIt_thread(log_path, msg=f'Displaying self.sure() popup window...')
+                self.sure = messagebox.askyesno(f"Restart for: {endpoint.ip} | {endpoint.ident}",
+                                                f"Are you sure you want to restart {endpoint.ident}?\t")
+                local_tools.logIt_thread(log_path, msg=f'self.sure = {self.sure}')
 
-            except (RuntimeError, WindowsError, socket.error) as e:
-                local_tools.logIt_thread(log_path, msg=f'Connection Error: {e}')
-                self.update_statusbar_messages_thread(msg=f'{e}')
-                local_tools.logIt_thread(log_path, msg=f'Calling server.remove_lost_connection({con}, {ip})...')
-                server.remove_lost_connection(con, ip)
-                return False
+                if self.sure:
+                    try:
+                        local_tools.logIt_thread(log_path, msg=f'Sending restart command to client...')
+                        endpoint.conn.send('restart'.encode())
+                        local_tools.logIt_thread(log_path, msg=f'Send completed.')
+                        local_tools.logIt_thread(log_path, msg=f'Calling server.remove_lost_connection('
+                                                               f'{endpoint})...')
+                        self.server.remove_lost_connection(endpoint)
+                        local_tools.logIt_thread(log_path, msg=f'Calling self.refresh()...')
+                        self.refresh_command()
+                        local_tools.logIt_thread(log_path, msg=f'Restart command completed.')
+                        self.update_statusbar_messages_thread(msg=f'restart command sent to '
+                                                                  f'{endpoint.ip} | {endpoint.ident}.')
+                        return True
+
+                    except (RuntimeError, WindowsError, socket.error) as e:
+                        local_tools.logIt_thread(log_path, msg=f'Connection Error: {e}')
+                        self.update_statusbar_messages_thread(msg=f'{e}')
+                        local_tools.logIt_thread(log_path, msg=f'Calling server.remove_lost_connection('
+                                                               f'{endpoint})...')
+                        self.server.remove_lost_connection(endpoint)
+                        return False
 
         else:
             self.update_statusbar_messages_thread(msg=f'restart canceled.')
@@ -1300,21 +1306,6 @@ class App(tk.Tk):
     # ==++==++==++== MENUBAR ==++==++==++==
     # Restart All Clients
     def restart_all_clients_command(self):
-        def extract():
-            for item in self.server.tmp_availables:
-                for conKey, ipValue in self.server.clients.items():
-                    for macKey, ipVal in ipValue.items():
-                        for ipKey, identVal in ipVal.items():
-                            if item[2] == ipKey:
-                                session = item[0]
-                                stationMAC = item[1]
-                                stationIP = item[2]
-                                stationName = item[3]
-                                loggedUser = item[4]
-                                clientVersion = item[5]
-
-                                return session, stationMAC, stationIP, stationName, loggedUser, clientVersion
-
         local_tools.logIt_thread(log_path, msg=f'Running restart_all_clients()...')
         if len(self.server.targets) == 0:
             local_tools.logIt_thread(log_path, msg=f'Displaying popup window: "No connected stations"...')
@@ -1326,29 +1317,25 @@ class App(tk.Tk):
         self.sure = messagebox.askyesno(f"Restart All Clients\t", "Are you sure?")
         local_tools.logIt_thread(log_path, msg=f'self.sure = {self.sure}')
 
-        session, stationMAC, stationIP, stationName, loggedUser, clientVersion = extract()
         if self.sure:
-            for t in self.server.targets:
+            for endpoint in self.server.endpoints:
                 try:
-                    self.update_statusbar_messages_thread(msg=f'Restarting {t}...')
-                    t.send('restart'.encode())
-                    msg = t.recv(1024).decode()
+                    endpoint.conn.send('restart'.encode())
+                    msg = endpoint.conn.recv(1024).decode()
                     self.update_statusbar_messages_thread(msg=f"{msg}")
-                    self.server.remove_lost_connection(t, stationIP)
+                    self.server.remove_lost_connection(endpoint)
 
-                except (WindowsError, socket.error) as e:
-                    local_tools.logIt_thread(log_path, msg=f'ERROR: {e}')
-                    self.server.remove_lost_connection(t, stationIP)
-                    pass
+                except (ConnectionResetError, socket.error):
+                    continue
 
-            for i in range(len(self.server.targets)):
-                refreshThread = Thread(target=self.refresh_command)
-                refreshThread.start()
-                time.sleep(0.5)
-                # self.refresh()
+            refreshThread = Thread(target=self.refresh_command)
+            refreshThread.start()
+            time.sleep(0.5)
 
             messagebox.showinfo("Restart All Clients", "Done!\t\t\t\t")
+            self.refresh_command()
             self.update_statusbar_messages_thread(msg='Restart command completed.')
+            self.refresh_command()
             return True
 
         else:
@@ -1469,38 +1456,32 @@ class App(tk.Tk):
         for name, ftype in file_types.items():
             if str(filename).endswith(ftype) and ftype == '.csv':
                 header = ['MAC', 'IP', 'Station', 'User', 'Time']
-                with open(filename, 'w') as file:
-                    writer = csv.writer(file)
-                    try:
+                try:
+                    with open(filename, 'w') as file:
+                        writer = csv.writer(file)
                         writer.writerow(header)
-                        for connection in self.server.connHistory:
-                            for conKey, macValue in connection.items():
-                                for macKey, ipVal in macValue.items():
-                                    for ipKey, identValue in ipVal.items():
-                                        for identKey, userValue in identValue.items():
-                                            for userKey, timeValue in userValue.items():
-                                                writer.writerow([macKey, ipKey, identKey, userKey, timeValue])
-
-                                c += 1
+                        for endpoint, dt in self.server.connHistory.items():
+                            writer.writerow([endpoint.client_mac, endpoint.ip, endpoint.ident, endpoint.user, dt])
                         return True
 
-                    except Exception as e:
-                        local_tools.logIt_thread(log_path, msg=f'ERROR: {e}')
-                        self.update_statusbar_messages_thread(msg=f'Status: {e}.')
-                        return False
+                except Exception as e:
+                    local_tools.logIt_thread(log_path, msg=f'ERROR: {e}')
+                    self.update_statusbar_messages_thread(msg=f'Status: {e}.')
+                    return False
 
             else:
-                with open(filename, 'w') as file:
-                    for connection in self.server.connHistory:
-                        for conKey, macValue in connection.items():
-                            for macKey, ipVal in macValue.items():
-                                for ipKey, identValue in ipVal.items():
-                                    for identKey, userValue in identValue.items():
-                                        for userKey, timeValue in userValue.items():
-                                            file.write(
-                                                f"#{c} | MAC: {macKey} | IP: {ipKey} | Station: {identKey} | User: {userKey} | Time: {timeValue} \n")
-                                c += 1
-                    return True
+                try:
+                    with open(filename, 'w') as file:
+                        for endpoint, dt in self.server.connHistory.items():
+                            file.write(f"#{c} | MAC: {endpoint.client_mac} | IP: {endpoint.ip} | "
+                                       f"Station: {endpoint.ident} | User: {endpoint.user} | Time: {dt} \n")
+                            c += 1
+                        return True
+
+                except Exception as e:
+                    local_tools.logIt_thread(log_path, msg=f'ERROR: {e}')
+                    self.update_statusbar_messages_thread(msg=f'Status: {e}.')
+                    return False
 
     # Manage Connected Table & Controller LabelFrame Buttons
     def select_item(self, event) -> bool:
