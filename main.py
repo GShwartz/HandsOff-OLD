@@ -3,6 +3,7 @@ from threading import Thread
 import PIL.ImageTk
 import subprocess
 import webbrowser
+import threading
 import PIL.Image
 import argparse
 import pystray
@@ -37,10 +38,21 @@ from Modules import tasks
 from Modules.server import Server
 
 
+class Available:
+    def __init__(self, conn, ip, ident, *args, **kwargs):
+        self.conn = conn
+        self.ip = ip
+        self.ident = ident
+        self.arg = args
+        self.kw = kwargs
+
+    def __repr__(self):
+        return f"Available({self.conn}, {self.ip}, {self.ident}, {self.arg}, {self.kw})"
+
+
 class App(tk.Tk):
     top_windows = []
     buttons = []
-    sidebar_buttons = []
     social_buttons = []
     maintenance_buttons = []
 
@@ -53,6 +65,7 @@ class App(tk.Tk):
     # Temp dict to hold connected station's ID# & IP
     temp = {}
 
+    # App Display sizes
     WIDTH = 1150
     HEIGHT = 870
 
@@ -341,9 +354,9 @@ class App(tk.Tk):
         self.details_frame.grid(row=3, column=0, sticky='news')
 
         local_tools.logIt_thread(log_path, msg=f'Building details LabelFrame...')
-        self.details_labelFrame = LabelFrame(self.main_frame, text="Details", relief='solid',
-                                             height=250, background='slate gray')
-        self.details_labelFrame.grid(row=3, column=0, sticky='news')
+        # self.details_labelFrame = LabelFrame(self.main_frame, text="Details", relief='solid', foreground='white',
+        #                                      height=250, background='slate gray')
+        # self.details_labelFrame.grid(row=3, column=0, sticky='news')
 
         local_tools.logIt_thread(log_path, msg=f'Building statusbar frame in main frame...')
         self.statusbar_frame = Frame(self.main_frame, relief=SUNKEN, bd=1)
@@ -519,7 +532,7 @@ class App(tk.Tk):
 
         local_tools.logIt_thread(log_path, msg=f'Building details LabelFrame...')
         self.details_labelFrame = LabelFrame(self.main_frame, text="Details", relief='solid',
-                                             height=400, background='slate gray')
+                                             foreground='white', height=400, background='slate gray')
         self.details_labelFrame.grid(row=3, sticky='news', columnspan=3)
 
         local_tools.logIt_thread(log_path, msg=f'Clearing frames list...')
@@ -566,17 +579,24 @@ class App(tk.Tk):
             self.withdraw()
 
         else:
-            local_tools.logIt_thread(log_path, msg=f'Hiding app window...')
-            self.withdraw()
-            local_tools.logIt_thread(log_path, msg=f'Destroying app window...')
             if len(self.server.targets) > 0:
-                for t in server.targets:
+                for t in self.server.targets:
                     try:
                         t.send('exit'.encode())
 
                     except socket.error:
                         pass
 
+            mainThread = threading.current_thread()
+            for thread in threading.enumerate():
+                if thread is mainThread:
+                    continue
+
+                thread.join(timeout=0.5)
+
+            local_tools.logIt_thread(log_path, msg=f'Hiding app window...')
+            self.withdraw()
+            local_tools.logIt_thread(log_path, msg=f'Destroying app window...')
             self.destroy()
 
     # Minimize Window
@@ -589,11 +609,6 @@ class App(tk.Tk):
         for button in list(self.buttons):
             local_tools.logIt_thread(log_path, msg=f'Enabling {button.config("text")[-1]} button...')
             button.config(state=NORMAL)
-
-        for sbutton in list(self.sidebar_buttons):
-            local_tools.logIt_thread(log_path,
-                                     msg=f'Enabling sidebar {sbutton.config("text")[-1]} button...')
-            sbutton.config(state=NORMAL)
 
     # Disable Controller Buttons
     def disable_buttons(self):
@@ -1078,7 +1093,7 @@ class App(tk.Tk):
                 con.send('restart'.encode())
                 local_tools.logIt_thread(log_path, msg=f'Send completed.')
                 local_tools.logIt_thread(log_path, msg=f'Calling server.remove_lost_connection({con}, {ip})...')
-                server.remove_lost_connection(con, ip)
+                self.server.remove_lost_connection(con, ip)
                 local_tools.logIt_thread(log_path, msg=f'Calling self.refresh()...')
                 self.refresh_command(event=0)
                 local_tools.logIt_thread(log_path, msg=f'Restart command completed.')
@@ -1155,6 +1170,7 @@ class App(tk.Tk):
 
         else:
             return False
+
     # ==++==++==++== END Controller Buttons ==++==++==++==
 
     # Display Server Information
@@ -1178,54 +1194,6 @@ class App(tk.Tk):
         if len(self.server.ips) == 0 and len(self.server.targets) == 0:
             local_tools.logIt_thread(log_path, msg=f'No connected Stations')
 
-        def make_tmp():
-            local_tools.logIt_thread(log_path, msg=f'Running make_tmp()...')
-            count = 0
-            for conKey, macValue in self.server.clients.items():
-                for macKey, ipValue in macValue.items():
-                    for ipKey, identValue in ipValue.items():
-                        for con in self.server.targets:
-                            if con == conKey:
-                                for identKey, userValue in identValue.items():
-                                    for userV, clientVer in userValue.items():
-                                        if (count, macKey, ipKey, identKey, userValue) in self.server.tmp_availables:
-                                            continue
-
-                                local_tools.logIt_thread(log_path, msg=f'Updating self.tmp_availables list...')
-                                self.server.tmp_availables.append((count, macKey, ipKey, identKey, userV, clientVer))
-                count += 1
-
-            local_tools.logIt_thread(log_path, msg=f'Available list created.')
-
-        def extract():
-            local_tools.logIt_thread(log_path, msg=f'Running extract()...')
-            for item in self.server.tmp_availables:
-                for conKey, ipValue in self.server.clients.items():
-                    for macKey, ipVal in ipValue.items():
-                        for ipKey, identVal in ipVal.items():
-                            if item[2] == ipKey:
-                                session = item[0]
-                                stationMAC = item[1]
-                                stationIP = item[2]
-                                stationName = item[3]
-                                loggedUser = item[4]
-                                clientVersion = item[5]
-
-                                # Show results in GUI table
-                                if session % 2 == 0:
-                                    local_tools.logIt_thread(log_path, msg=f'Updating connected table...')
-                                    self.connected_table.insert('', 'end', values=(session, stationMAC, stationIP,
-                                                                                   stationName, loggedUser,
-                                                                                   clientVersion),
-                                                                tags=('evenrow',))
-                                else:
-                                    local_tools.logIt_thread(log_path, msg=f'Updating connected table...')
-                                    self.connected_table.insert('', 'end', values=(session, stationMAC, stationIP,
-                                                                                   stationName, loggedUser,
-                                                                                   clientVersion), tags=('oddrow',))
-
-            local_tools.logIt_thread(log_path, msg=f'Extraction completed.')
-
         # Cleaning availables list
         local_tools.logIt_thread(log_path, msg=f'Cleaning availables list...')
         self.server.tmp_availables = []
@@ -1235,9 +1203,29 @@ class App(tk.Tk):
         self.connected_table.delete(*self.connected_table.get_children())
 
         local_tools.logIt_thread(log_path, msg=f'Calling make_tmp()...')
-        make_tmp()
-        local_tools.logIt_thread(log_path, msg=f'Calling extract()...')
-        extract()
+        count = 0
+        for endpt in self.server.endpoints:
+            for con in self.server.targets:
+                if endpt.conn == con and endpt.ip in self.server.ips:
+                    self.server.tmp_availables.append((count, endpt.client_mac, endpt.ip,
+                                                       endpt.ident, endpt.user, endpt.client_version))
+            count += 1
+        local_tools.logIt_thread(log_path, msg=f'Available list created.')
+
+        for item in self.server.tmp_availables:
+            for endpoint in self.server.endpoints:
+                if item[1] == endpoint.client_mac:
+                    if item[0] % 2 == 0:
+                        local_tools.logIt_thread(log_path, msg=f'Updating connected table...')
+                        self.connected_table.insert('', 'end', values=(item[0], endpoint.client_mac, endpoint.ip,
+                                                                       endpoint.ident, endpoint.user,
+                                                                       endpoint.client_version),
+                                                    tags=('evenrow',))
+                    else:
+                        local_tools.logIt_thread(log_path, msg=f'Updating connected table...')
+                        self.connected_table.insert('', 'end', values=(item[0], endpoint.client_mac, endpoint.ip,
+                                                                       endpoint.ident, endpoint.user,
+                                                                       endpoint.client_version), tags=('oddrow',))
 
     # Display Connection History
     def connection_history(self) -> bool:
@@ -1252,26 +1240,20 @@ class App(tk.Tk):
         self.update_statusbar_messages_thread(msg=f'Status: displaying connection history.')
         c = 0  # Initiate Counter for Connection Number
         try:
-            for connection in self.server.connHistory:
-                for conKey, macValue in connection.items():
-                    for macKey, ipVal in macValue.items():
-                        for ipKey, identValue in ipVal.items():
-                            for identKey, userValue in identValue.items():
-                                for userKey, timeValue in userValue.items():
-                                    # Show results in GUI table
-                                    if c % 2 == 0:
-                                        self.history_table.insert('', 'end', values=(c, macKey, ipKey,
-                                                                                     identKey, userKey,
-                                                                                     timeValue), tags=('evenrow',))
-                                    else:
-                                        self.history_table.insert('', 'end', values=(c, macKey, ipKey,
-                                                                                     identKey, userKey,
-                                                                                     timeValue), tags=('oddrow',))
+            for entry, t in self.server.connHistory.items():
+                if c % 2 == 0:
+                    self.history_table.insert('', 'end', values=(c, entry.client_mac, entry.ip,
+                                                                 entry.ident, entry.user,
+                                                                 t), tags=('evenrow',))
+                else:
+                    self.history_table.insert('', 'end', values=(c, entry.client_mac, entry.ip,
+                                                                 entry.ident, entry.user,
+                                                                 t), tags=('oddrow',))
+                c += 1
+                local_tools.logIt_thread(log_path, msg=f'Stying table row colors...')
+                self.history_table.tag_configure('oddrow', background='snow')
+                self.history_table.tag_configure('evenrow', background='ghost white')
 
-                                    local_tools.logIt_thread(log_path, msg=f'Stying table row colors...')
-                                    self.history_table.tag_configure('oddrow', background='snow')
-                                    self.history_table.tag_configure('evenrow', background='ghost white')
-                        c += 1
             return True
 
         except (KeyError, socket.error, ConnectionResetError) as e:
@@ -1541,28 +1523,21 @@ class App(tk.Tk):
 
         # Create a Controller LabelFrame with Buttons and connect shell by TreeView Table selection
         for id, ip in self.temp.items():
-            for clientConn, clientValues in self.server.clients.items():
-                for clientMac, clientIPv in clientValues.items():
-                    for clientIP, vals in clientIPv.items():
-                        if clientIP == ip:
-                            for sname in vals.keys():
-                                temp_notebook = {clientIP: {sname: self.notebook}}
-                                if not temp_notebook[clientIP][sname] in self.notebooks:
-                                    self.notebooks.update(temp_notebook)
+            for endpoint in self.server.endpoints:
+                if ip == endpoint.ip:
+                    temp_notebook = {endpoint.ip: {endpoint.ident: self.notebook}}
+                    if not temp_notebook in self.notebooks.items():
+                        self.notebooks.update(temp_notebook)
 
-                                self.build_controller_buttons(clientConn, clientIP, sname)
-                                local_tools.logIt_thread(log_path, msg=f'Calling self.enable_buttons_thread...')
-                                self.enable_buttons_thread()
-                                local_tools.logIt_thread(log_path, msg=f'Running shell thread...')
-                                shellThread = Thread(target=self.shell,
-                                                     args=(clientConn, clientIP, sname),
-                                                     daemon=True,
-                                                     name="Shell Thread")
-                                shellThread.start()
-
-                                local_tools.logIt_thread(log_path, msg=f'Clearing self.temp dictionary...')
-                                self.temp.clear()
-                                return True
+                    self.build_controller_buttons(endpoint.conn, endpoint.ip, endpoint.ident)
+                    self.enable_buttons_thread()
+                    shellThread = Thread(target=self.shell,
+                                         args=(endpoint.conn, endpoint.ip, endpoint.ident),
+                                         daemon=True,
+                                         name="Shell Thread")
+                    shellThread.start()
+                    self.temp.clear()
+                    return True
 
 
 class About:
@@ -1618,21 +1593,21 @@ class About:
         self.github_label = Label(self.about_window, image=self.github_purple, background='slate gray')
         self.github_label.image = [self.github_purple, self.github_black]
         self.github_label.place(x=80, y=130)
-        self.github_label.bind("<Button-1>", lambda x: self.on_github_click(github_url))
+        self.github_label.bind("<Button-1>", lambda x: self.on_github_click(self.github_url))
         self.github_label.bind("<Enter>", self.on_github_hover)
         self.github_label.bind("<Leave>", self.on_github_leave)
 
         self.youtube_label = Label(self.about_window, image=self.youtube_red, background='slate gray')
         self.youtube_label.image = [self.youtube_red, self.youtube_black]
         self.youtube_label.place(x=173, y=130)
-        self.youtube_label.bind("<Button-1>", lambda x: self.on_youtube_click(youtube_url))
+        self.youtube_label.bind("<Button-1>", lambda x: self.on_youtube_click(self.youtube_url))
         self.youtube_label.bind("<Enter>", self.on_youtube_hover)
         self.youtube_label.bind("<Leave>", self.on_youtube_leave)
 
         self.linkedIn_label = Label(self.about_window, image=self.linkedin_blue, background='slate gray')
         self.linkedIn_label.image = [self.linkedin_black, self.linkedin_blue]
         self.linkedIn_label.place(x=264, y=130)
-        self.linkedIn_label.bind("<Button-1>", lambda x: self.on_youtube_click(linkedIn_url))
+        self.linkedIn_label.bind("<Button-1>", lambda x: self.on_youtube_click(self.linkedIn_url))
         self.linkedIn_label.bind("<Enter>", self.on_linkedIn_hover)
         self.linkedIn_label.bind("<Leave>", self.on_linkedIn_leave)
 
