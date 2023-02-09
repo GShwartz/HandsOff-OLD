@@ -9,12 +9,9 @@ import os
 
 
 class Screenshot:
-    def __init__(self, con, root, tmp_availables, clients, log_path, targets):
-        self.targets = targets
-        self.con = con
+    def __init__(self, endpoint, root, log_path):
+        self.endpoint = endpoint
         self.root = root
-        self.tmp_availables = tmp_availables
-        self.clients = clients
         self.log_path = log_path
 
     def get_date(self):
@@ -56,40 +53,16 @@ class Screenshot:
             res += b[i] << (i * 8)
         return res
 
-    def recv_file(self, ip):
-        def make_dir():
-            self.logIt_thread(self.log_path, debug=False, msg=f'Running make_dir()...')
-            self.logIt_thread(self.log_path, debug=False, msg=f'Creating Directory...')
-            for conKey, ipValue in self.clients.items():
-                for macKey, ipVal in ipValue.items():
-                    for ipKey, userValue in ipVal.items():
-                        if ipKey == ip:
-                            for item in self.tmp_availables:
-                                if item[2] == ip:
-                                    for identKey, timeValue in userValue.items():
-                                        name = item[3]
-                                        loggedUser = item[4]
-                                        clientVersion = item[5]
-                                        path = os.path.join(self.root, name)
-
-                                        try:
-                                            os.makedirs(path)
-
-                                        except FileExistsError:
-                                            self.logIt_thread(self.log_path, debug=False, msg=f'Passing FileExistsError...')
-                                            pass
-
-                                    return path
-
+    def recv_file(self):
         def file_name():
             self.logIt_thread(self.log_path, debug=False, msg=f'Running file_name()...')
             try:
                 self.logIt_thread(self.log_path, debug=False, msg=f'Waiting for filename from client...')
-                filename = self.con.recv(1024)
+                filename = self.endpoint.conn.recv(1024)
                 self.logIt_thread(self.log_path, debug=False, msg=f'File name: {filename}')
 
                 self.logIt_thread(self.log_path, debug=False, msg=f'Sending confirmation to client...')
-                self.con.send("Filename OK".encode())
+                self.endpoint.conn.send("Filename OK".encode())
                 self.logIt_thread(self.log_path, debug=False, msg=f'Send completed.')
 
                 return filename
@@ -102,7 +75,7 @@ class Screenshot:
             self.logIt_thread(self.log_path, debug=False, msg=f'Running fetch()...')
             try:
                 self.logIt_thread(self.log_path, debug=False, msg=f'Waiting for file size...')
-                size = self.con.recv(4)
+                size = self.endpoint.conn.recv(4)
                 self.logIt_thread(self.log_path, debug=False, msg=f'File size: {size}')
 
                 self.logIt_thread(self.log_path, debug=False, msg=f'Converting size bytes to numbers...')
@@ -116,7 +89,7 @@ class Screenshot:
                     with open(filename, 'wb') as file:
                         self.logIt_thread(self.log_path, debug=False, msg=f'Fetching file content...')
                         while current_size < size:
-                            data = self.con.recv(1024)
+                            data = self.endpoint.conn.recv(1024)
                             if not data:
                                 break
 
@@ -135,7 +108,7 @@ class Screenshot:
                     with open(filename, 'ab') as file:
                         while current_size < size:
                             self.logIt_thread(self.log_path, debug=False, msg=f'Fetching file content...')
-                            data = self.con.recv(1024)
+                            data = self.endpoint.conn.recv(1024)
                             if not data:
                                 break
 
@@ -162,7 +135,7 @@ class Screenshot:
             self.logIt_thread(self.log_path, debug=False, msg=f'Running confirm()...')
             try:
                 self.logIt_thread(self.log_path, debug=False, msg=f'Waiting for answer from client...')
-                ans = self.con.recv(1024).decode()
+                ans = self.endpoint.conn.recv(1024).decode()
                 self.logIt_thread(self.log_path, debug=False, msg=f'Client answer: {ans}')
 
             except (WindowsError, socket.error) as e:
@@ -188,9 +161,12 @@ class Screenshot:
             shutil.move(src, dst)
             self.logIt_thread(self.log_path, debug=False, msg=f'File {filename} moved to {dst}.')
 
-        self.logIt_thread(self.log_path, debug=False, msg=f'Running recv_file()...')
-        self.logIt_thread(self.log_path, debug=False, msg=f'Calling make_dir()...')
-        path = make_dir()
+        path = os.path.join(self.root, self.endpoint.ident)
+        try:
+            os.makedirs(path)
+
+        except FileExistsError:
+            pass
 
         self.logIt_thread(self.log_path, debug=False, msg=f'Defining filename...')
         filename = file_name()
