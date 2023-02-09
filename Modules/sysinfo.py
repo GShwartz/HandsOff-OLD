@@ -1,5 +1,6 @@
 from datetime import datetime
 from threading import Thread
+from main import App
 import socket
 import shutil
 import time
@@ -7,14 +8,12 @@ import os
 
 
 class Sysinfo:
-    def __init__(self, con, ttl, root, tmp_availables, clients, log_path, ip):
-        self.con = con
-        self.ttl = ttl
-        self.root = root
-        self.tmp_availables = tmp_availables
-        self.clients = clients
+    def __init__(self, endpoint, path, log_path, app):
+        self.app = app
+        self.endpoint = endpoint
+        self.root = path
         self.log_path = log_path
-        self.ip = ip
+        self.path = os.path.join(self.root, self.endpoint.ident)
 
     def get_date(self):
         d = datetime.now().replace(microsecond=0)
@@ -49,76 +48,77 @@ class Sysinfo:
         self.logit_thread.start()
         return
 
-    def make_dir(self, ip):
-        self.logIt_thread(self.log_path, debug=False, msg=f'Running make_dir()...')
-        self.logIt_thread(self.log_path, debug=False, msg=f'Creating Directory...')
-        for conKey, ipValue in self.clients.items():
-            for macKey, ipVal in ipValue.items():
-                for ipKey, userValue in ipVal.items():
-                    if ipKey == self.ip:
-                        for item in self.tmp_availables:
-                            if item[2] == self.ip:
-                                for identKey, timeValue in userValue.items():
-                                    name = item[3]
-                                    loggedUser = item[4]
-                                    clientVersion = item[5]
-                                    path = os.path.join(self.root, name)
+    def bytes_to_number(self, b):
+        res = 0
+        for i in range(4):
+            res += b[i] << (i * 8)
+        return res
 
-                                    try:
-                                        os.makedirs(path)
+    def run(self):
 
-                                    except FileExistsError:
-                                        self.logIt_thread(self.log_path, debug=False, msg=f'Passing FileExistsError...')
-                                        pass
-
-                                return name, loggedUser, path
-
-    def run_command(self, ip, host, user):
-        self.logIt_thread(self.log_path, msg=f'Running self.run_command()...')
+        self.logIt_thread(self.log_path, msg=f'Running recv_file()...')
+        self.logIt_thread(self.log_path, msg=f'Calling make_dir()...')
         try:
-            self.logIt_thread(self.log_path, msg=f'Sending si command to {self.con}...')
-            self.con.send('si'.encode())
+            os.makedirs(self.path)
+
+        except FileExistsError:
+            self.logIt_thread(self.log_path, debug=False, msg=f'Passing FileExistsError...')
+            pass
+
+        self.logIt_thread(self.log_path, msg=f'Creating sysinfo file...')
+        dt = self.get_date()
+        self.sysinfo = rf'C:\HandsOff\{self.endpoint.ident}\sysinfo {dt}.txt'
+
+        try:
+            self.logIt_thread(self.log_path, msg=f'Sending si command to {self.endpoint.conn}...')
+            self.endpoint.conn.send('si'.encode())
             self.logIt_thread(self.log_path, msg=f'Send complete.')
-
-            self.logIt_thread(self.log_path, msg=f'Waiting for results from {self.con}...')
-            result = self.con.recv(4096).decode()
-            self.logIt_thread(self.log_path, msg=f'Results: {result}\n')
-
-            self.logIt_thread(self.log_path, msg=f'Writing results to {self.sysinfo}...')
-            if not os.path.exists(self.sysinfo):
-                with open(self.sysinfo, 'w') as log:
-                    log.write(f"====================================================\n")
-                    log.write(f"IP: {ip} | NAME: {host} | LOGGED USED: {user}\n")
-                    log.write(f"====================================================\n")
-                    log.write(f"{result}\n\n")
-
-            else:
-                with open(self.sysinfo, 'a') as log:
-                    log.write(f"====================================================")
-                    log.write(f"IP: {ip} | NAME: {host} | LOGGED USED: {user}\n")
-                    log.write(f"====================================================\n")
-                    log.write(f"{result}\n\n")
-
-            return True
+            filename = self.endpoint.conn.recv(1024).decode()
+            file_path = os.path.join(self.path, filename)
 
         except (WindowsError, socket.error) as e:
             self.logIt_thread(self.log_path, msg=f'Connection error: {e}')
             return False
 
-    def run(self, ip):
-        dt = self.get_date()
+        size = self.endpoint.conn.recv(4)
+        size = self.bytes_to_number(size)
 
-        self.logIt_thread(self.log_path, msg=f'Running recv_file()...')
-        self.logIt_thread(self.log_path, msg=f'Calling make_dir()...')
-        name, user, path = self.make_dir(ip)
+        current_size = 0
+        buffer = b""
+        with open(self.sysinfo, 'wb') as tsk_file:
+            while current_size < size:
+                self.logIt_thread(self.log_path, msg=f'Receiving file content from {self.endpoint.ip}...')
+                data = self.endpoint.conn.recv(1024)
+                if not data:
+                    break
 
-        self.logIt_thread(self.log_path, msg=f'Creating sysinfo file...')
-        self.sysinfo = rf'C:\HandsOff\{name}\sysinfo {dt}.txt'
+                if len(data) + current_size > size:
+                    data = data[:size - current_size]
 
-        self.logIt_thread(self.log_path, msg=f'Calling self.run_command()...')
+                buffer += data
+                current_size += len(data)
+                tsk_file.write(data)
 
-        if self.run_command(ip, name, user):
-            return self.sysinfo
+        self.endpoint.conn.send(f"Received file: {filename}\n".encode())
+        self.endpoint.conn.settimeout(10)
+        self.logIt_thread(self.log_path, msg=f'Waiting for msg from {self.endpoint.ip}...')
+        msg = self.endpoint.conn.recv(1024).decode()
+        self.endpoint.conn.settimeout(None)
 
-        else:
-            return False
+        # Validate file received
+        self.logIt_thread(self.log_path, msg=f'Validating file integrity...')
+        with open(self.sysinfo, 'r') as file:
+            data = file.read()
+            # print(data)   # for debugging
+
+        # Move screenshot file to directory
+        self.logIt_thread(self.log_path, msg=f'Moving file to {self.sysinfo}...')
+        try:
+            shutil.move(file_path, self.sysinfo)
+
+        except (FileNotFoundError, FileExistsError):
+            pass
+
+        self.logIt_thread(self.log_path, msg=f'Displaying {self.sysinfo} in notebook...')
+        self.app.display_file_content(None, self.sysinfo, self.app.system_information_tab,
+                                      txt='System Information', sname=self.endpoint.ident)
