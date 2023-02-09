@@ -38,8 +38,7 @@ from Modules import tasks
 from Modules.server import Server
 
 # TODO:
-#   1. Fix bug after getting system information
-#   2. Adjust the rest of the funcs to handle Endpoints dataclass
+#   1. Adjust the rest of the funcs to handle Endpoints dataclass
 
 
 class App(tk.Tk):
