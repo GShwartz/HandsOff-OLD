@@ -37,6 +37,10 @@ from Modules import sysinfo
 from Modules import tasks
 from Modules.server import Server
 
+# TODO:
+#   1. Fix bug after getting system information
+#   2. Adjust the rest of the funcs to handle Endpoints dataclass
+
 
 class App(tk.Tk):
     top_windows = []
@@ -216,9 +220,9 @@ class App(tk.Tk):
         helpThread.start()
 
     # Client System Info Thread
-    def client_system_information_thread(self, con: str, ip: str, sname: str):
+    def client_system_information_thread(self, endpoint):
         clientSystemInformationThread = Thread(target=self.sysinfo_command,
-                                               args=(con, ip, sname),
+                                               args=(endpoint, ),
                                                daemon=True,
                                                name="Client System Information Thread")
         clientSystemInformationThread.start()
@@ -437,8 +441,7 @@ class App(tk.Tk):
         local_tools.logIt_thread(log_path,
                                  msg=f'Building system information button...')
         self.sysinfo_btn = Button(self.controller_btns, text="SysInfo", width=14, pady=5,
-                                  command=lambda: self.client_system_information_thread(
-                                      endpoint.conn, endpoint.ip, endpoint.ident))
+                                  command=lambda: self.client_system_information_thread(endpoint))
         self.sysinfo_btn.grid(row=0, column=4, sticky="w", pady=5, padx=2, ipadx=2)
         local_tools.logIt_thread(log_path, msg=f'Updating controller buttons list...')
         self.buttons.append(self.sysinfo_btn)
@@ -758,7 +761,7 @@ class App(tk.Tk):
             local_tools.logIt_thread(log_path, msg=f'Connection Error: {e}')
             self.update_statusbar_messages_thread(msg=f'{e}.')
             local_tools.logIt_thread(log_path, msg=f'Calling server.remove_lost_connection({con}, {ip}...)')
-            server.remove_lost_connection(con, ip)
+            self.server.remove_lost_connection(con, ip)
             return False
 
     # Run Anydesk on Client
@@ -845,39 +848,37 @@ class App(tk.Tk):
             return False
 
     # Client System Information
-    def sysinfo_command(self, con: str, ip: str, sname: str):
-        local_tools.logIt_thread(log_path, msg=f'Running self.sysinfo({con}, {ip}, {sname})...')
+    def sysinfo_command(self, endpoint):
+        local_tools.logIt_thread(log_path, msg=f'Running self.sysinfo('
+                                               f'{endpoint.conn}, {endpoint.ip}, {endpoint.ident})...')
         local_tools.logIt_thread(log_path, msg=f'Calling self.disable_buttons_thread(sidebar=True)...')
         self.disable_buttons_thread()
-        self.update_statusbar_messages_thread(msg=f'waiting for system information from {ip} | {sname}...')
+        self.update_statusbar_messages_thread(msg=f'waiting for system information from '
+                                                  f'{endpoint.ip} | {endpoint.ident}...')
         try:
             local_tools.logIt_thread(log_path, msg=f'Initializing Module: sysinfo...')
-            sinfo = sysinfo.Sysinfo(con, self.server.ttl, path, self.server.tmp_availables,
-                                    self.server.clients, log_path, ip)
+            sinfo = sysinfo.Sysinfo(endpoint, path, log_path, self)
             local_tools.logIt_thread(log_path, msg=f'Calling sysinfo.run()...')
-            filepath = sinfo.run(ip)
-            self.update_statusbar_messages_thread(msg=f'system information file received from {ip} | {sname}.')
-            local_tools.logIt_thread(log_path,
-                                     msg=f'Calling self.display_file_content(None, {filepath}, {self.system_information_tab}, txt="System Information")...')
-            self.display_file_content(None, filepath, self.system_information_tab,
-                                      txt='System Information', sname=sname)
-            local_tools.logIt_thread(log_path, msg=f'Calling self.enable_buttons_thread()...')
+            sinfo.run()
+            self.update_statusbar_messages_thread(msg=f'system information file received from '
+                                                      f'{endpoint.ip} | {endpoint.ident}.')
             self.enable_buttons_thread()
 
         except (WindowsError, socket.error, ConnectionResetError) as e:
             local_tools.logIt_thread(log_path, debug=True, msg=f'Connection Error: {e}.')
             self.update_statusbar_messages_thread(msg=f'{e}.')
             try:
-                local_tools.logIt_thread(log_path, msg=f'Calling server.remove_lost_connection({con}, {ip})...')
-                server.remove_lost_connection(con, ip)
+                local_tools.logIt_thread(log_path, msg=f'Calling server.remove_lost_connection('
+                                                       f'{endpoint.conn}, {endpoint.ip})...')
+                self.server.remove_lost_connection(endpoint)
                 local_tools.logIt_thread(log_path, msg=f'Calling self.enable_buttons_thread...')
                 self.enable_buttons_thread()
-                return
+                return False
 
             except RuntimeError:
                 local_tools.logIt_thread(log_path, msg=f'Calling self.enable_buttons_thread...')
                 self.enable_buttons_thread()
-                return
+                return False
 
     # Display/Kill Tasks on Client
     def tasks(self, con: str, ip: str) -> bool:
