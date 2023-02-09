@@ -227,9 +227,9 @@ class App(tk.Tk):
         clientSystemInformationThread.start()
 
     # Grab Screenshot
-    def screenshot_thread(self, con: str, ip: str, sname: str):
+    def screenshot_thread(self, endpoint):
         screenThread = Thread(target=self.screenshot_command,
-                              args=(con, ip, sname),
+                              args=(endpoint, ),
                               daemon=True,
                               name='Screenshot Thread')
         screenThread.start()
@@ -416,9 +416,7 @@ class App(tk.Tk):
         local_tools.logIt_thread(log_path, msg=f'Building screenshot button...')
         self.screenshot_btn = Button(self.controller_btns, text="Screenshot", width=10,
                                      pady=5, padx=10,
-                                     command=lambda: self.screenshot_thread(endpoint.conn,
-                                                                            endpoint.ip,
-                                                                            endpoint.ident))
+                                     command=lambda: self.screenshot_thread(endpoint))
         self.screenshot_btn.grid(row=0, column=1, sticky="w", pady=5, padx=2, ipadx=2)
         local_tools.logIt_thread(log_path, msg=f'Updating controller buttons list...')
         self.buttons.append(self.screenshot_btn)
@@ -733,25 +731,29 @@ class App(tk.Tk):
         return
 
     # Screenshot from Client
-    def screenshot_command(self, con: str, ip: str, sname: str) -> bool:
-        local_tools.logIt_thread(log_path, msg=f'Running screenshot({con}, {ip}, {sname})...')
+    def screenshot_command(self, endpoint) -> bool:
+        local_tools.logIt_thread(log_path, msg=f'Running screenshot('
+                                               f'{endpoint.conn}, {endpoint.ip}, {endpoint.ident})...')
         local_tools.logIt_thread(log_path, msg=f'Calling self.disable_buttons_thread()...')
         self.disable_buttons_thread()
-        self.update_statusbar_messages_thread(msg=f'fetching screenshot from {ip} | {sname}...')
+        self.update_statusbar_messages_thread(msg=f'fetching screenshot from '
+                                                  f'{endpoint.ip} | {endpoint.ident}...')
         try:
             local_tools.logIt_thread(log_path, msg=f'Sending screen command to client...')
-            con.send('screen'.encode())
+            endpoint.conn.send('screen'.encode())
             local_tools.logIt_thread(log_path, msg=f'Send Completed.')
             local_tools.logIt_thread(log_path, msg=f'Initializing screenshot module...')
-            scrnshot = screenshot.Screenshot(con, path, self.server.tmp_availables,
-                                             self.server.clients, log_path, self.server.targets)
-            local_tools.logIt_thread(log_path, msg=f'Calling screenshot.recv_file({ip})...')
-            scrnshot.recv_file(ip)
-            self.update_statusbar_messages_thread(msg=f'screenshot received from  {ip} | {sname}.')
+            scrnshot = screenshot.Screenshot(endpoint, path, log_path)
+            local_tools.logIt_thread(log_path, msg=f'Calling screenshot.recv_file({endpoint.ip})...')
+            scrnshot.recv_file()
+            self.update_statusbar_messages_thread(msg=f'screenshot received from  '
+                                                      f'{endpoint.ip} | {endpoint.ident}.')
             local_tools.logIt_thread(log_path,
-                                     msg=fr'Calling self.display_file_content({path}\{sname}, "", {self.screenshot_tab}, txt="Screenshot")...')
-            self.display_file_content(fr"{path}\{sname}", '', self.screenshot_tab,
-                                      txt='Screenshot', sname=sname)
+                                     msg=fr'Calling self.display_file_content('
+                                         fr'{path}\{endpoint.ident}, "", '
+                                         fr'{self.screenshot_tab}, txt="Screenshot")...')
+            self.display_file_content(fr"{path}\{endpoint.ident}", '', self.screenshot_tab,
+                                      txt='Screenshot', sname=endpoint.ident)
             local_tools.logIt_thread(log_path, msg=f'Calling self.enable_buttons_thread()...')
             self.enable_buttons_thread()
             return True
@@ -759,8 +761,9 @@ class App(tk.Tk):
         except (WindowsError, socket.error, ConnectionResetError) as e:
             local_tools.logIt_thread(log_path, msg=f'Connection Error: {e}')
             self.update_statusbar_messages_thread(msg=f'{e}.')
-            local_tools.logIt_thread(log_path, msg=f'Calling server.remove_lost_connection({con}, {ip}...)')
-            self.server.remove_lost_connection(con, ip)
+            local_tools.logIt_thread(log_path, msg=f'Calling server.remove_lost_connection('
+                                                   f'{endpoint.conn}, {endpoint.ip}...)')
+            self.server.remove_lost_connection(endpoint)
             return False
 
     # Run Anydesk on Client
