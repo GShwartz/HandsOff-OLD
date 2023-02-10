@@ -147,6 +147,215 @@ class DisplayFileContent:
                 self.tabs += 1
 
 
+class Tasks:
+    def __init__(self, endpoint, app, notebook):
+        self.endpoint = endpoint
+        self.app = app
+        self.notebook = notebook
+
+    def what_task(self, filepath) -> str:
+        local_tools.logIt_thread(log_path, msg=f'Waiting for task name...')
+        task_to_kill = simpledialog.askstring(parent=self.app, title='Task To Kill', prompt="Task to kill\t\t\t\t")
+        local_tools.logIt_thread(log_path, msg=f'Task Name: {task_to_kill}.')
+        if task_to_kill is None:
+            try:
+                local_tools.logIt_thread(log_path, msg=f'Sending "n" to {self.endpoint.ip}...')
+                self.endpoint.conn.send('n'.encode())
+                local_tools.logIt_thread(log_path, msg=f'Send completed.')
+                local_tools.logIt_thread(log_path, msg=f'Calling self.enable_buttons_thread()...')
+                self.app.enable_buttons_thread()
+                local_tools.logIt_thread(log_path, msg=f'Displaying warning popup window..')
+                messagebox.showwarning(f"From {self.endpoint.ip} | {self.endpoint.ident}",
+                                       "Task Kill canceled.\t\t\t\t\t\t\t\t")
+                local_tools.logIt_thread(log_path, msg=f'Warning received.')
+                return False
+
+            except (WindowsError, socket.error) as e:
+                local_tools.logIt_thread(log_path, msg=f'Error: {e}.')
+                self.app.update_statusbar_messages_thread(msg=f"{e}")
+                local_tools.logIt_thread(log_path, msg=f'Calling server.remove_lost_connection('
+                                                       f'{self.endpoint.conn}, {self.endpoint.ip})...')
+                self.app.server.remove_lost_connection(self.endpoint)
+                local_tools.logIt_thread(log_path, msg=f'Calling self.enable_buttons_thread()...')
+                self.app.enable_buttons_thread()
+                return False
+
+        if len(task_to_kill) == 0:
+            try:
+                local_tools.logIt_thread(log_path, msg=f'Sending "n" to {self.endpoint.ip}...')
+                self.endpoint.conn.send('n'.encode())
+                local_tools.logIt_thread(log_path, msg=f'Send completed.')
+                local_tools.logIt_thread(log_path, msg=f'Calling self.enable_buttons_thread()...')
+                self.app.enable_buttons_thread()
+                local_tools.logIt_thread(log_path, msg=f'Displaying warning popup window...')
+                messagebox.showwarning(f"From {self.endpoint.ip} | {self.endpoint.ident}",
+                                       "Task Kill canceled.\t\t\t\t\t\t\t\t")
+                return False
+
+            except (WindowsError, socket.error) as e:
+                local_tools.logIt_thread(log_path, msg=f'Error: {e}.')
+                self.app.update_statusbar_messages_thread(msg=f"{e}")
+                local_tools.logIt_thread(log_path,
+                                         msg=f'Calling server.remove_lost_connection('
+                                             f'{self.endpoint.conn}, {self.endpoint.ip})...')
+                self.app.server.remove_lost_connection(self.endpoint)
+                local_tools.logIt_thread(log_path, msg=f'Calling self.enable_buttons_thread()...')
+                self.app.enable_buttons_thread()
+                return False
+
+        if not str(task_to_kill).endswith('.exe'):
+            try:
+                local_tools.logIt_thread(log_path, msg=f'Calling sysinfo.run()...')
+                self.endpoint.conn.send('n'.encode())
+                local_tools.logIt_thread(log_path, msg=f'Send completed.')
+                local_tools.logIt_thread(log_path, msg=f'Calling self.enable_buttons_thread()...')
+                self.app.enable_buttons_thread()
+                local_tools.logIt_thread(log_path, msg=f'Displaying warning popup window...')
+                messagebox.showwarning(f"From {self.endpoint.ip} | {self.endpoint.ident}",
+                                       "Task Kill canceled.\t\t\t\t\t\t\t\t")
+                return False
+
+            except (WindowsError, socket.error) as e:
+                local_tools.logIt_thread(log_path, msg=f'Error: {e}.')
+                self.app.update_statusbar_messages_thread(msg=f"{e}")
+                local_tools.logIt_thread(log_path, msg=f'Calling server.remove_lost_connection('
+                                                       f'{self.endpoint.conn}, {self.endpoint.ip})...')
+                server.remove_lost_connection(self.endpoint)
+                return False
+
+        local_tools.logIt_thread(log_path, msg=f'Calling self.enable_buttons_thread()...')
+        self.app.enable_buttons_thread()
+        return task_to_kill
+
+    def kill_task(self, task_to_kill):
+        try:
+            local_tools.logIt_thread(log_path, msg=f'Sending kill command to {self.endpoint.ip}.')
+            self.endpoint.conn.send('kill'.encode())
+            local_tools.logIt_thread(log_path, msg=f'Send complete.')
+
+        except (WindowsError, socket.error) as e:
+            local_tools.logIt_thread(log_path, msg=f'Error: {e}.')
+            self.app.update_statusbar_messages_thread(msg=f'{e}.')
+            local_tools.logIt_thread(log_path, msg=f'Calling server.remove_lost_connection('
+                                                   f'{self.endpoint.conn}, {self.endpoint.ip})')
+            self.app.server.remove_lost_connection(self.endpoint)
+            return False
+
+        try:
+            local_tools.logIt_thread(log_path, msg=f'Sending {task_to_kill} to {self.endpoint.ip}...')
+            self.endpoint.conn.send(task_to_kill.encode())
+            local_tools.logIt_thread(log_path, msg=f'Send complete.')
+
+        except (WindowsError, socket.error) as e:
+            local_tools.logIt_thread(log_path, msg=f'Error: {e}.')
+            self.app.update_statusbar_messages_thread(msg=f'{e}.')
+            local_tools.logIt_thread(log_path, msg=f'Calling server.remove_lost_connection('
+                                                   f'{self.endpoint.conn}, {self.endpoint.ip})')
+            self.app.server.remove_lost_connection(self.endpoint)
+            return False
+
+        try:
+            local_tools.logIt_thread(log_path, msg=f'Waiting for confirmation from {self.endpoint.ip}...')
+            msg = self.endpoint.conn.recv(1024).decode()
+            local_tools.logIt_thread(log_path, msg=f'{self.endpoint.ip}: {msg}')
+
+        except (WindowsError, socket.error) as e:
+            local_tools.logIt_thread(log_path, msg=f'Error: {e}.')
+            self.app.update_statusbar_messages_thread(msg=f'{e}.')
+            local_tools.logIt_thread(log_path, msg=f'Calling server.remove_lost_connection('
+                                                   f'{self.endpoint.conn}, {self.endpoint.ip})')
+            self.app.server.remove_lost_connection(self.endpoint)
+            return False
+
+        local_tools.logIt_thread(log_path, msg=f'Displaying {msg} in popup window...')
+        messagebox.showinfo(f"From {self.endpoint.ip} | {self.endpoint.ident}", f"{msg}.\t\t\t\t\t\t\t\t")
+        local_tools.logIt_thread(log_path, msg=f'Message received.')
+        self.app.update_statusbar_messages_thread(msg=f'killed task {task_to_kill} on '
+                                                  f'{self.endpoint.ip} | {self.endpoint.ident}.')
+        local_tools.logIt_thread(log_path, msg=f'Calling self.enable_buttons_thread()...')
+        self.app.enable_buttons_thread()
+        return True
+
+    def run(self):
+        # Disable controller buttons
+        local_tools.logIt_thread(log_path, msg=f'Calling self.disable_buttons_thread()...')
+        self.app.disable_buttons_thread()
+        local_tools.logIt_thread(log_path, debug=False, msg=f'Initializing Module: tasks...')
+        tsks = tasks.Tasks(self.endpoint, log_path, path)
+        self.app.update_statusbar_messages_thread(msg=f'running tasks command on '
+                                                  f'{self.endpoint.ip} | {self.endpoint.ident}.')
+
+        local_tools.logIt_thread(log_path, debug=False, msg=f'Calling tasks.tasks()...')
+        filepath = tsks.tasks()
+        local_tools.logIt_thread(log_path, msg=f'filepath: {filepath}')
+
+        local_tools.logIt_thread(log_path,
+                                 msg=f'Calling Display_file_content({self.notebook}, {None}, {filepath}, {self.app.tasks_tab},'
+                                     f'sname={self.endpoint.ident}, txt="Tasks")...')
+        display = DisplayFileContent(self.notebook, None, filepath, self.app.tasks_tab,
+                                     sname=self.endpoint.ident, txt='Tasks')
+        display.run()
+
+        local_tools.logIt_thread(log_path, msg=f'Displaying popup to kill a task...')
+        killTask = messagebox.askyesno(f"Tasks from {self.endpoint.ip} | {self.endpoint.ident}", "Kill Task?\t\t\t\t\t\t\t\t")
+        local_tools.logIt_thread(log_path, msg=f'Kill task: {killTask}.')
+
+        if killTask:
+            local_tools.logIt_thread(log_path, msg=f'Calling what_task({filepath})')
+            task_to_kill = self.what_task(filepath)
+            if str(task_to_kill) == '' or str(task_to_kill).startswith(' '):
+                local_tools.logIt_thread(log_path, msg=f'task_to_kill: {task_to_kill}')
+                local_tools.logIt_thread(log_path, msg=f'Calling self.enable_buttons_thread()...')
+                self.app.enable_buttons_thread()
+                return False
+
+            if not task_to_kill:
+                local_tools.logIt_thread(log_path, msg=f'Calling self.enable_buttons_thread()...')
+                self.app.enable_buttons_thread()
+                return False
+
+            local_tools.logIt_thread(log_path, msg=f'Displaying popup for kill confirmation...')
+            confirmKill = messagebox.askyesno(f'Kill task: {task_to_kill} on {self.endpoint.ident}',
+                                              f'Are you sure you want to kill {task_to_kill}?')
+            local_tools.logIt_thread(log_path, msg=f'Kill confirmation: {confirmKill}.')
+            if confirmKill:
+                local_tools.logIt_thread(log_path, msg=f'Calling kill_task({task_to_kill})...')
+                self.kill_task(task_to_kill)
+
+            else:
+                try:
+                    local_tools.logIt_thread(log_path, msg=f'Sending pass command to {self.endpoint.ip}.')
+                    self.endpoint.conn.send('pass'.encode())
+                    local_tools.logIt_thread(log_path, msg=f'Send completed.')
+                    return False
+
+                except (WindowsError, socket.error) as e:
+                    local_tools.logIt_thread(log_path, msg=f'Error: {e}')
+                    self.app.update_statusbar_messages_thread(msg=f'{e}.')
+                    local_tools.logIt_thread(log_path,
+                                             msg=f'Calling server.remove_lost_connection({self.endpoint})...')
+                    self.app.server.remove_lost_connection(self.endpoint)
+                    return False
+
+        else:
+            try:
+                local_tools.logIt_thread(log_path, msg=f'Sending "n" to {self.endpoint.ip}.')
+                self.endpoint.conn.send('n'.encode())
+                local_tools.logIt_thread(log_path, msg=f'Send completed.')
+                self.app.update_statusbar_messages_thread(msg=f'tasks file received from '
+                                                              f'{self.endpoint.ip} | {self.endpoint.ident}.')
+                local_tools.logIt_thread(log_path, msg=f'Calling self.enable_buttons_thread()...')
+                self.app.enable_buttons_thread()
+                return True
+
+            except (WindowsError, socket.error) as e:
+                local_tools.logIt_thread(log_path, msg=f'Error: {e}.')
+                self.app.update_statusbar_messages_thread(msg=f'{e}.')
+                local_tools.logIt_thread(log_path, msg=f'Calling server.remove_lost_connection({self.endpoint})...')
+                self.app.server.remove_lost_connection(self.endpoint)
+                return False
+
+
 class App(tk.Tk):
     top_windows = []
     buttons = []
@@ -903,206 +1112,8 @@ class App(tk.Tk):
 
     # Display/Kill Tasks on Client
     def tasks(self, endpoint) -> bool:
-        def what_task(filepath) -> str:
-            local_tools.logIt_thread(log_path, msg=f'Waiting for task name...')
-            task_to_kill = simpledialog.askstring(parent=self, title='Task To Kill', prompt="Task to kill\t\t\t\t")
-            local_tools.logIt_thread(log_path, msg=f'Task Name: {task_to_kill}.')
-            if task_to_kill is None:
-                try:
-                    local_tools.logIt_thread(log_path, msg=f'Sending "n" to {endpoint.ip}...')
-                    endpoint.conn.send('n'.encode())
-                    local_tools.logIt_thread(log_path, msg=f'Send completed.')
-                    local_tools.logIt_thread(log_path, msg=f'Calling self.enable_buttons_thread()...')
-                    self.enable_buttons_thread()
-                    local_tools.logIt_thread(log_path, msg=f'Displaying warning popup window..')
-                    messagebox.showwarning(f"From {endpoint.ip} | {endpoint.ident}",
-                                           "Task Kill canceled.\t\t\t\t\t\t\t\t")
-                    local_tools.logIt_thread(log_path, msg=f'Warning received.')
-                    return False
-
-                except (WindowsError, socket.error) as e:
-                    local_tools.logIt_thread(log_path, msg=f'Error: {e}.')
-                    self.update_statusbar_messages_thread(msg=f"{e}")
-                    local_tools.logIt_thread(log_path, msg=f'Calling server.remove_lost_connection('
-                                                           f'{endpoint.conn}, {endpoint.ip})...')
-                    server.remove_lost_connection(endpoint)
-                    local_tools.logIt_thread(log_path, msg=f'Calling self.enable_buttons_thread()...')
-                    self.enable_buttons_thread()
-                    return False
-
-            if len(task_to_kill) == 0:
-                try:
-                    local_tools.logIt_thread(log_path, msg=f'Sending "n" to {endpoint.ip}...')
-                    endpoint.conn.send('n'.encode())
-                    local_tools.logIt_thread(log_path, msg=f'Send completed.')
-                    local_tools.logIt_thread(log_path, msg=f'Calling self.enable_buttons_thread()...')
-                    self.enable_buttons_thread()
-                    local_tools.logIt_thread(log_path, msg=f'Displaying warning popup window...')
-                    messagebox.showwarning(f"From {endpoint.ip} | {endpoint.ident}",
-                                           "Task Kill canceled.\t\t\t\t\t\t\t\t")
-                    return False
-
-                except (WindowsError, socket.error) as e:
-                    local_tools.logIt_thread(log_path, msg=f'Error: {e}.')
-                    self.update_statusbar_messages_thread(msg=f"{e}")
-                    local_tools.logIt_thread(log_path,
-                                             msg=f'Calling server.remove_lost_connection({endpoint.conn}, {endpoint.ip})...')
-                    server.remove_lost_connection(endpoint)
-                    local_tools.logIt_thread(log_path, msg=f'Calling self.enable_buttons_thread()...')
-                    self.enable_buttons_thread()
-                    return False
-
-            if not str(task_to_kill).endswith('.exe'):
-                try:
-                    local_tools.logIt_thread(log_path, msg=f'Calling sysinfo.run()...')
-                    endpoint.conn.send('n'.encode())
-                    local_tools.logIt_thread(log_path, msg=f'Send completed.')
-                    local_tools.logIt_thread(log_path, msg=f'Calling self.enable_buttons_thread()...')
-                    self.enable_buttons_thread()
-                    local_tools.logIt_thread(log_path, msg=f'Displaying warning popup window...')
-                    messagebox.showwarning(f"From {endpoint.ip} | {endpoint.ident}",
-                                           "Task Kill canceled.\t\t\t\t\t\t\t\t")
-                    return False
-
-                except (WindowsError, socket.error) as e:
-                    local_tools.logIt_thread(log_path, msg=f'Error: {e}.')
-                    self.update_statusbar_messages_thread(msg=f"{e}")
-                    local_tools.logIt_thread(log_path, msg=f'Calling server.remove_lost_connection('
-                                                           f'{endpoint.conn}, {endpoint.ip})...')
-                    server.remove_lost_connection(endpoint)
-                    return False
-
-            local_tools.logIt_thread(log_path, msg=f'Calling self.enable_buttons_thread()...')
-            self.enable_buttons_thread()
-            return task_to_kill
-
-        def kill_task(task_to_kill):
-            try:
-                local_tools.logIt_thread(log_path, msg=f'Sending kill command to {endpoint.ip}.')
-                endpoint.conn.send('kill'.encode())
-                local_tools.logIt_thread(log_path, msg=f'Send complete.')
-
-            except (WindowsError, socket.error) as e:
-                local_tools.logIt_thread(log_path, msg=f'Error: {e}.')
-                self.update_statusbar_messages_thread(msg=f'{e}.')
-                local_tools.logIt_thread(log_path, msg=f'Calling server.remove_lost_connection('
-                                                       f'{endpoint.conn}, {endpoint.ip})')
-                server.remove_lost_connection(endpoint)
-                return False
-
-            try:
-                local_tools.logIt_thread(log_path, msg=f'Sending {task_to_kill} to {endpoint.ip}...')
-                endpoint.conn.send(task_to_kill.encode())
-                local_tools.logIt_thread(log_path, msg=f'Send complete.')
-
-            except (WindowsError, socket.error) as e:
-                local_tools.logIt_thread(log_path, msg=f'Error: {e}.')
-                self.update_statusbar_messages_thread(msg=f'{e}.')
-                local_tools.logIt_thread(log_path, msg=f'Calling server.remove_lost_connection('
-                                                       f'{endpoint.conn}, {endpoint.ip})')
-                server.remove_lost_connection(endpoint)
-                return False
-
-            try:
-                local_tools.logIt_thread(log_path, msg=f'Waiting for confirmation from {endpoint.ip}...')
-                msg = endpoint.conn.recv(1024).decode()
-                local_tools.logIt_thread(log_path, msg=f'{endpoint.ip}: {msg}')
-
-            except (WindowsError, socket.error) as e:
-                local_tools.logIt_thread(log_path, msg=f'Error: {e}.')
-                self.update_statusbar_messages_thread(msg=f'{e}.')
-                local_tools.logIt_thread(log_path, msg=f'Calling server.remove_lost_connection('
-                                                       f'{endpoint.conn}, {endpoint.ip})')
-                server.remove_lost_connection(endpoint)
-                return False
-
-            local_tools.logIt_thread(log_path, msg=f'Displaying {msg} in popup window...')
-            messagebox.showinfo(f"From {endpoint.ip} | {endpoint.ident}", f"{msg}.\t\t\t\t\t\t\t\t")
-            local_tools.logIt_thread(log_path, msg=f'Message received.')
-            self.update_statusbar_messages_thread(msg=f'killed task {task_to_kill} on '
-                                                      f'{endpoint.ip} | {endpoint.ident}.')
-            local_tools.logIt_thread(log_path, msg=f'Calling self.enable_buttons_thread()...')
-            self.enable_buttons_thread()
-            return True
-
-        # Disable controller buttons
-        local_tools.logIt_thread(log_path, msg=f'Calling self.disable_buttons_thread()...')
-        self.disable_buttons_thread()
-        local_tools.logIt_thread(log_path, debug=False, msg=f'Initializing Module: tasks...')
-        tsks = tasks.Tasks(endpoint, log_path, path)
-        self.update_statusbar_messages_thread(msg=f'running tasks command on '
-                                                  f'{endpoint.ip} | {endpoint.ident}.')
-
-        local_tools.logIt_thread(log_path, debug=False, msg=f'Calling tasks.tasks()...')
-        filepath = tsks.tasks()
-        local_tools.logIt_thread(log_path, msg=f'filepath: {filepath}')
-
-        local_tools.logIt_thread(log_path,
-                                 msg=f'Calling self.display_file_content('
-                                     f'None, {filepath}, {self.tasks_tab}, txt="Tasks")...')
-        display = DisplayFileContent(self.notebook, None, filepath, self.tasks_tab,
-                                     sname=endpoint.ident, txt='Tasks')
-        display.run()
-        # self.display_file_content(None, filepath, self.system_information_tab,
-        #                           txt='Tasks', sname=endpoint.ident)
-
-        local_tools.logIt_thread(log_path, msg=f'Displaying popup to kill a task...')
-        killTask = messagebox.askyesno(f"Tasks from {endpoint.ip} | {endpoint.ident}", "Kill Task?\t\t\t\t\t\t\t\t")
-        local_tools.logIt_thread(log_path, msg=f'Kill task: {killTask}.')
-
-        if killTask:
-            local_tools.logIt_thread(log_path, msg=f'Calling what_task({filepath})')
-            task_to_kill = what_task(filepath)
-            if str(task_to_kill) == '' or str(task_to_kill).startswith(' '):
-                local_tools.logIt_thread(log_path, msg=f'task_to_kill: {task_to_kill}')
-                local_tools.logIt_thread(log_path, msg=f'Calling self.enable_buttons_thread()...')
-                self.enable_buttons_thread()
-                return False
-
-            if not task_to_kill:
-                local_tools.logIt_thread(log_path, msg=f'Calling self.enable_buttons_thread()...')
-                self.enable_buttons_thread()
-                return False
-
-            local_tools.logIt_thread(log_path, msg=f'Displaying popup for kill confirmation...')
-            confirmKill = messagebox.askyesno(f'Kill task: {task_to_kill} on {endpoint.ident}',
-                                              f'Are you sure you want to kill {task_to_kill}?')
-            local_tools.logIt_thread(log_path, msg=f'Kill confirmation: {confirmKill}.')
-            if confirmKill:
-                local_tools.logIt_thread(log_path, msg=f'Calling kill_task({task_to_kill})...')
-                kill_task(task_to_kill)
-
-            else:
-                try:
-                    local_tools.logIt_thread(log_path, msg=f'Sending pass command to {endpoint.ip}.')
-                    endpoint.conn.send('pass'.encode())
-                    local_tools.logIt_thread(log_path, msg=f'Send completed.')
-                    return False
-
-                except (WindowsError, socket.error) as e:
-                    local_tools.logIt_thread(log_path, msg=f'Error: {e}')
-                    self.update_statusbar_messages_thread(msg=f'{e}.')
-                    local_tools.logIt_thread(log_path,
-                                             msg=f'Calling server.remove_lost_connection({endpoint})...')
-                    self.server.remove_lost_connection(endpoint)
-                    return False
-
-        else:
-            try:
-                local_tools.logIt_thread(log_path, msg=f'Sending "n" to {endpoint.ip}.')
-                endpoint.conn.send('n'.encode())
-                local_tools.logIt_thread(log_path, msg=f'Send completed.')
-                self.update_statusbar_messages_thread(msg=f'tasks file received from {endpoint.ip} | {endpoint.ident}.')
-                local_tools.logIt_thread(log_path, msg=f'Calling self.enable_buttons_thread()...')
-                self.enable_buttons_thread()
-                return True
-
-            except (WindowsError, socket.error) as e:
-                local_tools.logIt_thread(log_path, msg=f'Error: {e}.')
-                self.update_statusbar_messages_thread(msg=f'{e}.')
-                local_tools.logIt_thread(log_path, msg=f'Calling server.remove_lost_connection({endpoint})...')
-                self.server.remove_lost_connection(endpoint)
-                return False
+        tasks = Tasks(endpoint, self, self.notebook)
+        tasks.run()
 
     # Restart Client
     def restart_command(self, endpoint) -> bool:
