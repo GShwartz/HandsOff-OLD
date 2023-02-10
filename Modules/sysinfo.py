@@ -80,7 +80,13 @@ class Sysinfo:
             self.logIt_thread(self.log_path, msg=f'Connection error: {e}')
             return False
 
-        size = self.endpoint.conn.recv(4)
+        try:
+            size = self.endpoint.conn.recv(4)
+
+        except (WindowsError, socket.error) as e:
+            self.logIt_thread(self.log_path, msg=f'Connection error: {e}')
+            return False
+
         size = self.bytes_to_number(size)
 
         current_size = 0
@@ -102,8 +108,13 @@ class Sysinfo:
         self.endpoint.conn.send(f"Received file: {filename}\n".encode())
         self.endpoint.conn.settimeout(10)
         self.logIt_thread(self.log_path, msg=f'Waiting for msg from {self.endpoint.ip}...')
-        msg = self.endpoint.conn.recv(1024).decode()
-        self.endpoint.conn.settimeout(None)
+        try:
+            msg = self.endpoint.conn.recv(1024).decode()
+            self.endpoint.conn.settimeout(None)
+
+        except (WindowsError, socket.error) as e:
+            self.logIt_thread(self.log_path, msg=f'Connection error: {e}')
+            return False
 
         # Validate file received
         self.logIt_thread(self.log_path, msg=f'Validating file integrity...')
@@ -119,6 +130,4 @@ class Sysinfo:
         except (FileNotFoundError, FileExistsError):
             pass
 
-        self.logIt_thread(self.log_path, msg=f'Displaying {self.sysinfo} in notebook...')
-        self.app.display_file_content(None, self.sysinfo, self.app.system_information_tab,
-                                      txt='System Information', sname=self.endpoint.ident)
+        return self.sysinfo
