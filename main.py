@@ -24,11 +24,6 @@ from tkinter import *
 import tkinter as tk
 import tkinter
 
-# Secure
-import hashlib
-import sqlite3
-import rsa
-
 # Local Modules
 from Modules import vital_signs
 from Modules import screenshot
@@ -37,8 +32,119 @@ from Modules import sysinfo
 from Modules import tasks
 from Modules.server import Server
 
-# TODO:
-#   1. Adjust the rest of the funcs to handle Endpoints dataclass
+
+class DisplayFileContent:
+    # List to hold captured screenshot images
+    displayed_screenshot_files = []
+    frames = []
+    tabs = 0
+    notebooks = {}
+
+    def __init__(self, notebook, screenshot_path, filepath, tab, sname, txt=''):
+        self.notebook = notebook
+        self.screenshot_path = screenshot_path
+        self.filepath = filepath
+        self.tab = tab
+        self.sname = sname
+        self.txt = txt
+
+        local_tools.logIt_thread(log_path,
+                                 msg=f'Running display_file_content({screenshot_path}, {filepath}, {tab}, txt="{txt}")...')
+
+    def text(self):
+        local_tools.logIt_thread(log_path, msg=f'opening {self.filepath}...')
+        with open(self.filepath, 'r') as file:
+            data = file.read()
+            local_tools.logIt_thread(log_path, msg=f'Building notebook tab...')
+            self.tab = Frame(self.notebook, height=350)
+
+            local_tools.logIt_thread(log_path, msg=f'Building text scrollbar...')
+            self.tab_scrollbar = Scrollbar(self.tab, orient=VERTICAL)
+            self.tab_scrollbar.pack(side=LEFT, fill=Y)
+
+            local_tools.logIt_thread(log_path, msg=f'Building text Textbox...')
+            self.tab_textbox = Text(self.tab, yscrollcommand=self.tab_scrollbar.set)
+            self.tab_textbox.pack(fill=BOTH)
+
+            local_tools.logIt_thread(log_path, msg=f'Adding tab to notebook...')
+            self.notebook.add(self.tab, text=f"{self.txt} {self.sname}")
+
+            local_tools.logIt_thread(log_path, msg=f'Enabling scroller buttons...')
+            self.tab_scrollbar.configure(command=self.tab_textbox.yview)
+            local_tools.logIt_thread(log_path, msg=f'Enabling textbox entry...')
+            self.tab_textbox.config(state=NORMAL)
+            local_tools.logIt_thread(log_path, msg=f'Clearing textbox...')
+            self.tab_textbox.delete(1.0, END)
+            local_tools.logIt_thread(log_path, msg=f'Inserting file content to Textbox...')
+            self.tab_textbox.insert(END, data)
+            local_tools.logIt_thread(log_path, msg=f'Disabling Textbox entry...')
+            self.tab_textbox.config(state=DISABLED)
+
+            local_tools.logIt_thread(log_path, msg=f'Displaying latest notebook tab...')
+            self.notebook.select(self.tab)
+            # self.tabs += 1
+            self.tabs += 1
+            return True
+
+    def picture(self):
+        local_tools.logIt_thread(log_path, msg=f'Building working frame...')
+        fr = Frame(self.notebook, height=350, background='slate gray')
+        self.frames.append(fr)
+        self.tab = self.frames[-1]
+        local_tools.logIt_thread(log_path, msg=f'Building Preview Button...')
+        button = Button(self.tab, image=self.last_screenshot, command=self.show_picture_thread, border=5, bd=3)
+        button.pack(padx=5, pady=10)
+        local_tools.logIt_thread(log_path, msg=f'Adding tab to notebook...')
+        self.notebook.add(self.tab, text=f"{self.txt} {self.sname}")
+
+        local_tools.logIt_thread(log_path, msg=f'Displaying latest notebook tab...')
+        self.notebook.select(self.tab)
+        self.tabs += 1
+        return True
+
+    def show_picture_thread(self):
+        showThread = Thread(target=self.show_picture, daemon=True, name="Show Picture Thread")
+        showThread.start()
+
+    def show_picture(self):
+        self.sc.show()
+
+    def run(self):
+        if len(self.filepath) > 0 and self.filepath.endswith('.txt'):
+            local_tools.logIt_thread(log_path, msg=f'Calling text()...')
+            self.text()
+
+        elif len(self.screenshot_path) > 0:
+            local_tools.logIt_thread(log_path, msg=f'Sorting jpg files by creation time...')
+            images = glob.glob(fr"{self.screenshot_path}\*.jpg")
+            images.sort(key=os.path.getmtime)
+
+            # Last Screenshot
+            local_tools.logIt_thread(log_path, msg=f'Opening latest screenshot...')
+            self.sc = PIL.Image.open(images[-1])
+            local_tools.logIt_thread(log_path, msg=f'Resizing to 650x350...')
+            self.sc_resized = self.sc.resize((650, 350))
+            self.last_screenshot = PIL.ImageTk.PhotoImage(self.sc_resized)
+            self.displayed_screenshot_files.append(self.last_screenshot)
+
+            if self.tabs > 0:
+                local_tools.logIt_thread(log_path, msg=f'Calling picture()...')
+                self.picture()
+
+            else:
+                local_tools.logIt_thread(log_path, msg=f'Building working frame...')
+                self.tab = Frame(self.notebook, height=350, background='slate gray')
+
+                local_tools.logIt_thread(log_path, msg=f'Building Preview Button...')
+                button = Button(self.tab, image=self.last_screenshot, command=self.show_picture_thread, border=5, bd=3)
+                button.pack(padx=5, pady=10)
+
+                local_tools.logIt_thread(log_path, msg=f'Adding tab to notebook...')
+                self.notebook.add(self.tab, text=f"{self.txt} {self.sname}")
+
+                local_tools.logIt_thread(log_path, msg=f'Displaying latest notebook tab...')
+                self.notebook.select(self.tab)
+                self.tabs += 1
 
 
 class App(tk.Tk):
@@ -163,7 +269,7 @@ class App(tk.Tk):
     # Update Selected Client Thread
     def update_selected_client_thread(self, endpoint):
         updateThread = Thread(target=self.update_selected_client_command,
-                              args=(endpoint, ),
+                              args=(endpoint,),
                               daemon=True,
                               name="Update Selected Client Thread")
         updateThread.start()
@@ -221,7 +327,7 @@ class App(tk.Tk):
     # Client System Info Thread
     def client_system_information_thread(self, endpoint):
         clientSystemInformationThread = Thread(target=self.sysinfo_command,
-                                               args=(endpoint, ),
+                                               args=(endpoint,),
                                                daemon=True,
                                                name="Client System Information Thread")
         clientSystemInformationThread.start()
@@ -229,7 +335,7 @@ class App(tk.Tk):
     # Grab Screenshot
     def screenshot_thread(self, endpoint):
         screenThread = Thread(target=self.screenshot_command,
-                              args=(endpoint, ),
+                              args=(endpoint,),
                               daemon=True,
                               name='Screenshot Thread')
         screenThread.start()
@@ -243,7 +349,7 @@ class App(tk.Tk):
 
     def run_maintenance_thread(self, endpoint):
         maintenanceThread = Thread(target=self.run_maintenance_command,
-                                   args=(endpoint, ),
+                                   args=(endpoint,),
                                    daemon=True,
                                    name="Run Maintenance Thread")
         maintenanceThread.start()
@@ -405,7 +511,7 @@ class App(tk.Tk):
     def build_controller_buttons(self, endpoint):
         local_tools.logIt_thread(log_path, msg=f'Building refresh button...')
         refresh_img = PIL.ImageTk.PhotoImage(
-            PIL.Image.open('images/refresh_green.png').resize((17, 17), PIL.Image.ANTIALIAS))
+            PIL.Image.open('images/refresh_green.png').resize((17, 17), PIL.Image.LANCZOS))
 
         self.refresh_btn = Button(self.controller_btns, text=" Refresh", image=refresh_img,
                                   compound=LEFT, anchor=W,
@@ -584,6 +690,7 @@ class App(tk.Tk):
             self.withdraw()
             local_tools.logIt_thread(log_path, msg=f'Destroying app window...')
             self.destroy()
+            sys.exit(0)
 
     # Minimize Window
     def minimize(self):
@@ -604,105 +711,6 @@ class App(tk.Tk):
             button.config(state=DISABLED)
 
         return
-
-    # Display file content in notebook
-    def display_file_content(self, screenshot_path: str, filepath: str, tab: str, sname: str, txt='') -> bool:
-        local_tools.logIt_thread(log_path,
-                                 msg=f'Running display_file_content({screenshot_path}, {filepath}, {tab}, txt="")...')
-
-        def text():
-            local_tools.logIt_thread(log_path, msg=f'opening {filepath}...')
-            with open(filepath, 'r') as file:
-                data = file.read()
-                local_tools.logIt_thread(log_path, msg=f'Building notebook tab...')
-                tab = Frame(self.notebook, height=350)
-
-                local_tools.logIt_thread(log_path, msg=f'Building text scrollbar...')
-                self.tab_scrollbar = Scrollbar(tab, orient=VERTICAL)
-                self.tab_scrollbar.pack(side=LEFT, fill=Y)
-
-                local_tools.logIt_thread(log_path, msg=f'Building text Textbox...')
-                self.tab_textbox = Text(tab, yscrollcommand=self.tab_scrollbar.set)
-                self.tab_textbox.pack(fill=BOTH)
-
-                local_tools.logIt_thread(log_path, msg=f'Adding tab to notebook...')
-                self.notebook.add(tab, text=f"{txt} {sname}")
-
-                local_tools.logIt_thread(log_path, msg=f'Enabling scroller buttons...')
-                self.tab_scrollbar.configure(command=self.tab_textbox.yview)
-                local_tools.logIt_thread(log_path, msg=f'Enabling textbox entry...')
-                self.tab_textbox.config(state=NORMAL)
-                local_tools.logIt_thread(log_path, msg=f'Clearing textbox...')
-                self.tab_textbox.delete(1.0, END)
-                local_tools.logIt_thread(log_path, msg=f'Inserting file content to Textbox...')
-                self.tab_textbox.insert(END, data)
-                local_tools.logIt_thread(log_path, msg=f'Disabling Textbox entry...')
-                self.tab_textbox.config(state=DISABLED)
-
-                local_tools.logIt_thread(log_path, msg=f'Displaying latest notebook tab...')
-                self.notebook.select(tab)
-                self.tabs += 1
-                return True
-
-        def picture():
-            local_tools.logIt_thread(log_path, msg=f'Building working frame...')
-            fr = Frame(self.notebook, height=350, background='slate gray')
-            self.frames.append(fr)
-            tab = self.frames[-1]
-            local_tools.logIt_thread(log_path, msg=f'Building Preview Button...')
-            button = Button(tab, image=self.last_screenshot, command=show_picture_thread, border=5, bd=3)
-            button.pack(padx=5, pady=10)
-            local_tools.logIt_thread(log_path, msg=f'Adding tab to notebook...')
-            self.notebook.add(tab, text=f"{txt} {sname}")
-
-            local_tools.logIt_thread(log_path, msg=f'Displaying latest notebook tab...')
-            self.notebook.select(tab)
-            self.tabs += 1
-            return True
-
-        def show_picture_thread():
-            showThread = Thread(target=show_picture, daemon=True, name="Show Picture Thread")
-            showThread.start()
-
-        def show_picture():
-            self.sc.show()
-
-        if len(filepath) > 0 and filepath.endswith('.txt'):
-            local_tools.logIt_thread(log_path, msg=f'Calling text()...')
-            text()
-
-        elif len(screenshot_path) > 0:
-            local_tools.logIt_thread(log_path, msg=f'Sorting jpg files by creation time...')
-            images = glob.glob(fr"{screenshot_path}\*.jpg")
-            images.sort(key=os.path.getmtime)
-
-            # Last Screenshot
-            local_tools.logIt_thread(log_path, msg=f'Opening latest screenshot...')
-            self.sc = PIL.Image.open(images[-1])
-            local_tools.logIt_thread(log_path, msg=f'Resizing to 650x350...')
-            self.sc_resized = self.sc.resize((650, 350))
-            self.last_screenshot = PIL.ImageTk.PhotoImage(self.sc_resized)
-            self.displayed_screenshot_files.append(self.last_screenshot)
-
-            if self.tabs > 0:
-                local_tools.logIt_thread(log_path, msg=f'Calling picture()...')
-                picture()
-
-            else:
-                local_tools.logIt_thread(log_path, msg=f'Building working frame...')
-                tab = Frame(self.notebook, height=350, background='slate gray')
-
-                local_tools.logIt_thread(log_path, msg=f'Building Preview Button...')
-                button = Button(tab, image=self.last_screenshot, command=show_picture_thread, border=5, bd=3)
-                button.pack(padx=5, pady=10)
-
-                local_tools.logIt_thread(log_path, msg=f'Adding tab to notebook...')
-                self.notebook.add(tab, text=f"{txt} {sname}")
-
-                local_tools.logIt_thread(log_path, msg=f'Displaying latest notebook tab...')
-                self.notebook.select(tab)
-                self.tabs += 1
-                return True
 
     # ==++==++==++== CONTROLLER BUTTONS COMMANDS==++==++==++==
     # Refresh server info & connected stations table with vital signs
@@ -750,8 +758,11 @@ class App(tk.Tk):
                                      msg=fr'Calling self.display_file_content('
                                          fr'{path}\{endpoint.ident}, "", '
                                          fr'{self.screenshot_tab}, txt="Screenshot")...')
-            self.display_file_content(fr"{path}\{endpoint.ident}", '', self.screenshot_tab,
-                                      txt='Screenshot', sname=endpoint.ident)
+            screen_path = fr"{path}\{endpoint.ident}"
+            display = DisplayFileContent(self.notebook, screen_path, '', self.screenshot_tab,
+                                         sname=endpoint.ident, txt='Screenshot')
+            display.run()
+
             local_tools.logIt_thread(log_path, msg=f'Calling self.enable_buttons_thread()...')
             self.enable_buttons_thread()
             return True
@@ -785,7 +796,8 @@ class App(tk.Tk):
                                                       "do you with to install?")
                 local_tools.logIt_thread(log_path, msg=f'Install anydesk: {install_anydesk}.')
                 if install_anydesk:
-                    self.update_statusbar_messages_thread(msg=f'installing anydesk on {endpoint.ip} | {endpoint.ident}...')
+                    self.update_statusbar_messages_thread(
+                        msg=f'installing anydesk on {endpoint.ip} | {endpoint.ident}...')
                     local_tools.logIt_thread(log_path, msg=f'Sending install command to {endpoint.conn}...')
                     endpoint.conn.send('y'.encode())
                     local_tools.logIt_thread(log_path, msg=f'Send Completed.')
@@ -823,7 +835,8 @@ class App(tk.Tk):
         except (WindowsError, ConnectionError, socket.error, RuntimeError) as e:
             local_tools.logIt_thread(log_path, msg=f'Connection Error: {e}.')
             self.update_statusbar_messages_thread(msg=f'{e}.')
-            local_tools.logIt_thread(log_path, msg=f'Calling server.remove_lost_connection({endpoint.conn}, {endpoint.ip})...')
+            local_tools.logIt_thread(log_path,
+                                     msg=f'Calling server.remove_lost_connection({endpoint.conn}, {endpoint.ip})...')
             server.remove_lost_connection(endpoint)
             return False
 
@@ -840,7 +853,8 @@ class App(tk.Tk):
             local_tools.logIt_thread(log_path, msg=f'Client response: {msg}')
             self.update_statusbar_messages_thread(msg=f'restart for {endpoint.ident}: {msg.split("|")[1][15:]}')
             local_tools.logIt_thread(log_path, msg=f'Display popup with last restart info...')
-            messagebox.showinfo(f"Last Restart for: {endpoint.ip} | {endpoint.ident}", f"\t{msg.split('|')[1][15:]}\t\t\t")
+            messagebox.showinfo(f"Last Restart for: {endpoint.ip} | {endpoint.ident}",
+                                f"\t{msg.split('|')[1][15:]}\t\t\t")
             return True
 
         except (WindowsError, socket.error, ConnectionResetError) as e:
@@ -863,9 +877,12 @@ class App(tk.Tk):
             local_tools.logIt_thread(log_path, msg=f'Initializing Module: sysinfo...')
             sinfo = sysinfo.Sysinfo(endpoint, path, log_path, self)
             local_tools.logIt_thread(log_path, msg=f'Calling sysinfo.run()...')
-            sinfo.run()
+            file_path = sinfo.run()
             self.update_statusbar_messages_thread(msg=f'system information file received from '
                                                       f'{endpoint.ip} | {endpoint.ident}.')
+            display = DisplayFileContent(self.notebook, None, file_path, self.system_information_tab,
+                                         sname=endpoint.ident, txt='System Information')
+            display.run()
             self.enable_buttons_thread()
 
         except (WindowsError, socket.error, ConnectionResetError) as e:
@@ -898,7 +915,8 @@ class App(tk.Tk):
                     local_tools.logIt_thread(log_path, msg=f'Calling self.enable_buttons_thread()...')
                     self.enable_buttons_thread()
                     local_tools.logIt_thread(log_path, msg=f'Displaying warning popup window..')
-                    messagebox.showwarning(f"From {endpoint.ip} | {endpoint.ident}", "Task Kill canceled.\t\t\t\t\t\t\t\t")
+                    messagebox.showwarning(f"From {endpoint.ip} | {endpoint.ident}",
+                                           "Task Kill canceled.\t\t\t\t\t\t\t\t")
                     local_tools.logIt_thread(log_path, msg=f'Warning received.')
                     return False
 
@@ -920,7 +938,8 @@ class App(tk.Tk):
                     local_tools.logIt_thread(log_path, msg=f'Calling self.enable_buttons_thread()...')
                     self.enable_buttons_thread()
                     local_tools.logIt_thread(log_path, msg=f'Displaying warning popup window...')
-                    messagebox.showwarning(f"From {endpoint.ip} | {endpoint.ident}", "Task Kill canceled.\t\t\t\t\t\t\t\t")
+                    messagebox.showwarning(f"From {endpoint.ip} | {endpoint.ident}",
+                                           "Task Kill canceled.\t\t\t\t\t\t\t\t")
                     return False
 
                 except (WindowsError, socket.error) as e:
@@ -941,7 +960,8 @@ class App(tk.Tk):
                     local_tools.logIt_thread(log_path, msg=f'Calling self.enable_buttons_thread()...')
                     self.enable_buttons_thread()
                     local_tools.logIt_thread(log_path, msg=f'Displaying warning popup window...')
-                    messagebox.showwarning(f"From {endpoint.ip} | {endpoint.ident}", "Task Kill canceled.\t\t\t\t\t\t\t\t")
+                    messagebox.showwarning(f"From {endpoint.ip} | {endpoint.ident}",
+                                           "Task Kill canceled.\t\t\t\t\t\t\t\t")
                     return False
 
                 except (WindowsError, socket.error) as e:
@@ -1018,9 +1038,13 @@ class App(tk.Tk):
         local_tools.logIt_thread(log_path, msg=f'filepath: {filepath}')
 
         local_tools.logIt_thread(log_path,
-                                 msg=f'Calling self.display_file_content(None, {filepath}, {self.system_information_tab}, txt="Tasks")...')
-        self.display_file_content(None, filepath, self.system_information_tab,
-                                  txt='Tasks', sname=endpoint.ident)
+                                 msg=f'Calling self.display_file_content('
+                                     f'None, {filepath}, {self.tasks_tab}, txt="Tasks")...')
+        display = DisplayFileContent(self.notebook, None, filepath, self.tasks_tab,
+                                     sname=endpoint.ident, txt='Tasks')
+        display.run()
+        # self.display_file_content(None, filepath, self.system_information_tab,
+        #                           txt='Tasks', sname=endpoint.ident)
 
         local_tools.logIt_thread(log_path, msg=f'Displaying popup to kill a task...')
         killTask = messagebox.askyesno(f"Tasks from {endpoint.ip} | {endpoint.ident}", "Kill Task?\t\t\t\t\t\t\t\t")
@@ -1102,6 +1126,7 @@ class App(tk.Tk):
                 local_tools.logIt_thread(log_path, msg=f'Restart command completed.')
                 self.update_statusbar_messages_thread(msg=f'restart command sent to '
                                                           f'{endpoint.ip} | {endpoint.ident}.')
+                self.refresh_command()
                 return True
 
             except (RuntimeError, WindowsError, socket.error) as e:
@@ -1148,15 +1173,19 @@ class App(tk.Tk):
     # Run Maintenance on Client
     def run_maintenance_command(self, endpoint) -> None:
         local_tools.logIt_thread(log_path, msg=f"Sending maintenance command to {endpoint.ip} | {endpoint.ident}...")
-        self.update_statusbar_messages_thread(msg=f"Waiting for maintenance confirmation on {endpoint.ip} | {endpoint.ident}...")
+        self.update_statusbar_messages_thread(
+            msg=f"Waiting for maintenance confirmation on {endpoint.ip} | {endpoint.ident}...")
         sure = messagebox.askyesno(f"Maintenance for {endpoint.ip} | {endpoint.ident}", "Are you sure?")
         if sure:
-            self.update_statusbar_messages_thread(msg=f"Sending maintenance command to {endpoint.ip} | {endpoint.ident}...")
+            self.update_statusbar_messages_thread(
+                msg=f"Sending maintenance command to {endpoint.ip} | {endpoint.ident}...")
             try:
                 endpoint.conn.send('maintenance'.encode())
                 local_tools.logIt_thread(log_path, msg=f"Maintenance command sent.")
-                local_tools.logIt_thread(log_path, msg=f"Calling server.remove_lost_connection({endpoint.conn}, {endpoint.ip})")
-                self.update_statusbar_messages_thread(msg=f"Maintenance command sent to {endpoint.ip} | {endpoint.ident}.")
+                local_tools.logIt_thread(log_path,
+                                         msg=f"Calling server.remove_lost_connection({endpoint.conn}, {endpoint.ip})")
+                self.update_statusbar_messages_thread(
+                    msg=f"Maintenance command sent to {endpoint.ip} | {endpoint.ident}.")
                 local_tools.logIt_thread(msg=f"Calling server.remove_lost_connection({endpoint.conn}, {endpoint.ip})")
                 server.remove_lost_connection(endpoint)
                 time.sleep(0.5)
@@ -1166,7 +1195,8 @@ class App(tk.Tk):
 
             except (WindowsError, socket.error) as e:
                 local_tools.logIt_thread(log_path, msg=f"ERROR: {e}.")
-                local_tools.logIt_thread(log_path, msg=f"Calling server.remove_lost_connection({endpoint.conn}, {endpoint.ip})")
+                local_tools.logIt_thread(log_path,
+                                         msg=f"Calling server.remove_lost_connection({endpoint.conn}, {endpoint.ip})")
                 server.remove_lost_connection(endpoint)
                 time.sleep(0.5)
                 local_tools.logIt_thread(log_path, msg=f"Calling self.refresh_command()...")
@@ -1196,8 +1226,9 @@ class App(tk.Tk):
     # Display Available Stations
     def show_available_connections(self) -> None:
         local_tools.logIt_thread(log_path, msg=f'Running show_available_connections()...')
-        if len(self.server.ips) == 0 and len(self.server.targets) == 0:
-            local_tools.logIt_thread(log_path, msg=f'No connected Stations')
+        if not self.server.ips and not self.server.targets:
+            local_tools.logIt_thread(log_path, msg='No connected Stations')
+            return
 
         # Cleaning availables list
         local_tools.logIt_thread(log_path, msg=f'Cleaning availables list...')
@@ -1207,30 +1238,21 @@ class App(tk.Tk):
         local_tools.logIt_thread(log_path, msg=f'Cleaning connected table entries...')
         self.connected_table.delete(*self.connected_table.get_children())
 
-        local_tools.logIt_thread(log_path, msg=f'Calling make_tmp()...')
-        count = 0
-        for endpt in self.server.endpoints:
-            for con in self.server.targets:
-                if endpt.conn == con and endpt.ip in self.server.ips:
-                    self.server.tmp_availables.append((count, endpt.client_mac, endpt.ip,
-                                                       endpt.ident, endpt.user, endpt.client_version))
-            count += 1
+        local_tools.logIt_thread(log_path, msg=f'Creating tmp_availables list...')
+        for count, endpoint in enumerate(self.server.endpoints):
+            if endpoint.conn in self.server.targets and endpoint.ip in self.server.ips:
+                self.server.tmp_availables.append((count, endpoint.client_mac, endpoint.ip,
+                                                   endpoint.ident, endpoint.user, endpoint.client_version))
         local_tools.logIt_thread(log_path, msg=f'Available list created.')
 
         for item in self.server.tmp_availables:
-            for endpoint in self.server.endpoints:
-                if item[1] == endpoint.client_mac:
-                    if item[0] % 2 == 0:
-                        local_tools.logIt_thread(log_path, msg=f'Updating connected table...')
-                        self.connected_table.insert('', 'end', values=(item[0], endpoint.client_mac, endpoint.ip,
-                                                                       endpoint.ident, endpoint.user,
-                                                                       endpoint.client_version),
-                                                    tags=('evenrow',))
-                    else:
-                        local_tools.logIt_thread(log_path, msg=f'Updating connected table...')
-                        self.connected_table.insert('', 'end', values=(item[0], endpoint.client_mac, endpoint.ip,
-                                                                       endpoint.ident, endpoint.user,
-                                                                       endpoint.client_version), tags=('oddrow',))
+            endpoint = next(e for e in self.server.endpoints if e.client_mac == item[1])
+            tag = 'evenrow' if item[0] % 2 == 0 else 'oddrow'
+
+            local_tools.logIt_thread(log_path, msg='Updating connected table...')
+            self.connected_table.insert('', 'end', values=(item[0], endpoint.client_mac, endpoint.ip,
+                                                           endpoint.ident, endpoint.user, endpoint.client_version),
+                                        tags=(tag,))
 
     # Display Connection History
     def connection_history(self) -> bool:
@@ -1267,40 +1289,40 @@ class App(tk.Tk):
             return False
 
     # Shell Connection to Client
-    def shell(self, con: str, ip: str, sname: str) -> None:
-        local_tools.logIt_thread(log_path, msg=f'Running shell({con}, {ip})...')
-        self.update_statusbar_messages_thread(msg=f'shell connected to {ip} | {sname}.')
+    def shell(self, endpoint) -> None:
+        local_tools.logIt_thread(log_path, msg=f'Running shell({endpoint.conn}, {endpoint.ip})...')
+        self.update_statusbar_messages_thread(msg=f'shell connected to {endpoint.ip} | {endpoint.ident}.')
         while True:
             # Wait for User Input & hide print
             local_tools.logIt_thread(log_path, msg=f'Waiting for input...')
             cmd = input(f"")
 
             # Run Custom Command // FUTURE add-on for expert mode
-            if cmd == 100:
-                local_tools.logIt_thread(log_path, msg=f'Command: 100')
-                try:
-                    local_tools.logIt_thread(log_path, msg=f'Send freestyle command...')
-                    con.send("freestyle".encode())
-                    local_tools.logIt_thread(log_path, msg=f'Send Completed.')
-
-                except (WindowsError, socket.error) as e:
-                    local_tools.logIt_thread(log_path, msg=f'Connection Error: {e}')
-                    break
-
-                for item, connection in zip(server.tmp_availables, server.connections):
-                    for conKey, ipValue in server.clients.items():
-                        if conKey == connection:
-                            for ipKey in ipValue.keys():
-                                if item[1] == ipKey:
-                                    ipval = item[1]
-                                    host = item[2]
-                                    user = item[3]
-
-                local_tools.logIt_thread(log_path, msg=f'Initializing Freestyle Module...')
-                free = freestyle.Freestyle(con, path, server.tmp_availables, server.clients,
-                                           log_path, host, user)
-                local_tools.logIt_thread(log_path, msg=f'Calling freestyle module...')
-                free.freestyle(ip)
+            # if cmd == 100:
+            #     local_tools.logIt_thread(log_path, msg=f'Command: 100')
+            #     try:
+            #         local_tools.logIt_thread(log_path, msg=f'Send freestyle command...')
+            #         endpoint.conn.send("freestyle".encode())
+            #         local_tools.logIt_thread(log_path, msg=f'Send Completed.')
+            #
+            #     except (WindowsError, socket.error) as e:
+            #         local_tools.logIt_thread(log_path, msg=f'Connection Error: {e}')
+            #         break
+            #
+            #     for item, connection in zip(server.tmp_availables, server.connections):
+            #         for conKey, ipValue in server.clients.items():
+            #             if conKey == connection:
+            #                 for ipKey in ipValue.keys():
+            #                     if item[1] == ipKey:
+            #                         ipval = item[1]
+            #                         host = item[2]
+            #                         user = item[3]
+            #
+            #     local_tools.logIt_thread(log_path, msg=f'Initializing Freestyle Module...')
+            #     free = freestyle.Freestyle(con, path, server.tmp_availables, server.clients,
+            #                                log_path, host, user)
+            #     local_tools.logIt_thread(log_path, msg=f'Calling freestyle module...')
+            #     free.freestyle(ip)
 
     # ==++==++==++== MENUBAR ==++==++==++==
     # Restart All Clients
@@ -1512,7 +1534,7 @@ class App(tk.Tk):
                     self.build_controller_buttons(endpoint)
                     self.enable_buttons_thread()
                     shellThread = Thread(target=self.shell,
-                                         args=(endpoint.conn, endpoint.ip, endpoint.ident),
+                                         args=(endpoint,),
                                          daemon=True,
                                          name="Shell Thread")
                     shellThread.start()
@@ -1547,17 +1569,17 @@ class About:
         self.linkedIn_url = 'https://www.linkedin.com/in/gilshwartz/'
 
         self.github_black = PIL.ImageTk.PhotoImage(
-            PIL.Image.open('images/github_black.png').resize((50, 50), PIL.Image.ANTIALIAS))
+            PIL.Image.open('images/github_black.png').resize((50, 50), PIL.Image.LANCZOS))
         self.github_purple = PIL.ImageTk.PhotoImage(
-            PIL.Image.open('images/github_purple.png').resize((50, 50), PIL.Image.ANTIALIAS))
+            PIL.Image.open('images/github_purple.png').resize((50, 50), PIL.Image.LANCZOS))
         self.linkedin_black = PIL.ImageTk.PhotoImage(
-            PIL.Image.open('images/linkedin_black.png').resize((50, 50), PIL.Image.ANTIALIAS))
+            PIL.Image.open('images/linkedin_black.png').resize((50, 50), PIL.Image.LANCZOS))
         self.linkedin_blue = PIL.ImageTk.PhotoImage(
-            PIL.Image.open('images/linkedin_blue.png').resize((50, 50), PIL.Image.ANTIALIAS))
+            PIL.Image.open('images/linkedin_blue.png').resize((50, 50), PIL.Image.LANCZOS))
         self.youtube_red = PIL.ImageTk.PhotoImage(
-            PIL.Image.open('images/youtube_red.png').resize((50, 50), PIL.Image.ANTIALIAS))
+            PIL.Image.open('images/youtube_red.png').resize((50, 50), PIL.Image.LANCZOS))
         self.youtube_black = PIL.ImageTk.PhotoImage(
-            PIL.Image.open('images/youtube_black.png').resize((50, 50), PIL.Image.ANTIALIAS))
+            PIL.Image.open('images/youtube_black.png').resize((50, 50), PIL.Image.LANCZOS))
         app.social_buttons.append([self.github_black, self.github_purple,
                                    self.youtube_red, self.youtube_black,
                                    self.linkedin_blue, self.linkedin_black])
