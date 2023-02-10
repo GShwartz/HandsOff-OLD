@@ -1188,6 +1188,10 @@ class App(tk.Tk):
 
     # Display Available Stations
     def show_available_connections(self) -> None:
+        # Clear previous entries in GUI table
+        local_tools.logIt_thread(log_path, msg=f'Cleaning connected table entries...')
+        self.connected_table.delete(*self.connected_table.get_children())
+
         local_tools.logIt_thread(log_path, msg=f'Running show_available_connections()...')
         if len(self.server.ips) == 0 and len(self.server.targets) == 0:
             local_tools.logIt_thread(log_path, msg='No connected Stations')
@@ -1197,10 +1201,6 @@ class App(tk.Tk):
         local_tools.logIt_thread(log_path, msg=f'Cleaning availables list...')
         self.server.tmp_availables = []
 
-        # Clear previous entries in GUI table
-        local_tools.logIt_thread(log_path, msg=f'Cleaning connected table entries...')
-        self.connected_table.delete(*self.connected_table.get_children())
-
         local_tools.logIt_thread(log_path, msg=f'Creating tmp_availables list...')
         for count, endpoint in enumerate(self.server.endpoints):
             if endpoint.conn in self.server.targets and endpoint.ip in self.server.ips:
@@ -1209,7 +1209,7 @@ class App(tk.Tk):
         local_tools.logIt_thread(log_path, msg=f'Available list created.')
 
         for item in self.server.tmp_availables:
-            endpoint = next(e for e in self.server.endpoints if e.client_mac == item[1])
+            endpoint = next(endpoint for endpoint in self.server.endpoints if endpoint.client_mac == item[1])
             tag = 'evenrow' if item[0] % 2 == 0 else 'oddrow'
 
             local_tools.logIt_thread(log_path, msg='Updating connected table...')
