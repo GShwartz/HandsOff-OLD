@@ -14,6 +14,8 @@ import time
 import glob
 import sys
 import csv
+from typing import Optional
+
 
 # GUI
 from tkinter import simpledialog
@@ -40,7 +42,7 @@ class DisplayFileContent:
     tabs = 0
     notebooks = {}
 
-    def __init__(self, notebook, screenshot_path, filepath, tab, sname, txt=''):
+    def __init__(self, notebook: Frame, screenshot_path: str, filepath: str, tab: Optional[Frame], sname: str, txt=''):
         self.notebook = notebook
         self.screenshot_path = screenshot_path
         self.filepath = filepath
@@ -51,100 +53,51 @@ class DisplayFileContent:
         local_tools.logIt_thread(log_path,
                                  msg=f'Running display_file_content({screenshot_path}, {filepath}, {tab}, txt="{txt}")...')
 
-    def text(self):
-        local_tools.logIt_thread(log_path, msg=f'opening {self.filepath}...')
+    def display_text(self):
         with open(self.filepath, 'r') as file:
             data = file.read()
-            local_tools.logIt_thread(log_path, msg=f'Building notebook tab...')
             self.tab = Frame(self.notebook, height=350)
-
-            local_tools.logIt_thread(log_path, msg=f'Building text scrollbar...')
-            self.tab_scrollbar = Scrollbar(self.tab, orient=VERTICAL)
-            self.tab_scrollbar.pack(side=LEFT, fill=Y)
-
-            local_tools.logIt_thread(log_path, msg=f'Building text Textbox...')
-            self.tab_textbox = Text(self.tab, yscrollcommand=self.tab_scrollbar.set)
-            self.tab_textbox.pack(fill=BOTH)
-
-            local_tools.logIt_thread(log_path, msg=f'Adding tab to notebook...')
+            tab_scrollbar = Scrollbar(self.tab, orient=VERTICAL)
+            tab_scrollbar.pack(side=LEFT, fill=Y)
+            tab_textbox = Text(self.tab, yscrollcommand=tab_scrollbar.set)
+            tab_textbox.pack(fill=BOTH)
             self.notebook.add(self.tab, text=f"{self.txt} {self.sname}")
-
-            local_tools.logIt_thread(log_path, msg=f'Enabling scroller buttons...')
-            self.tab_scrollbar.configure(command=self.tab_textbox.yview)
-            local_tools.logIt_thread(log_path, msg=f'Enabling textbox entry...')
-            self.tab_textbox.config(state=NORMAL)
-            local_tools.logIt_thread(log_path, msg=f'Clearing textbox...')
-            self.tab_textbox.delete(1.0, END)
-            local_tools.logIt_thread(log_path, msg=f'Inserting file content to Textbox...')
-            self.tab_textbox.insert(END, data)
-            local_tools.logIt_thread(log_path, msg=f'Disabling Textbox entry...')
-            self.tab_textbox.config(state=DISABLED)
-
-            local_tools.logIt_thread(log_path, msg=f'Displaying latest notebook tab...')
+            tab_scrollbar.configure(command=tab_textbox.yview)
+            tab_textbox.config(state=NORMAL)
+            tab_textbox.delete(1.0, END)
+            tab_textbox.insert(END, data)
+            tab_textbox.config(state=DISABLED)
             self.notebook.select(self.tab)
-            # self.tabs += 1
             self.tabs += 1
-            return True
 
-    def picture(self):
-        local_tools.logIt_thread(log_path, msg=f'Building working frame...')
+    def display_picture(self):
+        images = glob.glob(fr"{self.screenshot_path}\*.jpg")
+        images.sort(key=os.path.getmtime)
+
+        local_tools.logIt_thread(log_path, msg=f'Opening latest screenshot...')
+        self.sc = PIL.Image.open(images[-1])
+        local_tools.logIt_thread(log_path, msg=f'Resizing to 650x350...')
+        self.sc_resized = self.sc.resize((650, 350))
+        self.last_screenshot = PIL.ImageTk.PhotoImage(self.sc_resized)
+        self.displayed_screenshot_files.append(self.last_screenshot)
+
         fr = Frame(self.notebook, height=350, background='slate gray')
         self.frames.append(fr)
         self.tab = self.frames[-1]
-        local_tools.logIt_thread(log_path, msg=f'Building Preview Button...')
-        button = Button(self.tab, image=self.last_screenshot, command=self.show_picture_thread, border=5, bd=3)
+        button = Button(self.tab, image=self.last_screenshot, command=self.show_picture, border=5, bd=3)
         button.pack(padx=5, pady=10)
-        local_tools.logIt_thread(log_path, msg=f'Adding tab to notebook...')
         self.notebook.add(self.tab, text=f"{self.txt} {self.sname}")
-
-        local_tools.logIt_thread(log_path, msg=f'Displaying latest notebook tab...')
         self.notebook.select(self.tab)
         self.tabs += 1
-        return True
-
-    def show_picture_thread(self):
-        showThread = Thread(target=self.show_picture, daemon=True, name="Show Picture Thread")
-        showThread.start()
 
     def show_picture(self):
         self.sc.show()
 
     def run(self):
-        if len(self.filepath) > 0 and self.filepath.endswith('.txt'):
-            local_tools.logIt_thread(log_path, msg=f'Calling text()...')
-            self.text()
-
-        elif len(self.screenshot_path) > 0:
-            local_tools.logIt_thread(log_path, msg=f'Sorting jpg files by creation time...')
-            images = glob.glob(fr"{self.screenshot_path}\*.jpg")
-            images.sort(key=os.path.getmtime)
-
-            # Last Screenshot
-            local_tools.logIt_thread(log_path, msg=f'Opening latest screenshot...')
-            self.sc = PIL.Image.open(images[-1])
-            local_tools.logIt_thread(log_path, msg=f'Resizing to 650x350...')
-            self.sc_resized = self.sc.resize((650, 350))
-            self.last_screenshot = PIL.ImageTk.PhotoImage(self.sc_resized)
-            self.displayed_screenshot_files.append(self.last_screenshot)
-
-            if self.tabs > 0:
-                local_tools.logIt_thread(log_path, msg=f'Calling picture()...')
-                self.picture()
-
-            else:
-                local_tools.logIt_thread(log_path, msg=f'Building working frame...')
-                self.tab = Frame(self.notebook, height=350, background='slate gray')
-
-                local_tools.logIt_thread(log_path, msg=f'Building Preview Button...')
-                button = Button(self.tab, image=self.last_screenshot, command=self.show_picture_thread, border=5, bd=3)
-                button.pack(padx=5, pady=10)
-
-                local_tools.logIt_thread(log_path, msg=f'Adding tab to notebook...')
-                self.notebook.add(self.tab, text=f"{self.txt} {self.sname}")
-
-                local_tools.logIt_thread(log_path, msg=f'Displaying latest notebook tab...')
-                self.notebook.select(self.tab)
-                self.tabs += 1
+        if self.filepath.endswith('.txt'):
+            self.display_text()
+        elif self.screenshot_path:
+            self.display_picture()
 
 
 class Tasks:
@@ -1132,11 +1085,10 @@ class App(tk.Tk):
                 local_tools.logIt_thread(log_path, msg=f'Calling server.remove_lost_connection('
                                                        f'{endpoint})...')
                 self.server.remove_lost_connection(endpoint)
-                local_tools.logIt_thread(log_path, msg=f'Calling self.refresh()...')
-                self.refresh_command()
                 local_tools.logIt_thread(log_path, msg=f'Restart command completed.')
                 self.update_statusbar_messages_thread(msg=f'restart command sent to '
                                                           f'{endpoint.ip} | {endpoint.ident}.')
+                local_tools.logIt_thread(log_path, msg=f'Calling self.refresh()...')
                 self.refresh_command()
                 return True
 
@@ -1237,7 +1189,7 @@ class App(tk.Tk):
     # Display Available Stations
     def show_available_connections(self) -> None:
         local_tools.logIt_thread(log_path, msg=f'Running show_available_connections()...')
-        if not self.server.ips and not self.server.targets:
+        if len(self.server.ips) == 0 and len(self.server.targets) == 0:
             local_tools.logIt_thread(log_path, msg='No connected Stations')
             return
 
