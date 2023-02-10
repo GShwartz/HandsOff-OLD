@@ -20,11 +20,9 @@ class Endpoints:
 class Server:
     def __init__(self, local_tools, log_path, app, ip, port):
         self.clients = {}
-        self.connections = {}
         self.connHistory = {}
         self.ips = []
         self.targets = []
-        self.ttl = 5
         self.port = port
         self.hostname = socket.gethostname()
         self.serverIP = ip
@@ -145,7 +143,6 @@ class Server:
                 self.endpoints.append(fresh_endpoint)
                 self.targets.append(fresh_endpoint.conn)
                 self.ips.append(fresh_endpoint.ip)
-                self.connections.update({fresh_endpoint.conn: fresh_endpoint.ip})
                 self.temp_ident = {
                     fresh_endpoint.conn: {fresh_endpoint.client_mac: {
                         fresh_endpoint.ip: {
@@ -209,13 +206,12 @@ class Server:
 
     # Remove Lost connections
     def remove_lost_connection(self, endpoint) -> bool:
-        self.local_tools.logIt_thread(self.log_path, msg=f'Running remove_lost_connection({endpoint.conn}, {endpoint.ip})...')
+        self.local_tools.logIt_thread(self.log_path, msg=f'Running remove_lost_connection('
+                                                         f'{endpoint.conn}, {endpoint.ip})...')
         try:
             self.local_tools.logIt_thread(self.log_path, msg=f'Removing connections...')
             self.targets.remove(endpoint.conn)
             self.ips.remove(endpoint.ip)
-
-            del self.connections[endpoint.conn]
             del self.clients[endpoint.conn]
             self.endpoints.remove(endpoint)
 
@@ -223,9 +219,8 @@ class Server:
             self.app.update_statusbar_messages_thread(
                 msg=f'{endpoint.ip} | {endpoint.ident} | {endpoint.user} removed from connected list.')
 
-            self.local_tools.logIt_thread(self.log_path, msg=f'Connections removed.')
+            self.local_tools.logIt_thread(self.log_path, msg=f'{endpoint.ip} {endpoint.ident} removed.')
             return True
 
         except (ValueError, RuntimeError) as e:
             self.local_tools.logIt_thread(self.log_path, msg=f'Runtime Error: {e}.')
-
