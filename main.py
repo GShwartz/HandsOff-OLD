@@ -704,8 +704,7 @@ class App(tk.Tk):
         tools.add_command(label="Clear Details                          <F6>", command=self.clear_notebook_command)
         tools.add_command(label="Save Connection History    <F10>", command=self.save_connection_history_thread)
         tools.add_command(label="Restart All Clients                 <F11>", command=self.restart_all_clients_thread)
-        tools.add_command(label="Update All Clients                <F12>", command=self.update_all_clients_thread,
-                          state=DISABLED)
+        tools.add_command(label="Update All Clients                <F12>", command=self.update_all_clients_thread)
 
         helpbar.add_command(label="Help", command=self.show_help_thread)
         helpbar.add_command(label="About", command=self.about)
@@ -713,8 +712,14 @@ class App(tk.Tk):
         menubar.add_cascade(label='File', menu=file)
         menubar.add_cascade(label='Tools', menu=tools)
         menubar.add_cascade(label="Help", menu=helpbar)
+        if len(self.server.endpoints) > 1:
+            tools.entryconfig(5, state='normal')
+
+        else:
+            tools.entryconfig(5, state='disabled')
 
         local_tools.logIt_thread(log_path, msg=f'Displaying Menubar...')
+
         self.config(menu=menubar)
         return
 
@@ -873,10 +878,10 @@ class App(tk.Tk):
 
         local_tools.logIt_thread(log_path, msg=f'Building Update Client button...')
         self.update_client = Button(self.controller_btns, text="Update Client", width=14,
-                                    pady=5, state=DISABLED,
+                                    pady=5, state=NORMAL,
                                     command=lambda: self.update_selected_client_thread(endpoint))
         self.update_client.grid(row=0, column=8, sticky="w", pady=5, padx=2, ipadx=2)
-        # self.buttons.append(self.update_client)
+        self.buttons.append(self.update_client)
 
         local_tools.logIt_thread(log_path, msg=f'Building Maintenance button...')
         self.maintenance = Button(self.controller_btns, text="Maintenance", width=14,
@@ -976,10 +981,10 @@ class App(tk.Tk):
             self.withdraw()
 
         else:
-            if len(self.server.targets) > 0:
-                for t in self.server.targets:
+            if len(self.server.endpoints) > 0:
+                for endpoint in self.server.endpoints:
                     try:
-                        t.send('exit'.encode())
+                        endpoint.conn.send('exit'.encode())
 
                     except socket.error:
                         pass
@@ -1192,8 +1197,8 @@ class App(tk.Tk):
             display = DisplayFileContent(self.notebook, None, file_path, self.system_information_tab,
                                          sname=endpoint.ident, txt='System Information')
             display.run()
-            self.enable_buttons_thread()
             self.running = False
+            self.enable_buttons_thread()
             self.update()
 
         except (WindowsError, socket.error, ConnectionResetError) as e:
@@ -1265,23 +1270,25 @@ class App(tk.Tk):
         local_tools.logIt_thread(log_path, msg=f'Running update_selected_client()...')
         local_tools.logIt_thread(log_path, msg=f'Calling self.disable_buttons_thread()...')
         self.disable_buttons_thread()
-        local_tools.logIt_thread(log_path, msg=f'Sending update command to {endpoint.ip} | {endpoint.ident}...')
-        try:
-            endpoint.conn.send('update'.encode())
-            local_tools.logIt_thread(log_path, msg=f'Send Completed.')
-            local_tools.logIt_thread(log_path, msg=f'Waiting for response from {endpoint.ip} | {endpoint.ident}...')
-            msg = endpoint.conn.recv(1024).decode()
-            local_tools.logIt_thread(log_path, msg=f'{endpoint.ip}|{endpoint.ident}: {msg}')
 
-        except (WindowsError, socket.error) as e:
-            local_tools.logIt_thread(log_path, msg=f'ERROR: {e}.')
-            return False
+        local_tools.logIt_thread(log_path, msg=f'Displaying confirmation pop-up...')
+        sure = messagebox.askyesno(f"Update client", "Are you sure?")
+        if sure:
+            local_tools.logIt_thread(log_path, msg=f'Sending update command to {endpoint.ip} | {endpoint.ident}...')
+            try:
+                endpoint.conn.send('update'.encode())
+                local_tools.logIt_thread(log_path, msg=f'Send Completed.')
+                local_tools.logIt_thread(log_path, msg=f'Waiting for response from {endpoint.ip} | {endpoint.ident}...')
+                msg = endpoint.conn.recv(1024).decode()
+                local_tools.logIt_thread(log_path, msg=f'{endpoint.ip}|{endpoint.ident}: {msg}')
 
-        local_tools.logIt_thread(log_path, msg=f'Calling self.refresh()...')
+            except (WindowsError, socket.error) as e:
+                local_tools.logIt_thread(log_path, msg=f'ERROR: {e}.')
+                return False
+
         local_tools.logIt_thread(log_path, msg=f'Displaying update info popup window...')
-        time.sleep(2)
         messagebox.showinfo(f"Update {endpoint.ident}", "Update command sent.")
-        self.refresh_command(event=0)
+        self.refresh_command()
         return True
 
     # Run Maintenance on Client
@@ -1329,11 +1336,11 @@ class App(tk.Tk):
         local_tools.logIt_thread(log_path, msg=f'Displaying Label: '
                                                f'{self.server.serverIP} | {self.server.port} | '
                                                f'{datetime.fromtimestamp(last_reboot).replace(microsecond=0)}" | '
-                                               f'{len(self.server.targets)}')
+                                               f'{len(self.server.endpoints)}')
         label = Label(self.top_bar_label, background='ghost white',
                       text=f"\t\t\t\tServer IP: {self.server.serverIP}\t\tServer Port: {self.server.port}\t"
                            f"\t\tLast Boot: {datetime.fromtimestamp(last_reboot).replace(microsecond=0)}"
-                           f"\t\tConnected Stations: {len(self.server.targets)}\t\t\t\t          ")
+                           f"\t\tConnected Stations: {len(self.server.endpoints)}\t\t\t\t          ")
         label.grid(row=0, sticky='news')
         return
 
@@ -1344,7 +1351,7 @@ class App(tk.Tk):
         self.connected_table.delete(*self.connected_table.get_children())
 
         local_tools.logIt_thread(log_path, msg=f'Running show_available_connections()...')
-        if len(self.server.ips) == 0 and len(self.server.targets) == 0:
+        if not self.server.endpoints:
             local_tools.logIt_thread(log_path, msg='No connected Stations')
             return
 
@@ -1354,9 +1361,8 @@ class App(tk.Tk):
 
         local_tools.logIt_thread(log_path, msg=f'Creating tmp_availables list...')
         for count, endpoint in enumerate(self.server.endpoints):
-            if endpoint.conn in self.server.targets and endpoint.ip in self.server.ips:
-                self.server.tmp_availables.append((count, endpoint.client_mac, endpoint.ip,
-                                                   endpoint.ident, endpoint.user, endpoint.client_version))
+            self.server.tmp_availables.append((count, endpoint.client_mac, endpoint.ip,
+                                               endpoint.ident, endpoint.user, endpoint.client_version))
         local_tools.logIt_thread(log_path, msg=f'Available list created.')
 
         for item in self.server.tmp_availables:
@@ -1442,7 +1448,7 @@ class App(tk.Tk):
     # Restart All Clients
     def restart_all_clients_command(self):
         local_tools.logIt_thread(log_path, msg=f'Running restart_all_clients()...')
-        if len(self.server.targets) == 0:
+        if not self.server.endpoints:
             local_tools.logIt_thread(log_path, msg=f'Displaying popup window: "No connected stations"...')
             messagebox.showwarning("Update All Clients", "No connected stations.")
             return False
@@ -1481,82 +1487,33 @@ class App(tk.Tk):
     # Broadcast update command to all connected stations
     def update_all_clients_command(self) -> bool:
         local_tools.logIt_thread(log_path, msg=f'Running update_all_clients()...')
-        if len(self.targets) == 0:
+        if not self.server.endpoints:
             local_tools.logIt_thread(log_path, msg=f'Displaying popup window: "No connected stations"...')
             messagebox.showwarning("Update All Clients", "No connected stations.")
             return False
 
-        def submit_url(event=0):
-            url = self.update_url.get()
-            sure = messagebox.askyesno(f"New URL: {url}", "Are you sure?")
-            if sure:
+        sure = messagebox.askyesno(f"Update All Clients", "Are you sure?")
+        if sure:
+            for endpoint in self.server.endpoints:
                 try:
-                    for t in self.targets:
-                        local_tools.logIt_thread(log_path, msg=f'Sending update command to all connected stations...')
-                        try:
-                            t.send('update'.encode())
-                            local_tools.logIt_thread(self.log_path, msg=f'Send completed.')
-                            t.send(str(url).encode())
-                            msg = t.recv(1024).decode()
-                            self.update_statusbar_messages_thread(msg=f'{msg}')
-                            local_tools.logIt_thread(self.log_path, msg=f'Station: {msg}')
+                    endpoint.conn.send('update'.encode())
+                    local_tools.logIt_thread(log_path, msg=f'Send Completed.')
+                    local_tools.logIt_thread(log_path, msg=f'Waiting for response from {endpoint.ip} | {endpoint.ident}...')
+                    msg = endpoint.conn.recv(1024).decode()
+                    local_tools.logIt_thread(log_path, msg=f'{endpoint.ip}|{endpoint.ident}: {msg}')
 
-                        except (WindowsError, socket.error) as e:
-                            local_tools.logIt_thread(log_path, msg=f'ERROR: {e}')
-                            self.update_statusbar_messages_thread(msg=f'ERROR: {e}')
-                            for clientConn, clientValues in self.clients.items():
-                                for clientMac, clientIPv in clientValues.items():
-                                    for clientIP, vals in clientIPv.items():
-                                        if clientConn == t:
-                                            for sname in vals.keys():
-                                                server.remove_lost_connection(t, clientIP)
-                            continue
+                except (WindowsError, socket.error) as e:
+                    local_tools.logIt_thread(log_path, msg=f'ERROR: {e}.')
+                    return False
 
-                except RuntimeError:
-                    pass
+            local_tools.logIt_thread(log_path, msg=f'Displaying update info popup window...')
+            messagebox.showinfo(f"Update {endpoint.ident}", "Update command sent.")
+            self.refresh_command()
+            self.disable_buttons_thread()
+            return True
 
-                local_tools.logIt_thread(log_path, msg=f'Calling self.refresh()...')
-                local_tools.logIt_thread(log_path, msg=f'Displaying update info popup window...')
-                messagebox.showinfo("Update All Clients", "Update command sent.")
-                self.refresh_command(event=0)
-                url_window.destroy()
-                return True
-
-            else:
-                return False
-
-        url_window = tk.Toplevel()
-        url_window.title("HandsOff - client.exe URL")
-        url_window.iconbitmap('HandsOff.ico')
-
-        # Set Mid Screen Coordinates
-        x = (self.WIDTH / 2) - (300 / 2)
-        y = (self.HEIGHT / 2) - (100 / 2)
-
-        # Set Window Size & Location & Center Window
-        url_window.geometry(f'{300}x{100}+{int(x)}+{int(y)}')
-        url_window.configure(background='slate gray', takefocus=True)
-        url_window.grid_columnconfigure(0, weight=1)
-        url_window.grid_rowconfigure(2, weight=2)
-        url_window.maxsize(300, 100)
-        url_window.minsize(300, 100)
-        url_window.bind("<Return>", submit_url)
-
-        url_label = Label(url_window, text="EXE file URL", relief='ridge',
-                          background='slate gray', foreground='white')
-        url_label.grid(row=0, sticky='n')
-
-        url_entry = Entry(url_window, textvariable=self.update_url)
-        url_entry.grid(row=1, column=0, sticky='news')
-        url_entry.delete(0, END)
-        url_entry.focus()
-
-        url_submit = Button(url_window, text="Submit", command=submit_url)
-        url_submit.grid(row=2, column=0, pady=5)
-
-        local_tools.logIt_thread(log_path, msg=f'Calling self.disable_buttons_thread()...')
-        self.disable_buttons_thread()
-        url_window.wait_window(self)
+        else:
+            return False
 
     # Show Help
     def show_help(self):
@@ -1571,7 +1528,7 @@ class App(tk.Tk):
     # Save History to file
     def save_connection_history(self, event=0) -> bool:
         local_tools.logIt_thread(log_path, msg=f'Running self.save_connection_history()...')
-        if len(self.server.targets) == 0:
+        if not self.server.endpoints:
             messagebox.showwarning("Save Connection History", "Nothing to save yet.")
             return
 
