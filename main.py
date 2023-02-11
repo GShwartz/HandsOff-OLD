@@ -523,9 +523,6 @@ class App(tk.Tk):
         self.bind("<F1>", self.about)
         self.bind("<F5>", self.refresh_command)
         self.bind("<F6>", self.clear_notebook_command)
-        self.bind("<F10>", self.save_connection_history_thread)
-        self.bind("<F11>", self.restart_all_clients_thread)
-        self.bind("<F12>", self.update_all_clients_thread)
 
         # Set Closing protocol
         self.protocol("WM_DELETE_WINDOW", self.on_closing)
@@ -690,6 +687,14 @@ class App(tk.Tk):
         self.style.map("Treeview", background=[('selected', 'sea green')])
 
     def update_tools_menu(self):
+        if len(self.server.connHistory) > 0:
+            self.tools.entryconfig(2, state=NORMAL)
+            self.bind("<F10>", self.save_connection_history_thread)
+
+        else:
+            self.tools.entryconfig(2, state=DISABLED)
+            self.unbind("<F10>")
+
         if len(self.server.endpoints) > 1:
             self.tools.entryconfig(3, state=NORMAL)
             self.tools.entryconfig(4, state=NORMAL)
@@ -716,7 +721,8 @@ class App(tk.Tk):
 
         self.tools.add_command(label="Refresh <F5>", command=self.refresh_command)
         self.tools.add_command(label="Clear Details <F6>", command=self.clear_notebook_command)
-        self.tools.add_command(label="Save Connection History <F10>", command=self.save_connection_history_thread)
+        self.tools.add_command(label="Save Connection History <F10>", command=self.save_connection_history_thread,
+                               state=DISABLED)
         self.tools.add_command(label="Restart All Clients <F11>", command=self.restart_all_clients_thread,
                                state=DISABLED)
         self.tools.add_command(label="Update All Clients <F12>", command=self.update_all_clients_thread,
@@ -1036,15 +1042,15 @@ class App(tk.Tk):
         local_tools.logIt_thread(log_path, msg=f'Running refresh()...')
         local_tools.logIt_thread(log_path, msg=f'Calling self_disable_buttons_thread(sidebar=False)...')
         self.disable_buttons_thread()
-        local_tools.logIt_thread(log_path, msg=f'Resetting self.tmp_availables list...')
+        local_tools.logIt_thread(log_path, msg=f'Resetting tmp_availables list...')
         self.server.tmp_availables = []
-        local_tools.logIt_thread(log_path, msg=f'Calling self.vital_signs_thread()...')
+        local_tools.logIt_thread(log_path, msg=f'Calling vital_signs_thread()...')
         self.vital_signs_thread()
-        local_tools.logIt_thread(log_path, msg=f'Calling self.server_information()...')
+        local_tools.logIt_thread(log_path, msg=f'Calling server_information()...')
         self.server_information()
-        local_tools.logIt_thread(log_path, msg=f'Calling self.update_tools_menu()...')
+        local_tools.logIt_thread(log_path, msg=f'Calling update_tools_menu()...')
         self.update_tools_menu()
-        local_tools.logIt_thread(log_path, msg=f'Calling self.show_available_connections()...')
+        local_tools.logIt_thread(log_path, msg=f'Calling show_available_connections()...')
         self.show_available_connections()
         local_tools.logIt_thread(log_path, msg=f'Calling connection_history()...')
         self.connection_history()
@@ -1460,11 +1466,6 @@ class App(tk.Tk):
     # Restart All Clients
     def restart_all_clients_command(self):
         local_tools.logIt_thread(log_path, msg=f'Running restart_all_clients()...')
-        if not self.server.endpoints:
-            local_tools.logIt_thread(log_path, msg=f'Displaying popup window: "No connected stations"...')
-            messagebox.showwarning("Update All Clients", "No connected stations.")
-            return False
-
         self.update_statusbar_messages_thread(msg=f'waiting for restart confirmation...')
         local_tools.logIt_thread(log_path, msg=f'Displaying self.sure() popup window...')
         self.sure = messagebox.askyesno(f"Restart All Clients\t", "Are you sure?")
@@ -1499,11 +1500,6 @@ class App(tk.Tk):
     # Broadcast update command to all connected stations
     def update_all_clients_command(self) -> bool:
         local_tools.logIt_thread(log_path, msg=f'Running update_all_clients()...')
-        if not self.server.endpoints:
-            local_tools.logIt_thread(log_path, msg=f'Displaying popup window: "No connected stations"...')
-            messagebox.showwarning("Update All Clients", "No connected stations.")
-            return False
-
         sure = messagebox.askyesno(f"Update All Clients", "Are you sure?")
         if sure:
             for endpoint in self.server.endpoints:
@@ -1541,10 +1537,6 @@ class App(tk.Tk):
     # Save History to file
     def save_connection_history(self, event=0) -> bool:
         local_tools.logIt_thread(log_path, msg=f'Running self.save_connection_history()...')
-        if not self.server.endpoints:
-            messagebox.showwarning("Save Connection History", "Nothing to save yet.")
-            return
-
         file_types = {'CSV Files': '.csv', 'TXT Files': '.txt'}
 
         # Create Saved Files Dir
