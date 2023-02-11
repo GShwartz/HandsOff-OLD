@@ -371,7 +371,7 @@ class Tasks:
         messagebox.showinfo(f"From {self.endpoint.ip} | {self.endpoint.ident}", f"{msg}.\t\t\t\t\t\t\t\t")
         local_tools.logIt_thread(log_path, msg=f'Message received.')
         self.app.update_statusbar_messages_thread(msg=f'killed task {task_to_kill} on '
-                                                  f'{self.endpoint.ip} | {self.endpoint.ident}.')
+                                                      f'{self.endpoint.ip} | {self.endpoint.ident}.')
         local_tools.logIt_thread(log_path, msg=f'Calling self.enable_buttons_thread()...')
         self.app.enable_buttons_thread()
         return True
@@ -383,7 +383,7 @@ class Tasks:
         local_tools.logIt_thread(log_path, debug=False, msg=f'Initializing Module: tasks...')
         tsks = tasks.Tasks(self.endpoint, log_path, path)
         self.app.update_statusbar_messages_thread(msg=f'running tasks command on '
-                                                  f'{self.endpoint.ip} | {self.endpoint.ident}.')
+                                                      f'{self.endpoint.ip} | {self.endpoint.ident}.')
 
         local_tools.logIt_thread(log_path, debug=False, msg=f'Calling tasks.tasks()...')
         filepath = tsks.tasks()
@@ -397,7 +397,8 @@ class Tasks:
         display.run()
 
         local_tools.logIt_thread(log_path, msg=f'Displaying popup to kill a task...')
-        killTask = messagebox.askyesno(f"Tasks from {self.endpoint.ip} | {self.endpoint.ident}", "Kill Task?\t\t\t\t\t\t\t\t")
+        killTask = messagebox.askyesno(f"Tasks from {self.endpoint.ip} | {self.endpoint.ident}",
+                                       "Kill Task?\t\t\t\t\t\t\t\t")
         local_tools.logIt_thread(log_path, msg=f'Kill task: {killTask}.')
 
         if killTask:
@@ -688,38 +689,47 @@ class App(tk.Tk):
         self.style.configure("Treeview.Heading", font=('Arial Bold', 8))
         self.style.map("Treeview", background=[('selected', 'sea green')])
 
+    def update_tools_menu(self):
+        if len(self.server.endpoints) > 1:
+            self.tools.entryconfig(3, state=NORMAL)
+            self.tools.entryconfig(4, state=NORMAL)
+            self.bind("<F11>", self.restart_all_clients_thread)
+            self.bind("<F12>", self.update_all_clients_thread)
+
+        else:
+            self.tools.entryconfig(3, state=DISABLED)
+            self.tools.entryconfig(4, state=DISABLED)
+            self.unbind("<F11>")
+            self.unbind("<F12>")
+
     # Create Menubar
     def build_menubar(self):
         local_tools.logIt_thread(log_path, msg=f'Running build_menubar()...')
         menubar = Menu(self, tearoff=0)
         file = Menu(menubar, tearoff=0)
-        tools = Menu(self, tearoff=0)
+        self.tools = Menu(self, tearoff=0)
         helpbar = Menu(self, tearoff=0)
 
         file.add_command(label="Minimize", command=self.minimize)
         file.add_separator()
         file.add_command(label="Exit", command=self.on_closing)
 
-        tools.add_command(label="Refresh                                   <F5>", command=self.refresh_command)
-        tools.add_command(label="Clear Details                          <F6>", command=self.clear_notebook_command)
-        tools.add_command(label="Save Connection History    <F10>", command=self.save_connection_history_thread)
-        tools.add_command(label="Restart All Clients                 <F11>", command=self.restart_all_clients_thread)
-        tools.add_command(label="Update All Clients                <F12>", command=self.update_all_clients_thread)
+        self.tools.add_command(label="Refresh <F5>", command=self.refresh_command)
+        self.tools.add_command(label="Clear Details <F6>", command=self.clear_notebook_command)
+        self.tools.add_command(label="Save Connection History <F10>", command=self.save_connection_history_thread)
+        self.tools.add_command(label="Restart All Clients <F11>", command=self.restart_all_clients_thread,
+                               state=DISABLED)
+        self.tools.add_command(label="Update All Clients <F12>", command=self.update_all_clients_thread,
+                               state=DISABLED)
 
         helpbar.add_command(label="Help", command=self.show_help_thread)
         helpbar.add_command(label="About", command=self.about)
 
         menubar.add_cascade(label='File', menu=file)
-        menubar.add_cascade(label='Tools', menu=tools)
+        menubar.add_cascade(label='Tools', menu=self.tools)
         menubar.add_cascade(label="Help", menu=helpbar)
-        if len(self.server.endpoints) > 1:
-            tools.entryconfig(5, state='normal')
-
-        else:
-            tools.entryconfig(5, state='disabled')
 
         local_tools.logIt_thread(log_path, msg=f'Displaying Menubar...')
-
         self.config(menu=menubar)
         return
 
@@ -1032,6 +1042,8 @@ class App(tk.Tk):
         self.vital_signs_thread()
         local_tools.logIt_thread(log_path, msg=f'Calling self.server_information()...')
         self.server_information()
+        local_tools.logIt_thread(log_path, msg=f'Calling self.update_tools_menu()...')
+        self.update_tools_menu()
         local_tools.logIt_thread(log_path, msg=f'Calling self.show_available_connections()...')
         self.show_available_connections()
         local_tools.logIt_thread(log_path, msg=f'Calling connection_history()...')
@@ -1498,7 +1510,8 @@ class App(tk.Tk):
                 try:
                     endpoint.conn.send('update'.encode())
                     local_tools.logIt_thread(log_path, msg=f'Send Completed.')
-                    local_tools.logIt_thread(log_path, msg=f'Waiting for response from {endpoint.ip} | {endpoint.ident}...')
+                    local_tools.logIt_thread(log_path,
+                                             msg=f'Waiting for response from {endpoint.ip} | {endpoint.ident}...')
                     msg = endpoint.conn.recv(1024).decode()
                     local_tools.logIt_thread(log_path, msg=f'{endpoint.ip}|{endpoint.ident}: {msg}')
 
