@@ -19,16 +19,13 @@ class Endpoints:
 
 class Server:
     def __init__(self, local_tools, log_path, app, ip, port):
-        self.clients = {}
-        self.connHistory = {}
-        self.ips = []
-        self.targets = []
         self.port = port
         self.hostname = socket.gethostname()
         self.serverIP = ip
         self.local_tools = local_tools
         self.log_path = log_path
         self.app = app
+        self.connHistory = {}
         self.endpoints = []
 
     # Server listener
@@ -52,16 +49,8 @@ class Server:
 
         except (WindowsError, socket.error) as e:
             self.local_tools.logIt_thread(self.log_path, msg=f'Connection Error: {e}')
-            if self.conn in self.targets and self.ip in self.ips:
-                self.local_tools.logIt_thread(self.log_path, msg=f'Removing {self.conn} from self.targets...')
-                self.targets.remove(self.conn)
-                self.local_tools.logIt_thread(self.log_path, msg=f'Removing {self.ip} from self.ips list...')
-                self.ips.remove(self.ip)
-                self.local_tools.logIt_thread(self.log_path, msg=f'Deleting {self.conn} from self.connections.')
-                del self.connections[self.conn]
-                self.local_tools.logIt_thread(self.log_path, msg=f'Deleting {self.conn} from self.clients...')
-                del self.clients[self.conn]
-                self.local_tools.logIt_thread(self.log_path, msg=f'[V]{self.ip} removed from lists.')
+            if self.fresh_endpoint in self.endpoints:
+                self.remove_lost_connection(self.fresh_endpoint)
                 return False
 
     def run(self) -> None:
@@ -136,21 +125,18 @@ class Server:
                 return  # Restart The Loop
 
             # Apply Data to dataclass Endpoints
-            fresh_endpoint = Endpoints(self.conn, self.client_mac, self.ip,
-                                       self.ident, self.user, self.client_version)
+            self.fresh_endpoint = Endpoints(self.conn, self.client_mac, self.ip,
+                                            self.ident, self.user, self.client_version)
 
-            if fresh_endpoint not in self.endpoints:
-                self.endpoints.append(fresh_endpoint)
-                self.targets.append(fresh_endpoint.conn)
-                self.ips.append(fresh_endpoint.ip)
+            if self.fresh_endpoint not in self.endpoints:
+                self.endpoints.append(self.fresh_endpoint)
                 self.temp_ident = {
-                    fresh_endpoint.conn: {fresh_endpoint.client_mac: {
-                        fresh_endpoint.ip: {
-                            fresh_endpoint.ident: {
-                                fresh_endpoint.user: fresh_endpoint.client_version}}}}}
-                self.clients.update(self.temp_ident)
+                    self.fresh_endpoint.conn: {self.fresh_endpoint.client_mac: {
+                        self.fresh_endpoint.ip: {
+                            self.fresh_endpoint.ident: {
+                                self.fresh_endpoint.user: self.fresh_endpoint.client_version}}}}}
 
-            self.connHistory.update({fresh_endpoint: dt})
+            self.connHistory.update({self.fresh_endpoint: dt})
             self.app.display_server_information_thread()
             self.welcome_message()
 
@@ -210,9 +196,6 @@ class Server:
                                                          f'{endpoint.conn}, {endpoint.ip})...')
         try:
             self.local_tools.logIt_thread(self.log_path, msg=f'Removing connections...')
-            self.targets.remove(endpoint.conn)
-            self.ips.remove(endpoint.ip)
-            del self.clients[endpoint.conn]
             self.endpoints.remove(endpoint)
 
             # Update statusbar message
