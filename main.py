@@ -1,5 +1,6 @@
 from datetime import datetime
 from threading import Thread
+from typing import Optional
 import PIL.ImageTk
 import subprocess
 import webbrowser
@@ -14,8 +15,6 @@ import time
 import glob
 import sys
 import csv
-from typing import Optional
-
 
 # GUI
 from tkinter import simpledialog
@@ -35,6 +34,154 @@ from Modules import tasks
 from Modules.server import Server
 
 
+class About:
+    def __init__(self):
+        # Build GUI
+        self.about_window = tk.Toplevel()
+        self.about_window.title("HandsOff - About")
+        self.about_window.iconbitmap('HandsOff.ico')
+
+        # Update screen geometry variables
+        app.update_idletasks()
+
+        # Set Mid Screen Coordinates
+        x = (app.WIDTH / 2) - (400 / 2)
+        y = (app.HEIGHT / 2) - (200 / 2)
+
+        # Set Window Size & Location & Center Window
+        self.about_window.geometry(f'{400}x{200}+{int(x)}+{int(y)}')
+        self.about_window.configure(background='slate gray', takefocus=True)
+        self.about_window.grid_columnconfigure(2, weight=1)
+        self.about_window.grid_rowconfigure(3, weight=1)
+        self.about_window.maxsize(400, 200)
+        self.about_window.minsize(400, 200)
+
+        self.github_url = 'https://github.com/GShwartz/PeachGUI'
+        self.youtube_url = 'https://www.youtube.com/channel/UC5jHVur21yVo7nu7nLnuyoQ'
+        self.linkedIn_url = 'https://www.linkedin.com/in/gilshwartz/'
+
+        self.github_black = PIL.ImageTk.PhotoImage(
+            PIL.Image.open('images/github_black.png').resize((50, 50), PIL.Image.LANCZOS))
+        self.github_purple = PIL.ImageTk.PhotoImage(
+            PIL.Image.open('images/github_purple.png').resize((50, 50), PIL.Image.LANCZOS))
+        self.linkedin_black = PIL.ImageTk.PhotoImage(
+            PIL.Image.open('images/linkedin_black.png').resize((50, 50), PIL.Image.LANCZOS))
+        self.linkedin_blue = PIL.ImageTk.PhotoImage(
+            PIL.Image.open('images/linkedin_blue.png').resize((50, 50), PIL.Image.LANCZOS))
+        self.youtube_red = PIL.ImageTk.PhotoImage(
+            PIL.Image.open('images/youtube_red.png').resize((50, 50), PIL.Image.LANCZOS))
+        self.youtube_black = PIL.ImageTk.PhotoImage(
+            PIL.Image.open('images/youtube_black.png').resize((50, 50), PIL.Image.LANCZOS))
+        app.social_buttons.append([self.github_black, self.github_purple,
+                                   self.youtube_red, self.youtube_black,
+                                   self.linkedin_blue, self.linkedin_black])
+
+    def run(self):
+        self.app_name_label = Label(self.about_window, relief='ridge', background='ghost white', width=45)
+        self.app_name_label.configure(text='HandsOff\n\n'
+                                           'Copyright 2022 Gil Shwartz. All rights reserved.\n'
+                                           'handsoffapplication@gmail.com\n'
+                                           '=====----=====\n')
+        self.app_name_label.pack(ipady=10, ipadx=10, pady=5)
+
+        self.github_label = Label(self.about_window, image=self.github_purple, background='slate gray')
+        self.github_label.image = [self.github_purple, self.github_black]
+        self.github_label.place(x=80, y=130)
+        self.github_label.bind("<Button-1>", lambda x: self.on_github_click(self.github_url))
+        self.github_label.bind("<Enter>", self.on_github_hover)
+        self.github_label.bind("<Leave>", self.on_github_leave)
+
+        self.youtube_label = Label(self.about_window, image=self.youtube_red, background='slate gray')
+        self.youtube_label.image = [self.youtube_red, self.youtube_black]
+        self.youtube_label.place(x=173, y=130)
+        self.youtube_label.bind("<Button-1>", lambda x: self.on_youtube_click(self.youtube_url))
+        self.youtube_label.bind("<Enter>", self.on_youtube_hover)
+        self.youtube_label.bind("<Leave>", self.on_youtube_leave)
+
+        self.linkedIn_label = Label(self.about_window, image=self.linkedin_blue, background='slate gray')
+        self.linkedIn_label.image = [self.linkedin_black, self.linkedin_blue]
+        self.linkedIn_label.place(x=264, y=130)
+        self.linkedIn_label.bind("<Button-1>", lambda x: self.on_youtube_click(self.linkedIn_url))
+        self.linkedIn_label.bind("<Enter>", self.on_linkedIn_hover)
+        self.linkedIn_label.bind("<Leave>", self.on_linkedIn_leave)
+
+    def on_github_hover(self, event):
+        return self.github_label.config(image=self.github_black)
+
+    def on_github_leave(self, event):
+        return self.github_label.config(image=self.github_purple)
+
+    def on_youtube_hover(self, event):
+        return self.youtube_label.config(image=self.youtube_black)
+
+    def on_youtube_leave(self, event):
+        return self.youtube_label.config(image=self.youtube_red)
+
+    def on_linkedIn_hover(self, event):
+        return self.linkedIn_label.config(image=self.linkedin_black)
+
+    def on_linkedIn_leave(self, event):
+        return self.linkedIn_label.config(image=self.linkedin_blue)
+
+    def on_github_click(self, url):
+        return webbrowser.open_new_tab(url)
+
+    def on_youtube_click(self, url):
+        return webbrowser.open_new_tab(url)
+
+    def on_linkedin_click(self, url):
+        return webbrowser.open_new_tab(url)
+
+
+class Locals:
+    # Run log func in new Thread
+    def logIt_thread(self, log_path=None, debug=False, msg='') -> None:
+        self.logit_thread = Thread(target=self.logIt,
+                                   args=(log_path, debug, msg),
+                                   daemon=True,
+                                   name="Log Thread")
+        self.logit_thread.start()
+
+    # Convert bytes to numbers for file transfers
+    def bytes_to_number(self, b: int) -> int:
+        self.logIt_thread(self.log_path, msg=f'Running bytes_to_number({b})...')
+        dt = self.get_date()
+        res = 0
+        for i in range(4):
+            res += b[i] << (i * 8)
+        return res
+
+    # Get current date & time
+    def get_date(self) -> str:
+        d = datetime.now().replace(microsecond=0)
+        dt = str(d.strftime("%m/%d/%Y %H:%M:%S"))
+
+        return dt
+
+    # Log & Debugger
+    def logIt(self, logfile=None, debug=None, msg='') -> bool:
+        dt = self.get_date()
+        if debug:
+            print(f"{dt}: {msg}")
+
+        if logfile is not None:
+            try:
+                if not os.path.exists(logfile):
+                    with open(logfile, 'w') as lf:
+                        lf.write(f"{dt}: {msg}\n")
+
+                    return True
+
+                else:
+                    with open(logfile, 'a') as lf:
+                        lf.write(f"{dt}: {msg}\n")
+
+                    return True
+
+            except FileExistsError:
+                pass
+
+
 class DisplayFileContent:
     # List to hold captured screenshot images
     displayed_screenshot_files = []
@@ -42,7 +189,7 @@ class DisplayFileContent:
     tabs = 0
     notebooks = {}
 
-    def __init__(self, notebook: Frame, screenshot_path: str, filepath: str, tab: Optional[Frame], sname: str, txt=''):
+    def __init__(self, notebook: Frame, screenshot_path, filepath, tab: Optional[Frame], sname, txt=''):
         self.notebook = notebook
         self.screenshot_path = screenshot_path
         self.filepath = filepath
@@ -334,6 +481,7 @@ class App(tk.Tk):
         self.update_url = StringVar()
         self.new_url = ''
         self.server = Server(local_tools, log_path, self, args.ip, args.port)
+        self.running = False
 
         # ======== Server Config ==========
         # Start listener
@@ -612,11 +760,6 @@ class App(tk.Tk):
         self.details_frame = Frame(self.main_frame, relief='flat', pady=2, height=310)
         self.details_frame.grid(row=3, column=0, sticky='news')
 
-        local_tools.logIt_thread(log_path, msg=f'Building details LabelFrame...')
-        # self.details_labelFrame = LabelFrame(self.main_frame, text="Details", relief='solid', foreground='white',
-        #                                      height=250, background='slate gray')
-        # self.details_labelFrame.grid(row=3, column=0, sticky='news')
-
         local_tools.logIt_thread(log_path, msg=f'Building statusbar frame in main frame...')
         self.statusbar_frame = Frame(self.main_frame, relief=SUNKEN, bd=1)
         self.statusbar_frame.grid(row=5, column=0, sticky='news')
@@ -867,12 +1010,10 @@ class App(tk.Tk):
 
     # Disable Controller Buttons
     def disable_buttons(self):
-        local_tools.logIt_thread(log_path, msg=f'Running disable_buttons(sidebar=None)...')
+        local_tools.logIt_thread(log_path, msg=f'Running disable_buttons()...')
         for button in list(self.buttons):
             local_tools.logIt_thread(log_path, msg=f'Disabling {button.config("text")[-1]}...')
             button.config(state=DISABLED)
-
-        return
 
     # ==++==++==++== CONTROLLER BUTTONS COMMANDS==++==++==++==
     # Refresh server info & connected stations table with vital signs
@@ -904,6 +1045,9 @@ class App(tk.Tk):
                                                f'{endpoint.conn}, {endpoint.ip}, {endpoint.ident})...')
         local_tools.logIt_thread(log_path, msg=f'Calling self.disable_buttons_thread()...')
         self.disable_buttons_thread()
+        self.running = True
+        self.update()
+
         self.update_statusbar_messages_thread(msg=f'fetching screenshot from '
                                                   f'{endpoint.ip} | {endpoint.ident}...')
         try:
@@ -927,6 +1071,7 @@ class App(tk.Tk):
 
             local_tools.logIt_thread(log_path, msg=f'Calling self.enable_buttons_thread()...')
             self.enable_buttons_thread()
+            self.running = False
             return True
 
         except (WindowsError, socket.error, ConnectionResetError) as e:
@@ -1033,6 +1178,8 @@ class App(tk.Tk):
                                                f'{endpoint.conn}, {endpoint.ip}, {endpoint.ident})...')
         local_tools.logIt_thread(log_path, msg=f'Calling self.disable_buttons_thread(sidebar=True)...')
         self.disable_buttons_thread()
+        self.running = True
+        self.update()
         self.update_statusbar_messages_thread(msg=f'waiting for system information from '
                                                   f'{endpoint.ip} | {endpoint.ident}...')
         try:
@@ -1046,6 +1193,8 @@ class App(tk.Tk):
                                          sname=endpoint.ident, txt='System Information')
             display.run()
             self.enable_buttons_thread()
+            self.running = False
+            self.update()
 
         except (WindowsError, socket.error, ConnectionResetError) as e:
             local_tools.logIt_thread(log_path, debug=True, msg=f'Connection Error: {e}.')
@@ -1065,8 +1214,10 @@ class App(tk.Tk):
 
     # Display/Kill Tasks on Client
     def tasks(self, endpoint) -> bool:
+        self.running = True
         tasks = Tasks(endpoint, self, self.notebook)
         tasks.run()
+        self.running = False
 
     # Restart Client
     def restart_command(self, endpoint) -> bool:
@@ -1308,6 +1459,8 @@ class App(tk.Tk):
                     msg = endpoint.conn.recv(1024).decode()
                     self.update_statusbar_messages_thread(msg=f"{msg}")
                     self.server.remove_lost_connection(endpoint)
+                    refreshThread = Thread(target=self.refresh_command)
+                    refreshThread.start()
 
                 except (ConnectionResetError, socket.error):
                     continue
@@ -1470,187 +1623,40 @@ class App(tk.Tk):
     # Manage Connected Table & Controller LabelFrame Buttons
     def select_item(self, event) -> bool:
         local_tools.logIt_thread(log_path, msg=f'Running select_item()...')
+
         # Respond to mouse clicks on connected table
         rowid = self.connected_table.identify_row(event.y)
         row = self.connected_table.item(rowid)['values']
-        try:
-            if not row[2] in self.temp.values():
-                local_tools.logIt_thread(log_path, msg=f'Updating self.temp dictionary...')
-                self.temp[row[0]] = row[2]
-
-        # Error can raise when clicking on empty space so the row is None or empty.
-        except IndexError:
-            pass
-
-        local_tools.logIt_thread(log_path, msg=f'Calling self.create_notebook()...')
-        if len(self.notebooks) == 0:
-            self.create_notebook()
-
-        # Create a Controller LabelFrame with Buttons and connect shell by TreeView Table selection
-        for id, ip in self.temp.items():
-            for endpoint in self.server.endpoints:
-                if ip == endpoint.ip:
-                    temp_notebook = {endpoint.ip: {endpoint.ident: self.notebook}}
-                    if not temp_notebook in self.notebooks.items():
-                        self.notebooks.update(temp_notebook)
-
-                    self.build_controller_buttons(endpoint)
-                    self.enable_buttons_thread()
-                    shellThread = Thread(target=self.shell,
-                                         args=(endpoint,),
-                                         daemon=True,
-                                         name="Shell Thread")
-                    shellThread.start()
-                    self.temp.clear()
-                    return True
-
-
-class About:
-    def __init__(self):
-        # Build GUI
-        self.about_window = tk.Toplevel()
-        self.about_window.title("HandsOff - About")
-        self.about_window.iconbitmap('HandsOff.ico')
-
-        # Update screen geometry variables
-        app.update_idletasks()
-
-        # Set Mid Screen Coordinates
-        x = (app.WIDTH / 2) - (400 / 2)
-        y = (app.HEIGHT / 2) - (200 / 2)
-
-        # Set Window Size & Location & Center Window
-        self.about_window.geometry(f'{400}x{200}+{int(x)}+{int(y)}')
-        self.about_window.configure(background='slate gray', takefocus=True)
-        self.about_window.grid_columnconfigure(2, weight=1)
-        self.about_window.grid_rowconfigure(3, weight=1)
-        self.about_window.maxsize(400, 200)
-        self.about_window.minsize(400, 200)
-
-        self.github_url = 'https://github.com/GShwartz/PeachGUI'
-        self.youtube_url = 'https://www.youtube.com/channel/UC5jHVur21yVo7nu7nLnuyoQ'
-        self.linkedIn_url = 'https://www.linkedin.com/in/gilshwartz/'
-
-        self.github_black = PIL.ImageTk.PhotoImage(
-            PIL.Image.open('images/github_black.png').resize((50, 50), PIL.Image.LANCZOS))
-        self.github_purple = PIL.ImageTk.PhotoImage(
-            PIL.Image.open('images/github_purple.png').resize((50, 50), PIL.Image.LANCZOS))
-        self.linkedin_black = PIL.ImageTk.PhotoImage(
-            PIL.Image.open('images/linkedin_black.png').resize((50, 50), PIL.Image.LANCZOS))
-        self.linkedin_blue = PIL.ImageTk.PhotoImage(
-            PIL.Image.open('images/linkedin_blue.png').resize((50, 50), PIL.Image.LANCZOS))
-        self.youtube_red = PIL.ImageTk.PhotoImage(
-            PIL.Image.open('images/youtube_red.png').resize((50, 50), PIL.Image.LANCZOS))
-        self.youtube_black = PIL.ImageTk.PhotoImage(
-            PIL.Image.open('images/youtube_black.png').resize((50, 50), PIL.Image.LANCZOS))
-        app.social_buttons.append([self.github_black, self.github_purple,
-                                   self.youtube_red, self.youtube_black,
-                                   self.linkedin_blue, self.linkedin_black])
-
-    def run(self):
-        self.app_name_label = Label(self.about_window, relief='ridge', background='ghost white', width=45)
-        self.app_name_label.configure(text='HandsOff\n\n'
-                                           'Copyright 2022 Gil Shwartz. All rights reserved.\n'
-                                           'handsoffapplication@gmail.com\n'
-                                           '=====----=====\n')
-        self.app_name_label.pack(ipady=10, ipadx=10, pady=5)
-
-        self.github_label = Label(self.about_window, image=self.github_purple, background='slate gray')
-        self.github_label.image = [self.github_purple, self.github_black]
-        self.github_label.place(x=80, y=130)
-        self.github_label.bind("<Button-1>", lambda x: self.on_github_click(self.github_url))
-        self.github_label.bind("<Enter>", self.on_github_hover)
-        self.github_label.bind("<Leave>", self.on_github_leave)
-
-        self.youtube_label = Label(self.about_window, image=self.youtube_red, background='slate gray')
-        self.youtube_label.image = [self.youtube_red, self.youtube_black]
-        self.youtube_label.place(x=173, y=130)
-        self.youtube_label.bind("<Button-1>", lambda x: self.on_youtube_click(self.youtube_url))
-        self.youtube_label.bind("<Enter>", self.on_youtube_hover)
-        self.youtube_label.bind("<Leave>", self.on_youtube_leave)
-
-        self.linkedIn_label = Label(self.about_window, image=self.linkedin_blue, background='slate gray')
-        self.linkedIn_label.image = [self.linkedin_black, self.linkedin_blue]
-        self.linkedIn_label.place(x=264, y=130)
-        self.linkedIn_label.bind("<Button-1>", lambda x: self.on_youtube_click(self.linkedIn_url))
-        self.linkedIn_label.bind("<Enter>", self.on_linkedIn_hover)
-        self.linkedIn_label.bind("<Leave>", self.on_linkedIn_leave)
-
-    def on_github_hover(self, event):
-        return self.github_label.config(image=self.github_black)
-
-    def on_github_leave(self, event):
-        return self.github_label.config(image=self.github_purple)
-
-    def on_youtube_hover(self, event):
-        return self.youtube_label.config(image=self.youtube_black)
-
-    def on_youtube_leave(self, event):
-        return self.youtube_label.config(image=self.youtube_red)
-
-    def on_linkedIn_hover(self, event):
-        return self.linkedIn_label.config(image=self.linkedin_black)
-
-    def on_linkedIn_leave(self, event):
-        return self.linkedIn_label.config(image=self.linkedin_blue)
-
-    def on_github_click(self, url):
-        return webbrowser.open_new_tab(url)
-
-    def on_youtube_click(self, url):
-        return webbrowser.open_new_tab(url)
-
-    def on_linkedin_click(self, url):
-        return webbrowser.open_new_tab(url)
-
-
-class Locals:
-    # Run log func in new Thread
-    def logIt_thread(self, log_path=None, debug=False, msg='') -> None:
-        self.logit_thread = Thread(target=self.logIt,
-                                   args=(log_path, debug, msg),
-                                   daemon=True,
-                                   name="Log Thread")
-        self.logit_thread.start()
-
-    # Convert bytes to numbers for file transfers
-    def bytes_to_number(self, b: int) -> int:
-        self.logIt_thread(self.log_path, msg=f'Running bytes_to_number({b})...')
-        dt = self.get_date()
-        res = 0
-        for i in range(4):
-            res += b[i] << (i * 8)
-        return res
-
-    # Get current date & time
-    def get_date(self) -> str:
-        d = datetime.now().replace(microsecond=0)
-        dt = str(d.strftime("%m/%d/%Y %H:%M:%S"))
-
-        return dt
-
-    # Log & Debugger
-    def logIt(self, logfile=None, debug=None, msg='') -> bool:
-        dt = self.get_date()
-        if debug:
-            print(f"{dt}: {msg}")
-
-        if logfile is not None:
+        if row:
             try:
-                if not os.path.exists(logfile):
-                    with open(logfile, 'w') as lf:
-                        lf.write(f"{dt}: {msg}\n")
+                if row[2] not in self.temp.values():
+                    local_tools.logIt_thread(log_path, msg=f'Updating self.temp dictionary...')
+                    self.temp[row[0]] = row[2]
 
-                    return True
-
-                else:
-                    with open(logfile, 'a') as lf:
-                        lf.write(f"{dt}: {msg}\n")
-
-                    return True
-
-            except FileExistsError:
+            # Error can raise when clicking on empty space so the row is None or empty.
+            except IndexError:
                 pass
+
+            local_tools.logIt_thread(log_path, msg=f'Calling self.create_notebook()...')
+            if not self.notebooks:
+                self.create_notebook()
+
+            # Create a Controller LabelFrame with Buttons and connect shell by TreeView Table selection
+            for endpoint in self.server.endpoints:
+                if row[2] == endpoint.ip:
+                    temp_notebook = {endpoint.ip: {endpoint.ident: self.notebook}}
+                    if temp_notebook not in self.notebooks.items():
+                        self.notebooks.update(temp_notebook)
+                        if not self.running:
+                            self.build_controller_buttons(endpoint)
+                            shellThread = Thread(target=self.shell,
+                                                 args=(endpoint,),
+                                                 daemon=True,
+                                                 name="Shell Thread")
+                            shellThread.start()
+
+                        self.temp.clear()
+                        return True
 
 
 def on_icon_clicked(icon, item):
