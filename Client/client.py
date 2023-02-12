@@ -23,11 +23,97 @@ from tasks import Tasks
 from freestyle import Freestyle
 
 
-class Welcome:
-    def __init__(self, client, soc):
+class SystemInformation:
+    def __init__(self, client):
         self.client = client
-        self.soc = soc
-        self.buffer_size = 1024
+        self.dt = get_date()
+        self.sifile = rf"systeminfo {self.client.hostname} {self.dt}.txt"
+        self.si_full_path = os.path.join(app_path, self.sifile)
+
+    def command_to_file(self):
+        with open(self.si_full_path, 'w') as sysinfo:
+            logIt_thread(log_path, msg='Running system information command...')
+            sys_info = subprocess.run(['systeminfo'], stdout=subprocess.PIPE, text=True)
+            sys_info_str = sys_info.stdout
+            logIt_thread(log_path, msg=f'Adding header to {self.si_full_path}...')
+            sysinfo.write(f"{'=' * 80}\n")
+            sysinfo.write(
+                f"IP: {self.client.localIP} | NAME: {self.client.hostname} | LOGGED USER: {os.getlogin()} | {self.dt}\n")
+            sysinfo.write(f"{'=' * 80}\n")
+            logIt_thread(log_path, msg=f'Adding system information to {self.si_full_path}...')
+            sysinfo.write(f"{sys_info_str}\n\n")
+
+    def send_filename(self):
+        try:
+            logIt_thread(log_path, msg='Sending file name...')
+            self.client.soc.send(f"{self.sifile}".encode())
+            logIt_thread(log_path, msg=f'Send Completed.')
+
+        except (WindowsError, socket.error) as e:
+            logIt_thread(log_path, msg=f'Connection Error: {e}')
+            return False
+
+    def send_file_size(self):
+        try:
+            logIt_thread(log_path, msg='Defining file size...')
+            length = os.path.getsize(self.si_full_path)
+            logIt_thread(log_path, msg=f'File Size: {length}')
+
+            logIt_thread(log_path, msg='Sending file size...')
+            self.client.soc.send(convert_to_bytes(length))
+            logIt_thread(log_path, msg=f'Send Completed.')
+
+        except (WindowsError, socket.error) as e:
+            logIt_thread(log_path, msg=f'Connection Error: {e}')
+            return False
+
+    def send_file_content(self):
+        try:
+            logIt_thread(log_path, msg=f'Opening {self.si_full_path}...')
+            with open(self.si_full_path, 'rb') as sy_file:
+                logIt_thread(log_path, msg='Sending file content...')
+                sys_data = sy_file.read(buffer_size)
+                while sys_data:
+                    self.client.soc.send(sys_data)
+                    if not sys_data:
+                        break
+
+                    sys_data = sy_file.read(buffer_size)
+
+            logIt_thread(log_path, msg=f'Send Completed.')
+
+        except (WindowsError, socket.error, FileExistsError, FileNotFoundError) as e:
+            logIt_thread(log_path, msg=f'Error: {e}')
+            return False
+
+    def confirm(self):
+        try:
+            logIt_thread(log_path, msg='Waiting for message from server...')
+            msg = self.client.soc.recv(buffer_size).decode()
+            logIt_thread(log_path, msg=f'From Server: {msg}')
+
+            logIt_thread(log_path, msg=f'Sending confirmation message...')
+            self.client.soc.send(f"{self.client.hostname} | {self.client.localIP}: System Information Sent.\n".encode())
+            logIt_thread(log_path, msg=f'Send Completed.')
+
+        except (WindowsError, socket.error) as e:
+            logIt_thread(log_path, msg=f'Connection Error: {e}')
+            return False
+
+    def run(self):
+        self.command_to_file()
+        self.send_filename()
+        self.send_file_size()
+        self.send_file_content()
+        self.confirm()
+
+        os.remove(self.si_full_path)
+        sys.stdout.flush()
+
+
+class Welcome:
+    def __init__(self, client):
+        self.client = client
         self.ps_path = rf'{app_path}\maintenance.ps1'
 
     def send_mac_address(self) -> str:
@@ -35,12 +121,12 @@ class Welcome:
                         for ele in range(0, 8 * 6, 8)][::-1])
         try:
             logIt_thread(log_path, msg=f'Sending MAC address: {mac}...')
-            self.soc.send(mac.encode())
+            self.client.soc.send(mac.encode())
             logIt_thread(log_path, msg=f'Send completed.')
             logIt_thread(log_path, msg='Waiting for confirmation from server...')
-            self.soc.settimeout(intro_socket_timeout)
-            message = self.soc.recv(self.buffer_size).decode()
-            self.soc.settimeout(default_socket_timeout)
+            self.client.soc.settimeout(intro_socket_timeout)
+            message = self.client.soc.recv(buffer_size).decode()
+            self.client.soc.settimeout(default_socket_timeout)
             logIt_thread(log_path, msg=f'Message from server: {message}')
 
         except (WindowsError, socket.error, socket.timeout):
@@ -50,12 +136,12 @@ class Welcome:
     def send_host_name(self) -> str:
         try:
             logIt_thread(log_path, msg=f'Sending hostname: {self.client.hostname}...')
-            self.soc.send(self.client.hostname.encode())
+            self.client.soc.send(self.client.hostname.encode())
             logIt_thread(log_path, msg=f'Send completed.')
             logIt_thread(log_path, msg='Waiting for confirmation from server...')
-            self.soc.settimeout(intro_socket_timeout)
-            message = self.soc.recv(self.buffer_size).decode()
-            self.soc.settimeout(default_socket_timeout)
+            self.client.soc.settimeout(intro_socket_timeout)
+            message = self.client.soc.recv(buffer_size).decode()
+            self.client.soc.settimeout(default_socket_timeout)
             logIt_thread(log_path, msg=f'Message from server: {message}')
 
         except (WindowsError, socket.error):
@@ -65,12 +151,12 @@ class Welcome:
     def send_current_user(self) -> str:
         try:
             logIt_thread(log_path, msg=f'Sending current user: {self.client.current_user}...')
-            self.soc.send(self.client.current_user.encode())
+            self.client.soc.send(self.client.current_user.encode())
             logIt_thread(log_path, msg=f'Send completed.')
             logIt_thread(log_path, msg='Waiting for confirmation from server...')
-            self.soc.settimeout(intro_socket_timeout)
-            message = self.soc.recv(self.buffer_size).decode()
-            self.soc.settimeout(default_socket_timeout)
+            self.client.soc.settimeout(intro_socket_timeout)
+            message = self.client.soc.recv(buffer_size).decode()
+            self.client.soc.settimeout(default_socket_timeout)
             logIt_thread(log_path, msg=f'Message from server: {message}')
 
         except (WindowsError, socket.error):
@@ -79,12 +165,12 @@ class Welcome:
     def send_client_version(self):
         try:
             logIt_thread(log_path, msg=f'Sending client version: {client_version}...')
-            self.soc.send(client_version.encode())
+            self.client.soc.send(client_version.encode())
             logIt_thread(log_path, msg=f'Send completed.')
             logIt_thread(log_path, msg='Waiting for confirmation from server...')
-            self.soc.settimeout(intro_socket_timeout)
-            message = self.soc.recv(self.buffer_size).decode()
-            self.soc.settimeout(default_socket_timeout)
+            self.client.soc.settimeout(intro_socket_timeout)
+            message = self.client.soc.recv(buffer_size).decode()
+            self.client.soc.settimeout(default_socket_timeout)
             logIt_thread(log_path, msg=f'Message from server: {message}')
 
         except (socket.error, WindowsError, socket.timeout) as e:
@@ -93,9 +179,9 @@ class Welcome:
     def confirm(self):
         try:
             logIt_thread(log_path, msg='Waiting for confirmation from server...')
-            self.soc.settimeout(intro_socket_timeout)
-            message = self.soc.recv(self.buffer_size).decode()
-            self.soc.settimeout(default_socket_timeout)
+            self.client.soc.settimeout(intro_socket_timeout)
+            message = self.client.soc.recv(buffer_size).decode()
+            self.client.soc.settimeout(default_socket_timeout)
             logIt_thread(log_path, msg=f'Message from server: {message}')
 
         except (WindowsError, socket.error, socket.timeout):
@@ -119,32 +205,32 @@ class Welcome:
                 logIt_thread(log_path, msg=f'Calling anydeskThread()...')
                 anydeskThread.start()
                 logIt_thread(log_path, msg=f'Sending Confirmation...')
-                self.soc.send("OK".encode())
+                self.client.soc.send("OK".encode())
                 logIt_thread(log_path, msg=f'Send Complete.')
 
             else:
                 error = "Anydesk not installed."
                 logIt_thread(log_path, msg=f'Sending error message: {error}...')
-                self.soc.send(error.encode())
+                self.client.soc.send(error.encode())
                 logIt_thread(log_path, msg=f'Send Complete.')
 
                 try:
                     logIt_thread(log_path, msg=f'Waiting for install confirmation...')
-                    install = self.soc.recv(1024).decode()
+                    install = self.client.soc.recv(buffer_size).decode()
                     if str(install).lower() == "y":
                         url = "https://download.anydesk.com/AnyDesk.exe"
                         destination = rf'c:\users\{os.getlogin()}\Downloads\anydesk.exe'
 
                         if not os.path.exists(destination):
                             logIt_thread(log_path, msg=f'Sending downloading message...')
-                            self.soc.send("Downloading anydesk...".encode())
+                            self.client.soc.send("Downloading anydesk...".encode())
 
                             logIt_thread(log_path, msg=f'Downloading anydesk.exe...')
                             wget.download(url, destination)
                             logIt_thread(log_path, msg=f'Download complete.')
 
                         logIt_thread(log_path, msg=f'Sending running anydesk message...')
-                        self.soc.send("Running anydesk...".encode())
+                        self.client.soc.send("Running anydesk...".encode())
                         logIt_thread(log_path, msg=f'Send Complete.')
 
                         logIt_thread(log_path, msg=f'Running anydesk...')
@@ -153,11 +239,11 @@ class Welcome:
                         programThread.start()
 
                         logIt_thread(log_path, msg=f'Sending Confirmation...')
-                        self.soc.send("Anydesk Running.".encode())
+                        self.client.soc.send("Anydesk Running.".encode())
                         logIt_thread(log_path, msg=f'Send Complete.')
 
                         logIt_thread(log_path, msg=f'Sending Confirmation...')
-                        self.soc.send("OK".encode())
+                        self.client.soc.send("OK".encode())
                         logIt_thread(log_path, msg=f'Send Completed.')
 
                     else:
@@ -223,11 +309,11 @@ Catch {
 
     def main_menu(self):
         logIt_thread(log_path, msg='Starting main menu...')
-        self.soc.settimeout(menu_socket_timeout)
+        self.client.soc.settimeout(menu_socket_timeout)
         while True:
             try:
                 logIt_thread(log_path, msg='Waiting for command...')
-                command = self.soc.recv(self.buffer_size).decode()
+                command = self.client.soc.recv(buffer_size).decode()
                 logIt_thread(log_path, msg=f'Server Command: {command}')
 
             except (ConnectionResetError, ConnectionError,
@@ -243,7 +329,7 @@ Catch {
                 # Freestyle
                 if str(command.lower())[:9] == "freestyle":
                     logIt_thread(log_path, msg='Initiating Freestyle class...')
-                    free = Freestyle(self.soc, log_path, self.client.hostname, self.client.localIP)
+                    free = Freestyle(self.client.soc, log_path, self.client.hostname, self.client.localIP)
 
                     logIt_thread(log_path, msg='Calling Freestyle class...')
                     free.free_style()
@@ -253,11 +339,11 @@ Catch {
                     logIt_thread(log_path, msg='Calling Vital Signs...')
                     try:
                         logIt_thread(log_path, msg='Answer yes to server')
-                        self.soc.send('yes'.encode())
+                        self.client.soc.send('yes'.encode())
                         logIt_thread(log_path, msg=f'Send completed.')
 
                         logIt_thread(log_path, msg='Sending client version to server...')
-                        self.soc.send(client_version.encode())
+                        self.client.soc.send(client_version.encode())
                         logIt_thread(log_path, msg=f'Send completed.')
 
                     except (WindowsError, socket.error) as e:
@@ -267,85 +353,15 @@ Catch {
                 # Capture Screenshot
                 elif str(command.lower())[:6] == "screen":
                     logIt_thread(log_path, msg='Initiating screenshot class...')
-                    screenshot = Screenshot(self.soc, log_path, self.client.hostname, self.client.localIP)
+                    screenshot = Screenshot(self.client.soc, log_path, self.client.hostname, self.client.localIP)
 
                     logIt_thread(log_path, msg='Calling screenshot.run()...')
                     screenshot.run()
 
                 # Get System Information & Users
                 elif str(command.lower())[:2] == "si":
-                    dt = get_date()
-                    sipath = rf"C:\HandsOff"
-                    sifile = rf"systeminfo {self.client.hostname} {dt}.txt"
-                    si_full_path = os.path.join(sipath, sifile)
-
-                    with open(si_full_path, 'w') as sysinfo:
-                        logIt_thread(log_path, msg='Running system information command...')
-                        sys_info = subprocess.run(['systeminfo'], stdout=subprocess.PIPE, text=True)
-                        sys_info_str = sys_info.stdout
-                        logIt_thread(log_path, msg=f'Adding header to {si_full_path}...')
-                        sysinfo.write(f"{'=' * 80}\n")
-                        sysinfo.write(
-                            f"IP: {self.client.localIP} | NAME: {self.client.hostname} | LOGGED USER: {os.getlogin()} | {dt}\n")
-                        sysinfo.write(f"{'=' * 80}\n")
-                        logIt_thread(log_path, msg=f'Adding system information to {si_full_path}...')
-                        sysinfo.write(f"{sys_info_str}\n\n")
-
-                    try:
-                        logIt_thread(log_path, msg='Sending file name...')
-                        self.soc.send(f"{sifile}".encode())
-                        logIt_thread(log_path, msg=f'Send Completed.')
-
-                    except (WindowsError, socket.error) as e:
-                        logIt_thread(log_path, msg=f'Connection Error: {e}')
-                        return False
-
-                    try:
-                        logIt_thread(log_path, msg='Defining file size...')
-                        length = os.path.getsize(si_full_path)
-                        logIt_thread(log_path, msg=f'File Size: {length}')
-
-                        logIt_thread(log_path, msg='Sending file size...')
-                        self.soc.send(convert_to_bytes(length))
-                        logIt_thread(log_path, msg=f'Send Completed.')
-
-                    except (WindowsError, socket.error) as e:
-                        logIt_thread(log_path, msg=f'Connection Error: {e}')
-                        return False
-
-                    try:
-                        logIt_thread(log_path, msg=f'Opening {si_full_path}...')
-                        with open(si_full_path, 'rb') as sy_file:
-                            logIt_thread(log_path, msg='Sending file content...')
-                            sys_data = sy_file.read(1024)
-                            while sys_data:
-                                self.soc.send(sys_data)
-                                if not sys_data:
-                                    break
-
-                                sys_data = sy_file.read(1024)
-
-                        logIt_thread(log_path, msg=f'Send Completed.')
-
-                    except (WindowsError, socket.error, FileExistsError, FileNotFoundError) as e:
-                        logIt_thread(log_path, msg=f'Error: {e}')
-                        return False
-
-                    try:
-                        logIt_thread(log_path, msg='Waiting for message from server...')
-                        msg = self.soc.recv(1024).decode()
-                        logIt_thread(log_path, msg=f'From Server: {msg}')
-
-                        logIt_thread(log_path, msg=f'Sending confirmation message...')
-                        self.soc.send(f"{self.client.hostname} | {self.client.localIP}: System Information Sent.\n".encode())
-                        logIt_thread(log_path, msg=f'Send Completed.')
-
-                    except (WindowsError, socket.error) as e:
-                        logIt_thread(log_path, msg=f'Connection Error: {e}')
-                        return False
-
-                    os.remove(fr'{si_full_path}')
-                    sys.stdout.flush()
+                    system = SystemInformation(self.client)
+                    system.run()
 
                 # Get Last Restart Time
                 elif str(command.lower())[:2] == "lr":
@@ -353,8 +369,8 @@ Catch {
                     last_reboot = psutil.boot_time()
                     try:
                         logIt_thread(log_path, msg='Sending last restart time...')
-                        self.soc.send(f"{self.client.hostname} | {self.client.localIP}: "
-                                      f"{datetime.fromtimestamp(last_reboot).replace(microsecond=0)}".encode())
+                        self.client.soc.send(f"{self.client.hostname} | {self.client.localIP}: "
+                                             f"{datetime.fromtimestamp(last_reboot).replace(microsecond=0)}".encode())
 
                         logIt_thread(log_path, msg=f'Send completed.')
 
@@ -371,7 +387,7 @@ Catch {
                 # Task List
                 elif str(command.lower())[:5] == "tasks":
                     logIt_thread(log_path, msg='Calling tasks()...')
-                    task = Tasks(self.soc, log_path, self.client.hostname, self.client.localIP)
+                    task = Tasks(self.client.soc, log_path, self.client.hostname, self.client.localIP)
                     task.run()
 
                 # Restart Machine
@@ -383,7 +399,7 @@ Catch {
                 elif str(command.lower())[:6] == "update":
                     try:
                         logIt_thread(log_path, msg='Sending confirmation...')
-                        self.soc.send('Running updater...'.encode())
+                        self.client.soc.send('Running updater...'.encode())
                         logIt_thread(log_path, msg='Send complete.')
 
                         logIt_thread(log_path, msg='Running updater...')
@@ -399,8 +415,8 @@ Catch {
                     self.client.maintenance()
                     logIt_thread(log_path, msg=f'Calling self.connection()...')
                     self.client.connection()
-                    logIt_thread(log_path, msg=f'Calling backdoor({self.soc})...')
-                    self.client.welcome(self.soc)
+                    logIt_thread(log_path, msg=f'Calling backdoor({self.client.soc})...')
+                    self.main_menu()
 
                 # Close Connection
                 elif str(command.lower())[:4] == "exit":
@@ -439,7 +455,7 @@ class Client:
                 continue
 
     def welcome(self):
-        endpoint_welcome = Welcome(self, self.soc)
+        endpoint_welcome = Welcome(self)
         endpoint_welcome.send_mac_address()
         endpoint_welcome.send_host_name()
         endpoint_welcome.send_current_user()
@@ -560,6 +576,7 @@ if __name__ == "__main__":
     default_socket_timeout = None
     menu_socket_timeout = None
     intro_socket_timeout = 10
+    buffer_size = 1024
 
     if not os.path.exists(app_path):
         os.makedirs(app_path)
