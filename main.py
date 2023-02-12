@@ -1299,15 +1299,20 @@ class App(tk.Tk):
                 local_tools.logIt_thread(log_path, msg=f'Waiting for response from {endpoint.ip} | {endpoint.ident}...')
                 msg = endpoint.conn.recv(1024).decode()
                 local_tools.logIt_thread(log_path, msg=f'{endpoint.ip}|{endpoint.ident}: {msg}')
+                self.refresh_command()
 
             except (WindowsError, socket.error) as e:
                 local_tools.logIt_thread(log_path, msg=f'ERROR: {e}.')
                 return False
 
-        local_tools.logIt_thread(log_path, msg=f'Displaying update info popup window...')
-        messagebox.showinfo(f"Update {endpoint.ident}", "Update command sent.")
-        self.refresh_command()
-        return True
+            # self.server.remove_lost_connection(endpoint)
+            local_tools.logIt_thread(log_path, msg=f'Displaying update info popup window...')
+            messagebox.showinfo(f"Update {endpoint.ident}", "Update command sent.")
+            self.refresh_command(event=0)
+            return True
+
+        else:
+            return False
 
     # Run Maintenance on Client
     def run_maintenance_command(self, endpoint) -> None:
