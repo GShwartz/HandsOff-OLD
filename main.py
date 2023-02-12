@@ -33,6 +33,7 @@ from Modules import freestyle
 from Modules import sysinfo
 from Modules import tasks
 
+
 # TODO:
 #   BUG: Screenshot from an endpoint with a lock screen will display on popup but not in notebook
 #   causes the program to lose connection to it until restarting the app.
@@ -135,55 +136,6 @@ class About:
 
     def on_linkedin_click(self, url):
         return webbrowser.open_new_tab(url)
-
-
-class Locals:
-    # Run log func in new Thread
-    def logIt_thread(self, log_path=None, debug=False, msg='') -> None:
-        self.logit_thread = Thread(target=self.logIt,
-                                   args=(log_path, debug, msg),
-                                   daemon=True,
-                                   name="Log Thread")
-        self.logit_thread.start()
-
-    # Convert bytes to numbers for file transfers
-    def bytes_to_number(self, b: int) -> int:
-        self.logIt_thread(self.log_path, msg=f'Running bytes_to_number({b})...')
-        dt = self.get_date()
-        res = 0
-        for i in range(4):
-            res += b[i] << (i * 8)
-        return res
-
-    # Get current date & time
-    def get_date(self) -> str:
-        d = datetime.now().replace(microsecond=0)
-        dt = str(d.strftime("%m/%d/%Y %H:%M:%S"))
-
-        return dt
-
-    # Log & Debugger
-    def logIt(self, logfile=None, debug=None, msg='') -> bool:
-        dt = self.get_date()
-        if debug:
-            print(f"{dt}: {msg}")
-
-        if logfile is not None:
-            try:
-                if not os.path.exists(logfile):
-                    with open(logfile, 'w') as lf:
-                        lf.write(f"{dt}: {msg}\n")
-
-                    return True
-
-                else:
-                    with open(logfile, 'a') as lf:
-                        lf.write(f"{dt}: {msg}\n")
-
-                    return True
-
-            except FileExistsError:
-                pass
 
 
 class DisplayFileContent:
@@ -1106,7 +1058,7 @@ class App(tk.Tk):
             self.running = False
             return True
 
-        except (WindowsError, socket.error, ConnectionResetError) as e:
+        except Exception as e:
             logIt_thread(log_path, msg=f'Connection Error: {e}')
             self.update_statusbar_messages_thread(msg=f'{e}.')
             logIt_thread(log_path, msg=f'Calling server.remove_lost_connection('
@@ -1371,9 +1323,9 @@ class App(tk.Tk):
                                    f'{datetime.fromtimestamp(last_reboot).replace(microsecond=0)}" | '
                                    f'{len(self.server.endpoints)}')
         label = Label(self.top_bar_label, background='ghost white',
-                      text=f"\t\t\t\tServer IP: {self.server.serverIP}\t\tServer Port: {self.server.port}\t"
-                           f"\t\tLast Boot: {datetime.fromtimestamp(last_reboot).replace(microsecond=0)}"
-                           f"\t\tConnected Stations: {len(self.server.endpoints)}\t\t\t\t          ")
+                      text=f"\t\t\tServing on: handsoff.home.lab\tServer IP: {self.server.serverIP}\tServer Port: {self.server.port}\t"
+                           f"\tLast Boot: {datetime.fromtimestamp(last_reboot).replace(microsecond=0)}"
+                           f"\tConnected Stations: {len(self.server.endpoints)}\t\t\t\t          ")
         label.grid(row=0, sticky='news')
         return
 
@@ -1602,7 +1554,6 @@ class App(tk.Tk):
     # Manage Connected Table & Controller LabelFrame Buttons
     def select_item(self, event) -> bool:
         logIt_thread(log_path, msg=f'Running select_item()...')
-
         # Respond to mouse clicks on connected table
         rowid = self.connected_table.identify_row(event.y)
         row = self.connected_table.item(rowid)['values']
@@ -1637,6 +1588,7 @@ class App(tk.Tk):
                             if not shellThread.is_alive():
                                 logIt_thread(log_path, msg=f'Disconnected from endpoint {endpoint.ip}...')
                                 self.server.remove_lost_connection(endpoint)
+                                self.temp.clear()
                                 break
 
                             self.temp.clear()
