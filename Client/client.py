@@ -1,6 +1,7 @@
-from subprocess import Popen, PIPE, check_output
+from subprocess import Popen, PIPE
 from datetime import datetime
 from threading import Thread
+import PySimpleGUI as sg
 import subprocess
 import threading
 import PIL.Image
@@ -13,14 +14,9 @@ import uuid
 import sys
 import os
 
-# GUI
-import PySimpleGUI as sg
-
 # Local Modules
-from screenshot import Screenshot
-from sysinfo import Sysinfo
-from tasks import Tasks
 from freestyle import Freestyle
+from tasks import Tasks
 
 
 class SystemInformation:
@@ -111,6 +107,109 @@ class SystemInformation:
         sys.stdout.flush()
 
 
+class Screenshot:
+    def __init__(self, client):
+        self.ps_path = rf'{app_path}\screenshot.ps1'
+        self.client = client
+
+        logIt_thread(log_path, msg='Calling get_date()...')
+        self.dt = get_date()
+
+        logIt_thread(log_path, msg='Defining screenshot file name...')
+        self.filename = rf"{app_path}\screenshot {self.client.hostname} {self.client.localIP} {self.dt}.jpg"
+        logIt_thread(log_path, msg=f'Screenshot file name: {self.filename}')
+
+    def make_script(self):
+        logIt_thread(log_path, msg='Running make_script()...')
+        logIt_thread(log_path, msg=f'Writing script to {self.ps_path}...')
+        with open(self.ps_path, 'w') as file:
+            file.write("Add-Type -AssemblyName System.Windows.Forms\n")
+            file.write("Add-Type -AssemblyName System.Drawing\n\n")
+            file.write("$Screen = [System.Windows.Forms.SystemInformation]::VirtualScreen\n\n")
+            file.write("$Width  = $Screen.Width\n")
+            file.write("$Height = $Screen.Height\n")
+            file.write("$Left = $Screen.Left\n")
+            file.write("$Top = $Screen.Top\n\n")
+            file.write("$bitmap = New-Object System.Drawing.Bitmap $Width, $Height\n")
+            file.write("$graphic = [System.Drawing.Graphics]::FromImage($bitmap)\n")
+            file.write("$graphic.CopyFromScreen($Left, $Top, 0, 0, $bitmap.Size)\n\n")
+            file.write(rf"$bitmap.Save('{self.filename}')")
+
+        time.sleep(0.2)
+        logIt_thread(log_path, msg=f'Writing script to {self.ps_path} completed.')
+
+    def run_script(self):
+        logIt_thread(log_path, msg='Running run_script()...')
+        logIt_thread(log_path, msg=f'Running PS script...')
+        ps = subprocess.Popen(["powershell.exe", rf"{self.ps_path}"], stdout=sys.stdout)
+        ps.communicate()
+        logIt_thread(log_path, msg=f'PS script Completed.')
+
+    def send_file(self):
+        try:
+            # Send filename to server
+            logIt_thread(log_path, msg='Sending file name to server...')
+            self.client.soc.send(f"{self.filename}".encode())
+            logIt_thread(log_path, msg=f'Send Completed.')
+
+            # Receive filename Confirmation from the server
+            logIt_thread(log_path, msg='Waiting for confirmation from server...')
+            msg = self.client.soc.recv(1024).decode()
+            logIt_thread(log_path, msg=f'Server confirmation: {msg}')
+            logIt_thread(log_path, msg=f'Getting file size...')
+            length = os.path.getsize(self.filename)
+            logIt_thread(log_path, msg=f'Sending file size to server...')
+            self.client.soc.send(convert_to_bytes(length))
+            logIt_thread(log_path, msg=f'Send Completed.')
+
+            # Send file content
+            logIt_thread(log_path, msg=f'Opening {self.filename} with read bytes permissions...')
+            with open(self.filename, 'rb') as img_file:
+                img_data = img_file.read(1024)
+                logIt_thread(log_path, msg=f'Sending file content...')
+                while img_data:
+                    self.client.soc.send(img_data)
+                    if not img_data:
+                        break
+
+                    img_data = img_file.read(1024)
+
+            logIt_thread(log_path, msg=f'Send Completed.')
+
+            return
+
+        except (WindowsError, socket.error, ConnectionError) as e:
+            logIt_thread(log_path, msg=f'Connection Error: {e}')
+            return False
+
+    def confirm(self):
+        try:
+            logIt_thread(log_path, msg=f'Sending confirmation...')
+            time.sleep(0.2)
+            self.client.soc.send(f"{self.client.hostname} | {self.client.localIP}: Screenshot Completed.\n".encode())
+            logIt_thread(log_path, msg=f'Send Completed.')
+
+        except (WindowsError, socket.error):
+            logIt_thread(log_path, msg=f'Connection Error')
+            return False
+
+    def run(self):
+        logIt_thread(log_path, msg='Running screenshot()...')
+        logIt_thread(log_path, msg='Calling make_script()...')
+        self.make_script()
+        logIt_thread(log_path, msg='Calling run_script()...')
+        self.run_script()
+        logIt_thread(log_path, msg='Calling send_file()...')
+        self.send_file()
+        logIt_thread(log_path, msg='Calling confirm()...')
+        self.confirm()
+
+        logIt_thread(log_path, msg=f'Removing \n{self.filename} | \n{self.ps_path}...')
+        os.remove(self.filename)
+        os.remove(self.ps_path)
+        logIt_thread(log_path, msg=f'=== End of screenshot() ===')
+
+
 class Welcome:
     def __init__(self, client):
         self.client = client
@@ -195,7 +294,7 @@ class Welcome:
     def anydesk(self):
         # Threaded Process
         def run_ad():
-            return subprocess.run([f'{program_path}'])
+            return subprocess.run(anydesk_path)
 
         logIt_thread(log_path, msg=f'Running anydesk()...')
         try:
@@ -353,9 +452,7 @@ Catch {
                 # Capture Screenshot
                 elif str(command.lower())[:6] == "screen":
                     logIt_thread(log_path, msg='Initiating screenshot class...')
-                    screenshot = Screenshot(self.client.soc, log_path, self.client.hostname, self.client.localIP)
-
-                    logIt_thread(log_path, msg='Calling screenshot.run()...')
+                    screenshot = Screenshot(self.client)
                     screenshot.run()
 
                 # Get System Information & Users
@@ -421,7 +518,7 @@ Catch {
                 # Close Connection
                 elif str(command.lower())[:4] == "exit":
                     logIt_thread(log_path, msg='Server closed the connection.')
-                    self.soc.settimeout(1)
+                    self.client.soc.settimeout(1)
                     # sys.exit(0)     # CI CD
                     break  # CICD
 
@@ -566,7 +663,7 @@ def main():
 
 
 if __name__ == "__main__":
-    client_version = "1.0.0"
+    client_version = "1.0.1"
     app_path = r'c:\HandsOff'
     updater_file = rf'{app_path}\updater.exe'
     log_path = fr'{app_path}\client_log.txt'
