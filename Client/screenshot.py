@@ -52,6 +52,15 @@ class Screenshot:
         self.logit_thread.start()
         return
 
+    def convert_to_bytes(self, no):
+        result = bytearray()
+        result.append(no & 255)
+        for i in range(3):
+            no = no >> 8
+            result.append(no & 255)
+
+        return result
+
     def make_script(self):
         self.logIt_thread(self.log_path, msg='Running make_script()...')
         self.logIt_thread(self.log_path, msg=f'Writing script to {self.ps_path}...')
@@ -141,12 +150,3 @@ class Screenshot:
         os.remove(self.filename)
         os.remove(self.ps_path)
         self.logIt_thread(self.log_path, msg=f'=== End of screenshot() ===')
-
-    def convert_to_bytes(self, no):
-        result = bytearray()
-        result.append(no & 255)
-        for i in range(3):
-            no = no >> 8
-            result.append(no & 255)
-
-        return result

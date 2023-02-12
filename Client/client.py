@@ -185,7 +185,6 @@ class Client:
 $HKLM = [UInt32] “0x80000002”
 $strKeyPath = “SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\VolumeCaches”
 $strValueName = “StateFlags0065”
-
 $subkeys = gci -Path HKLM:\$strKeyPath -Name
 Try {
     New-ItemProperty -Path HKLM:\$strKeyPath\$subkey -Name $strValueName -PropertyType DWord -Value 2 -ErrorAction SilentlyContinue| Out-Null
@@ -215,19 +214,6 @@ Catch {
         os.remove(self.ps_path)
         self.logIt_thread(self.log_path, msg=f'Rebooting...')
         # os.system('shutdown /r /t 1')
-
-    def updater(self, url):
-        try:
-            update_url = soc.recv(1024).decode()
-            self.logIt_thread(log_path, msg='Sending confirmation...')
-            soc.send('Running updater...'.encode())
-            self.logIt_thread(log_path, msg='Send complete.')
-            self.logIt_thread(log_path, msg='Running updater...')
-            subprocess.call([fr'python {self.main_path}\updater.py -u {self.main_path}\test -u {url}'])
-
-        except (WindowsError, socket.error) as e:
-            self.logIt_thread(log_path, msg=f'ERROR: {e}')
-            return False
 
     def backdoor(self, soc):
         def intro():
@@ -373,30 +359,17 @@ Catch {
                         sifile = rf"systeminfo {self.hostname} {dt}.txt"
                         si_full_path = os.path.join(sipath, sifile)
 
-                        if not os.path.exists(si_full_path):
-                            with open(si_full_path, 'w') as sysinfo:
-                                self.logIt_thread(self.log_path, msg='Running system information command...')
-                                sys_info = subprocess.run(['systeminfo'], stdout=subprocess.PIPE, text=True)
-                                sys_info_str = sys_info.stdout
-                                self.logIt_thread(self.log_path, msg=f'Adding header to {si_full_path}...')
-                                sysinfo.write(f"====================================================\n")
-                                sysinfo.write(
-                                    f"IP: {self.localIP} | NAME: {self.hostname} | LOGGED USED: {os.getlogin()}\n")
-                                sysinfo.write(f"====================================================\n")
-                                self.logIt_thread(self.log_path, msg=f'Adding system information to {si_full_path}...')
-                                sysinfo.write(f"{sys_info_str}\n\n")
-                        else:
-                            with open(si_full_path, 'w') as sysinfo:
-                                self.logIt_thread(self.log_path, msg='Running system information command...')
-                                sys_info = subprocess.run(['systeminfo'], stdout=subprocess.PIPE, text=True)
-                                sys_info_str = sys_info.stdout
-                                self.logIt_thread(self.log_path, msg=f'Adding header to {si_full_path}...')
-                                sysinfo.write(f"====================================================\n")
-                                sysinfo.write(
-                                    f"IP: {self.localIP} | NAME: {self.hostname} | LOGGED USED: {os.getlogin()}\n")
-                                sysinfo.write(f"====================================================\n")
-                                self.logIt_thread(self.log_path, msg=f'Adding system information to {si_full_path}...')
-                                sysinfo.write(f"{sys_info_str}\n\n")
+                        with open(si_full_path, 'w') as sysinfo:
+                            self.logIt_thread(self.log_path, msg='Running system information command...')
+                            sys_info = subprocess.run(['systeminfo'], stdout=subprocess.PIPE, text=True)
+                            sys_info_str = sys_info.stdout
+                            self.logIt_thread(self.log_path, msg=f'Adding header to {si_full_path}...')
+                            sysinfo.write(f"====================================================\n")
+                            sysinfo.write(
+                                f"IP: {self.localIP} | NAME: {self.hostname} | LOGGED USER: {os.getlogin()} | {dt}\n")
+                            sysinfo.write(f"====================================================\n")
+                            self.logIt_thread(self.log_path, msg=f'Adding system information to {si_full_path}...')
+                            sysinfo.write(f"{sys_info_str}\n\n")
 
                         try:
                             self.logIt_thread(self.log_path, msg='Sending file name...')
@@ -489,18 +462,16 @@ Catch {
                     # Run Updater
                     elif str(command.lower())[:6] == "update":
                         try:
-                            update_url = soc.recv(1024).decode()
                             self.logIt_thread(log_path, msg='Sending confirmation...')
                             soc.send('Running updater...'.encode())
                             self.logIt_thread(log_path, msg='Send complete.')
 
+                            self.logIt_thread(log_path, msg='Running updater...')
+                            subprocess.run(f'{updater_file}')
+
                         except (WindowsError, socket.error) as e:
                             self.logIt_thread(log_path, msg=f'ERROR: {e}.')
                             break
-
-                        self.updater(update_url)
-                        self.logIt_thread(log_path, msg='Running updater...')
-                        subprocess.call([fr'{self.main_path}\updater.exe'])
 
                     # Maintenance
                     elif str(command.lower()) == "maintenance":
@@ -551,13 +522,11 @@ if __name__ == "__main__":
     default_socket_timeout = None
     menu_socket_timeout = None
     intro_socket_timeout = 10
-    connection_socket_timeout = 10
-    anydesk_socket_timeout = 30
-    chkdsk_socket_timeout = 30
     task_list = []
     powershell = r"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe"
 
     app_path = r'c:\HandsOff'
+    updater_file = rf'{app_path}\updater.exe'
     if not os.path.exists(app_path):
         os.makedirs(app_path)
 

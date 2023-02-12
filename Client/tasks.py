@@ -1,12 +1,11 @@
 from datetime import datetime
 from threading import Thread
 import subprocess
+import socket
 import os
 import sys
 import os
 
-
-# TODO: Move all command files to result lists
 
 class Tasks:
     def __init__(self, soc, path, hostname, localIP):
@@ -59,15 +58,16 @@ class Tasks:
     def command_to_file(self):
         self.logIt_thread(self.log_path, msg=f'Running command_to_file()...')
         try:
+            dt = self.get_date()
             self.logIt_thread(self.log_path, msg=f'Opening file: {self.taskfile}...')
-            tskinfo = open(self.taskfile, 'w')
+            with open(self.taskfile, 'w') as task_file:
+                task_file.write(f"{'=' * 80}\n")
+                task_file.write(f"IP: {self.localIP} | NAME: {self.hostname} | LOGGED USER: {os.getlogin()} | {dt}\n")
+                task_file.write(f"{'=' * 80}\n")
 
-            self.logIt_thread(self.log_path, msg=f'Writing output to {self.taskfile}...')
-            sinfo = subprocess.call(['tasklist'], stdout=tskinfo)
-            tskinfo.write("\n")
-            self.logIt_thread(self.log_path, msg=f'Closing file: {self.taskfile}...')
-            tskinfo.close()
-            self.logIt_thread(self.log_path, msg=f'File closed.')
+            with open(self.taskfile, 'a') as task_file:
+                subprocess.run(['tasklist'], stdout=task_file)
+                task_file.write('\n')
 
             return True
 
@@ -140,7 +140,9 @@ class Tasks:
         self.logIt_thread(self.log_path, msg=f'Running confirm()...')
         try:
             self.logIt_thread(self.log_path, msg=f'Waiting for confirmation from server...')
+            self.soc.settimeout(10)
             msg = self.soc.recv(1024).decode()
+            self.soc.settimeout(None)
             self.logIt_thread(self.log_path, msg=f'Server Confirmation: {msg}')
 
         except (WindowsError, socket.error) as e:
@@ -160,7 +162,9 @@ class Tasks:
     def kill(self) -> bool:
         self.logIt_thread(self.log_path, msg=f'Waiting for task name...')
         try:
+            self.soc.settimeout(10)
             task2kill = self.soc.recv(1024).decode()
+            self.soc.settimeout(None)
             self.logIt_thread(self.log_path, msg=f'Task name: {task2kill}')
 
         except (WindowsError, socket.error) as e:
@@ -208,7 +212,9 @@ class Tasks:
         os.remove(self.taskfile)
 
         try:
+            self.soc.settimeout(10)
             kil = self.soc.recv(1024).decode()
+            self.soc.settimeout(None)
 
         except (WindowsError, socket.error):
             return False
