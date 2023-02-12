@@ -1,1 +1,0 @@
-wscript "c:\HandsOff\client.vbs"
