@@ -1313,7 +1313,6 @@ class App(tk.Tk):
             return False
 
     # ==++==++==++== END Controller Buttons ==++==++==++==
-
     # Display Server Information
     def server_information(self) -> None:
         logIt_thread(log_path, msg=f'Running show server information...')
@@ -1323,7 +1322,8 @@ class App(tk.Tk):
                                    f'{datetime.fromtimestamp(last_reboot).replace(microsecond=0)}" | '
                                    f'{len(self.server.endpoints)}')
         label = Label(self.top_bar_label, background='ghost white',
-                      text=f"\t\t\tServing on: handsoff.home.lab\tServer IP: {self.server.serverIP}\tServer Port: {self.server.port}\t"
+                      text=f"\t\t\tServing on: handsoff.home.lab\tServer IP: {self.server.serverIP}\t  "
+                           f"Server Port: {self.server.port}"
                            f"\tLast Boot: {datetime.fromtimestamp(last_reboot).replace(microsecond=0)}"
                            f"\tConnected Stations: {len(self.server.endpoints)}\t\t\t\t          ")
         label.grid(row=0, sticky='news')
@@ -1577,21 +1577,22 @@ class App(tk.Tk):
                     temp_notebook = {endpoint.ident: {endpoint.ip: self.notebook}}
                     if temp_notebook not in self.notebooks.items():
                         self.notebooks.update(temp_notebook)
-                        if not self.running:
-                            self.build_controller_buttons(endpoint)
-                            shellThread = Thread(target=self.shell,
-                                                 args=(endpoint,),
-                                                 daemon=True,
-                                                 name="Shell Thread")
-                            shellThread.start()
-                            shellThread.join(timeout=0.1)
-                            if not shellThread.is_alive():
-                                logIt_thread(log_path, msg=f'Disconnected from endpoint {endpoint.ip}...')
-                                self.server.remove_lost_connection(endpoint)
-                                self.temp.clear()
-                                break
 
+                    if not self.running:
+                        self.build_controller_buttons(endpoint)
+                        shellThread = Thread(target=self.shell,
+                                             args=(endpoint,),
+                                             daemon=True,
+                                             name="Shell Thread")
+                        shellThread.start()
+                        shellThread.join(timeout=0.1)
+                        if not shellThread.is_alive():
+                            logIt_thread(log_path, msg=f'Disconnected from endpoint {endpoint.ip}...')
+                            self.server.remove_lost_connection(endpoint)
                             self.temp.clear()
+                            break
+
+                        self.temp.clear()
 
 
 def on_icon_clicked(icon, item):
