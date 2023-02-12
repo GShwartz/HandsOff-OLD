@@ -575,8 +575,8 @@ class App(tk.Tk):
         update.start()
 
     # Update Selected Client Thread
-    def update_selected_client_thread(self, endpoint):
-        updateThread = Thread(target=self.update_selected_client_command,
+    def update_selected_endpoint_thread(self, endpoint):
+        updateThread = Thread(target=self.update_selected_endpoint,
                               args=(endpoint,),
                               daemon=True,
                               name="Update Selected Client Thread")
@@ -895,7 +895,7 @@ class App(tk.Tk):
         local_tools.logIt_thread(log_path, msg=f'Building Update Client button...')
         self.update_client = Button(self.controller_btns, text="Update Client", width=14,
                                     pady=5, state=NORMAL,
-                                    command=lambda: self.update_selected_client_thread(endpoint))
+                                    command=lambda: self.update_selected_endpoint_thread(endpoint))
         self.update_client.grid(row=0, column=8, sticky="w", pady=5, padx=2, ipadx=2)
         self.buttons.append(self.update_client)
 
@@ -1284,7 +1284,7 @@ class App(tk.Tk):
         return subprocess.Popen(rf"explorer {path}\{endpoint.ident}")
 
     # Update Selected Client
-    def update_selected_client_command(self, endpoint) -> bool:
+    def update_selected_endpoint(self, endpoint) -> bool:
         local_tools.logIt_thread(log_path, msg=f'Running update_selected_client()...')
         local_tools.logIt_thread(log_path, msg=f'Calling self.disable_buttons_thread()...')
         self.disable_buttons_thread()
