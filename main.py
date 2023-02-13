@@ -1,3 +1,4 @@
+import re
 from datetime import datetime
 from threading import Thread
 from typing import Optional
@@ -11,10 +12,12 @@ import pystray
 import os.path
 import socket
 import psutil
+import shutil
 import time
 import glob
 import sys
 import csv
+import cv2
 
 # GUI
 from tkinter import simpledialog
@@ -28,15 +31,11 @@ import tkinter
 # Local Modules
 from Modules.server import Server
 from Modules import vital_signs
-from Modules import screenshot
 from Modules import freestyle
 from Modules import sysinfo
-from Modules import tasks
-
 
 # TODO:
-#   BUG: Screenshot from an endpoint with a lock screen will display on popup but not in notebook
-#   causes the program to lose connection to it until restarting the app.
+#   1. Fix bug in System information not displaying in notebook
 
 
 class About:
@@ -145,16 +144,15 @@ class DisplayFileContent:
     tabs = 0
     notebooks = {}
 
-    def __init__(self, notebook: Frame, screenshot_path, filepath, tab: Optional[Frame], sname, txt=''):
+    def __init__(self, notebook: Frame, filepath, tab: Optional[Frame], sname, txt=''):
         self.notebook = notebook
-        self.screenshot_path = screenshot_path
         self.filepath = filepath
         self.tab = tab
         self.sname = sname
         self.txt = txt
 
         logIt_thread(log_path,
-                     msg=f'Running display_file_content({screenshot_path}, {filepath}, {tab}, txt="{txt}")...')
+                     msg=f'Running display_file_content({filepath}, {tab}, txt="{txt}")...')
 
     def display_text(self):
         with open(self.filepath, 'r') as file:
@@ -173,51 +171,44 @@ class DisplayFileContent:
             self.notebook.select(self.tab)
             self.tabs += 1
 
-    def display_picture(self):
-        images = glob.glob(fr"{self.screenshot_path}\*.jpg")
-        images.sort(key=os.path.getmtime)
-
-        logIt_thread(log_path, msg=f'Opening latest screenshot...')
-        self.sc = PIL.Image.open(images[-1])
-        logIt_thread(log_path, msg=f'Resizing to 650x350...')
-        self.sc_resized = self.sc.resize((650, 350))
-        self.last_screenshot = PIL.ImageTk.PhotoImage(self.sc_resized)
-        self.displayed_screenshot_files.append(self.last_screenshot)
-
-        fr = Frame(self.notebook, height=350, background='slate gray')
-        self.frames.append(fr)
-        self.tab = self.frames[-1]
-        button = Button(self.tab, image=self.last_screenshot, command=self.show_picture, border=5, bd=3)
-        button.pack(padx=5, pady=10)
-
-    def show_picture(self):
-        self.sc.show()
-
-    def run(self, app):
-        if self.filepath.endswith('.txt'):
-            self.display_text()
-
-        elif self.screenshot_path:
-            self.display_picture()
-            self.notebook.add(self.tab, text=f"{self.txt} {self.sname}")
-            self.notebook.select(self.tab)
-            self.tabs += 1
-            app.update()
-
-        return
+    def run(self):
+        self.display_text()
 
 
 class Tasks:
+    # List to hold captured screenshot images
+    displayed_screenshot_files = []
+    frames = []
+    tabs = 0
+    notebooks = {}
+
     def __init__(self, endpoint, app, notebook):
         self.endpoint = endpoint
         self.app = app
         self.notebook = notebook
 
-    def what_task(self, filepath) -> str:
+    def display_text(self):
+        with open(self.filenameRecv, 'r') as file:
+            data = file.read()
+            self.tab = Frame(self.notebook, height=350)
+            tab_scrollbar = Scrollbar(self.tab, orient=VERTICAL)
+            tab_scrollbar.pack(side=LEFT, fill=Y)
+            tab_textbox = Text(self.tab, yscrollcommand=tab_scrollbar.set)
+            tab_textbox.pack(fill=BOTH)
+            self.notebook.add(self.tab, text=f"Tasks {self.endpoint.ident}")
+            tab_scrollbar.configure(command=tab_textbox.yview)
+            tab_textbox.config(state=NORMAL)
+            tab_textbox.delete(1.0, END)
+            tab_textbox.insert(END, data)
+            tab_textbox.config(state=DISABLED)
+            self.notebook.select(self.tab)
+            self.tabs += 1
+
+    def what_task(self) -> str:
         logIt_thread(log_path, msg=f'Waiting for task name...')
-        task_to_kill = simpledialog.askstring(parent=self.app, title='Task To Kill', prompt="Task to kill\t\t\t\t")
-        logIt_thread(log_path, msg=f'Task Name: {task_to_kill}.')
-        if task_to_kill is None:
+        taskkill = simpledialog.askstring(parent=self.app, title='Task To Kill', prompt="Task to kill\t\t\t\t")
+        logIt_thread(log_path, msg=f'Task Name: {taskkill}.')
+        if taskkill is None:
             try:
                 logIt_thread(log_path, msg=f'Sending "n" to {self.endpoint.ip}...')
                 self.endpoint.conn.send('n'.encode())
@@ -233,14 +224,13 @@ class Tasks:
             except (WindowsError, socket.error) as e:
                 logIt_thread(log_path, msg=f'Error: {e}.')
                 self.app.update_statusbar_messages_thread(msg=f"{e}")
-                logIt_thread(log_path, msg=f'Calling server.remove_lost_connection('
-                                           f'{self.endpoint.conn}, {self.endpoint.ip})...')
-                self.app.server.remove_lost_connection(self.endpoint)
+                logIt_thread(log_path, msg=f'Calling self.remove_lost_connection({self.endpoint})...')
+                self.app.remove_lost_connection(self.endpoint)
                 logIt_thread(log_path, msg=f'Calling self.enable_buttons_thread()...')
                 self.app.enable_buttons_thread()
                 return False
 
-        if len(task_to_kill) == 0:
+        if len(taskkill) == 0:
             try:
                 logIt_thread(log_path, msg=f'Sending "n" to {self.endpoint.ip}...')
                 self.endpoint.conn.send('n'.encode())
@@ -248,22 +238,19 @@ class Tasks:
                 logIt_thread(log_path, msg=f'Calling self.enable_buttons_thread()...')
                 self.app.enable_buttons_thread()
                 logIt_thread(log_path, msg=f'Displaying warning popup window...')
-                messagebox.showwarning(f"From {self.endpoint.ip} | {self.endpoint.ident}",
-                                       "Task Kill canceled.\t\t\t\t\t\t\t\t")
+                messagebox.showwarning(f"From {self.endpoint.ip} | {self.endpoint.ident}", "Task Kill canceled.\t\t\t\t\t\t\t\t")
                 return False
 
             except (WindowsError, socket.error) as e:
                 logIt_thread(log_path, msg=f'Error: {e}.')
                 self.app.update_statusbar_messages_thread(msg=f"{e}")
-                logIt_thread(log_path,
-                             msg=f'Calling server.remove_lost_connection('
-                                 f'{self.endpoint.conn}, {self.endpoint.ip})...')
-                self.app.server.remove_lost_connection(self.endpoint)
+                logIt_thread(log_path, msg=f'Calling self.remove_lost_connection({self.endpoint.ip})...')
+                self.app.remove_lost_connection(self.endpoint)
                 logIt_thread(log_path, msg=f'Calling self.enable_buttons_thread()...')
                 self.app.enable_buttons_thread()
                 return False
 
-        if not str(task_to_kill).endswith('.exe'):
+        if not str(taskkill).endswith('.exe'):
             try:
                 logIt_thread(log_path, msg=f'Calling sysinfo.run()...')
                 self.endpoint.conn.send('n'.encode())
@@ -278,16 +265,15 @@ class Tasks:
             except (WindowsError, socket.error) as e:
                 logIt_thread(log_path, msg=f'Error: {e}.')
                 self.app.update_statusbar_messages_thread(msg=f"{e}")
-                logIt_thread(log_path, msg=f'Calling server.remove_lost_connection('
-                                           f'{self.endpoint.conn}, {self.endpoint.ip})...')
-                server.remove_lost_connection(self.endpoint)
+                logIt_thread(log_path, msg=f'Calling self.remove_lost_connection({self.endpoint})...')
+                self.app.remove_lost_connection(self.endpoint)
                 return False
 
         logIt_thread(log_path, msg=f'Calling self.enable_buttons_thread()...')
         self.app.enable_buttons_thread()
-        return task_to_kill
+        return taskkill
 
-    def kill_task(self, task_to_kill):
+    def kill_task(self):
         try:
             logIt_thread(log_path, msg=f'Sending kill command to {self.endpoint.ip}.')
             self.endpoint.conn.send('kill'.encode())
@@ -296,22 +282,20 @@ class Tasks:
         except (WindowsError, socket.error) as e:
             logIt_thread(log_path, msg=f'Error: {e}.')
             self.app.update_statusbar_messages_thread(msg=f'{e}.')
-            logIt_thread(log_path, msg=f'Calling server.remove_lost_connection('
-                                       f'{self.endpoint.conn}, {self.endpoint.ip})')
-            self.app.server.remove_lost_connection(self.endpoint)
+            logIt_thread(log_path, msg=f'Calling self.remove_lost_connection({self.endpoint})')
+            self.app.remove_lost_connection(self.endpoint)
             return False
 
         try:
-            logIt_thread(log_path, msg=f'Sending {task_to_kill} to {self.endpoint.ip}...')
-            self.endpoint.conn.send(task_to_kill.encode())
+            logIt_thread(log_path, msg=f'Sending {self.task_to_kill} to {self.endpoint.ip}...')
+            self.endpoint.conn.send(self.task_to_kill.encode())
             logIt_thread(log_path, msg=f'Send complete.')
 
         except (WindowsError, socket.error) as e:
             logIt_thread(log_path, msg=f'Error: {e}.')
             self.app.update_statusbar_messages_thread(msg=f'{e}.')
-            logIt_thread(log_path, msg=f'Calling server.remove_lost_connection('
-                                       f'{self.endpoint.conn}, {self.endpoint.ip})')
-            self.app.server.remove_lost_connection(self.endpoint)
+            logIt_thread(log_path, msg=f'Calling self.remove_lost_connection({self.endpoint})')
+            self.app.remove_lost_connection(self.endpoint)
             return False
 
         try:
@@ -322,66 +306,44 @@ class Tasks:
         except (WindowsError, socket.error) as e:
             logIt_thread(log_path, msg=f'Error: {e}.')
             self.app.update_statusbar_messages_thread(msg=f'{e}.')
-            logIt_thread(log_path, msg=f'Calling server.remove_lost_connection('
-                                       f'{self.endpoint.conn}, {self.endpoint.ip})')
-            self.app.server.remove_lost_connection(self.endpoint)
+            logIt_thread(log_path, msg=f'Calling self.remove_lost_connection({self.endpoint})')
+            self.app.remove_lost_connection(self.endpoint)
             return False
 
         logIt_thread(log_path, msg=f'Displaying {msg} in popup window...')
         messagebox.showinfo(f"From {self.endpoint.ip} | {self.endpoint.ident}", f"{msg}.\t\t\t\t\t\t\t\t")
         logIt_thread(log_path, msg=f'Message received.')
-        self.app.update_statusbar_messages_thread(msg=f'killed task {task_to_kill} on '
-                                                      f'{self.endpoint.ip} | {self.endpoint.ident}.')
+        self.app.update_statusbar_messages_thread(msg=f'killed task '
+                                                  f'{self.task_to_kill} on {self.endpoint.ip} | {self.endpoint.ident}.')
         logIt_thread(log_path, msg=f'Calling self.enable_buttons_thread()...')
         self.app.enable_buttons_thread()
         return True
 
-    def run(self):
-        # Disable controller buttons
-        logIt_thread(log_path, msg=f'Calling self.disable_buttons_thread()...')
-        self.app.disable_buttons_thread()
-        logIt_thread(log_path, debug=False, msg=f'Initializing Module: tasks...')
-        tsks = tasks.Tasks(self.endpoint, log_path, path)
-        self.app.update_statusbar_messages_thread(msg=f'running tasks command on '
-                                                      f'{self.endpoint.ip} | {self.endpoint.ident}.')
-
-        logIt_thread(log_path, debug=False, msg=f'Calling tasks.tasks()...')
-        filepath = tsks.tasks()
-        logIt_thread(log_path, msg=f'filepath: {filepath}')
-
-        logIt_thread(log_path,
-                     msg=f'Calling Display_file_content({self.notebook}, {None}, {filepath}, {self.app.tasks_tab},'
-                         f'sname={self.endpoint.ident}, txt="Tasks")...')
-        display = DisplayFileContent(self.notebook, None, filepath, self.app.tasks_tab,
-                                     sname=self.endpoint.ident, txt='Tasks')
-        display.run(self.app)
-
+    def post_run(self):
         logIt_thread(log_path, msg=f'Displaying popup to kill a task...')
-        killTask = messagebox.askyesno(f"Tasks from {self.endpoint.ip} | {self.endpoint.ident}",
-                                       "Kill Task?\t\t\t\t\t\t\t\t")
-        logIt_thread(log_path, msg=f'Kill task: {killTask}.')
-
-        if killTask:
-            logIt_thread(log_path, msg=f'Calling what_task({filepath})')
-            task_to_kill = self.what_task(filepath)
-            if str(task_to_kill) == '' or str(task_to_kill).startswith(' '):
-                logIt_thread(log_path, msg=f'task_to_kill: {task_to_kill}')
+        self.killTask = messagebox.askyesno(f"Tasks from {self.endpoint.ip} | {self.endpoint.ident}", "Kill Task?\t\t\t\t\t\t\t\t")
+        logIt_thread(log_path, msg=f'Kill task: {self.killTask}.')
+        if self.killTask:
+            logIt_thread(log_path, msg=f'Calling what_task({self.filepath})')
+            self.task_to_kill = self.what_task()
+            if str(self.task_to_kill) == '' or str(self.task_to_kill).startswith(' '):
+                logIt_thread(log_path, msg=f'task_to_kill: {self.task_to_kill}')
                 logIt_thread(log_path, msg=f'Calling self.enable_buttons_thread()...')
                 self.app.enable_buttons_thread()
                 return False
 
-            if not task_to_kill:
+            if not self.task_to_kill:
                 logIt_thread(log_path, msg=f'Calling self.enable_buttons_thread()...')
                 self.app.enable_buttons_thread()
                 return False
 
             logIt_thread(log_path, msg=f'Displaying popup for kill confirmation...')
-            confirmKill = messagebox.askyesno(f'Kill task: {task_to_kill} on {self.endpoint.ident}',
-                                              f'Are you sure you want to kill {task_to_kill}?')
+            confirmKill = messagebox.askyesno(f'Kill task: {self.task_to_kill} on {self.endpoint.ident}',
+                                              f'Are you sure you want to kill {self.task_to_kill}?')
             logIt_thread(log_path, msg=f'Kill confirmation: {confirmKill}.')
             if confirmKill:
-                logIt_thread(log_path, msg=f'Calling kill_task({task_to_kill})...')
-                self.kill_task(task_to_kill)
+                logIt_thread(log_path, msg=f'Calling kill_task({self.task_to_kill})...')
+                self.kill_task()
 
             else:
                 try:
@@ -393,8 +355,7 @@ class Tasks:
                 except (WindowsError, socket.error) as e:
                     logIt_thread(log_path, msg=f'Error: {e}')
                     self.app.update_statusbar_messages_thread(msg=f'{e}.')
-                    logIt_thread(log_path,
-                                 msg=f'Calling server.remove_lost_connection({self.endpoint})...')
+                    logIt_thread(log_path, msg=f'Calling self.remove_lost_connection({self.endpoint})...')
                     self.app.server.remove_lost_connection(self.endpoint)
                     return False
 
@@ -412,9 +373,97 @@ class Tasks:
             except (WindowsError, socket.error) as e:
                 logIt_thread(log_path, msg=f'Error: {e}.')
                 self.app.update_statusbar_messages_thread(msg=f'{e}.')
-                logIt_thread(log_path, msg=f'Calling server.remove_lost_connection({self.endpoint})...')
-                self.app.server.remove_lost_connection(self.endpoint)
+                logIt_thread(log_path, msg=f'Calling self.remove_lost_connection({self.endpoint})...')
+                self.app.remove_lost_connection(self.endpoint)
                 return False
+
+    def run(self):
+        self.filepath = os.path.join(path, self.endpoint.ident)
+        try:
+            os.makedirs(self.filepath)
+
+        except FileExistsError:
+            logIt_thread(log_path, msg=f'Passing FileExistsError...')
+            pass
+
+        try:
+            logIt_thread(log_path, msg=f'Sending tasks command to {self.endpoint.ip}...')
+            self.endpoint.conn.send('tasks'.encode())
+            logIt_thread(log_path, msg=f'Send complete.')
+
+            logIt_thread(log_path, msg=f'Waiting for filename from {self.endpoint.ip}...')
+            self.endpoint.conn.settimeout(10)
+            self.filenameRecv = self.endpoint.conn.recv(1024).decode()
+            self.endpoint.conn.settimeout(None)
+            logIt_thread(log_path, msg=f'Filename: {self.filenameRecv}.')
+
+            logIt_thread(log_path, msg=f'Sleeping for {0.5} seconds...')
+            time.sleep(1)
+
+            logIt_thread(log_path, msg=f'Waiting for file size from {self.endpoint.ip}...')
+            self.endpoint.conn.settimeout(10)
+            size = self.endpoint.conn.recv(4)
+            self.endpoint.conn.settimeout(None)
+            logIt_thread(log_path, msg=f'Size: {size}.')
+
+            logIt_thread(log_path, msg=f'Converting size bytes to numbers...')
+            size = bytes_to_number(size)
+            current_size = 0
+            buffer = b""
+
+            logIt_thread(log_path, msg=f'Writing content to {self.filenameRecv}...')
+            with open(self.filenameRecv, 'wb') as tsk_file:
+                self.endpoint.conn.settimeout(60)
+                while current_size < size:
+                    logIt_thread(log_path, msg=f'Receiving file content from {self.endpoint.ip}...')
+                    data = self.endpoint.conn.recv(1024)
+                    if not data:
+                        break
+
+                    if len(data) + current_size > size:
+                        data = data[:size - current_size]
+
+                    buffer += data
+                    current_size += len(data)
+                    tsk_file.write(data)
+                self.endpoint.conn.settimeout(None)
+
+            logIt_thread(log_path, msg=f'Printing file content to screen...')
+            logIt_thread(log_path, msg=f'Sending confirmation to {self.endpoint.ip}...')
+            self.endpoint.conn.send(f"Received file: {self.filenameRecv}\n".encode())
+            logIt_thread(log_path, msg=f'Send complete.')
+
+            logIt_thread(log_path, msg=f'Waiting for closer from {self.endpoint.ip}...')
+            self.endpoint.conn.settimeout(10)
+            msg = self.endpoint.conn.recv(1024).decode()
+            self.endpoint.conn.settimeout(None)
+            logIt_thread(log_path, msg=f'{self.endpoint.ip}: {msg}')
+
+            self.display_text()
+
+            # Move screenshot file to directory
+            src = os.path.abspath(self.filenameRecv)
+            dst = fr"{path}\{self.endpoint.ident}"
+
+            logIt_thread(log_path, msg=f'Moving {src} to {dst}...')
+            try:
+                shutil.move(src, dst)
+
+            except FileExistsError:
+                pass
+
+            # backslash_index = self.filenameRecv.rfind("\\")
+            # if backslash_index != -1:
+            #     self.filenameRecv = self.filenameRecv[backslash_index:].strip('\\')
+            # self.full_tasks_path = os.path.join(dst, self.filenameRecv)
+
+            # Sending confirmation to Endpoint
+            self.post_run()
+            # self.endpoint.conn.send("OK".encode())
+
+        except (WindowsError, socket.error) as e:
+            logIt_thread(log_path, msg=f'Error: {e}')
+            return False
 
 
 class App(tk.Tk):
@@ -623,7 +672,6 @@ class App(tk.Tk):
         maintenanceThread.start()
 
     # ==++==++==++== END THREADED FUNCS ==++==++==++== #
-
     # ==++==++==++== GUI ==++==++==++==
     # Define GUI Styles
     def make_style(self):
@@ -1007,6 +1055,7 @@ class App(tk.Tk):
         self.disable_buttons_thread()
         logIt_thread(log_path, msg=f'Resetting tmp_availables list...')
         self.server.tmp_availables = []
+        self.temp.clear()
         logIt_thread(log_path, msg=f'Calling vital_signs_thread()...')
         self.vital_signs_thread()
         logIt_thread(log_path, msg=f'Calling server_information()...')
@@ -1025,46 +1074,140 @@ class App(tk.Tk):
         self.update_statusbar_messages_thread(msg='Details window cleared.')
         return
 
+    def show_picture(self):
+        self.sc.show()
+
     # Screenshot from Client
     def screenshot_command(self, endpoint) -> bool:
-        logIt_thread(log_path, msg=f'Running screenshot('
-                                   f'{endpoint.conn}, {endpoint.ip}, {endpoint.ident})...')
+        logIt_thread(log_path, msg=f'Running screenshot({endpoint.conn}, {endpoint.ip}, {endpoint.ident})...')
+        self.screenshot_path = fr"{path}\{endpoint.ident}"
         logIt_thread(log_path, msg=f'Calling self.disable_buttons_thread()...')
         self.disable_buttons_thread()
         self.running = True
-        self.update_statusbar_messages_thread(msg=f'fetching screenshot from '
-                                                  f'{endpoint.ip} | {endpoint.ident}...')
         try:
             logIt_thread(log_path, msg=f'Sending screen command to client...')
             endpoint.conn.send('screen'.encode())
-            logIt_thread(log_path, msg=f'Send Completed.')
-            logIt_thread(log_path, msg=f'Initializing screenshot module...')
-            scrnshot = screenshot.Screenshot(endpoint, path, log_path)
-            logIt_thread(log_path, msg=f'Calling screenshot.recv_file({endpoint.ip})...')
-            scrnshot.recv_file()
-            self.update_statusbar_messages_thread(msg=f'screenshot received from  '
-                                                      f'{endpoint.ip} | {endpoint.ident}.')
-            logIt_thread(log_path,
-                         msg=fr'Calling self.display_file_content('
-                             fr'{path}\{endpoint.ident}, "", '
-                             fr'{self.screenshot_tab}, txt="Screenshot")...')
-            screen_path = fr"{path}\{endpoint.ident}"
-            display = DisplayFileContent(self.notebook, screen_path, '', self.screenshot_tab,
-                                         sname=endpoint.ident, txt='Screenshot')
-            display.run(self)
 
-            logIt_thread(log_path, msg=f'Calling self.enable_buttons_thread()...')
-            self.enable_buttons_thread()
-            self.running = False
-            return True
-
-        except Exception as e:
-            logIt_thread(log_path, msg=f'Connection Error: {e}')
-            self.update_statusbar_messages_thread(msg=f'{e}.')
-            logIt_thread(log_path, msg=f'Calling server.remove_lost_connection('
-                                       f'{endpoint.conn}, {endpoint.ip}...)')
+        except (ConnectionError, socket.error) as e:
+            logIt_thread(log_path, msg=f'{e}')
             self.server.remove_lost_connection(endpoint)
             return False
+
+        try:
+            filename = endpoint.conn.recv(1024)
+            endpoint.conn.send("Filename OK".encode())
+
+        except (ConnectionError, socket.error) as e:
+            logIt_thread(log_path, msg=f'{e}')
+            self.server.remove_lost_connection(endpoint)
+            return False
+
+        try:
+            size = endpoint.conn.recv(4)
+            size = bytes_to_number(size)
+
+        except (ConnectionError, socket.error) as e:
+            logIt_thread(log_path, msg=f'{e}')
+            self.server.remove_lost_connection(endpoint)
+            return False
+
+        current_size = 0
+        buffer = b""
+        try:
+            logIt_thread(log_path, debug=False, msg=f'Opening file: {filename} for writing...')
+            with open(filename, 'wb') as file:
+                logIt_thread(log_path, debug=False, msg=f'Fetching file content...')
+                while current_size < size:
+                    data = endpoint.conn.recv(1024)
+                    if not data:
+                        break
+
+                    if len(data) + current_size > size:
+                        data = data[:size - current_size]
+
+                    buffer += data
+                    current_size += len(data)
+                    file.write(data)
+
+            logIt_thread(log_path, debug=False, msg=f'Fetch completed.')
+
+        except FileExistsError:
+            logIt_thread(log_path, debug=False, msg=f'File Exists error.')
+            logIt_thread(log_path, debug=False, msg=f'Opening {filename} for appends...')
+            with open(filename, 'ab') as file:
+                while current_size < size:
+                    logIt_thread(log_path, debug=False, msg=f'Fetching file content...')
+                    data = endpoint.conn.recv(1024)
+                    if not data:
+                        break
+
+                    if len(data) + current_size > size:
+                        data = data[:size - current_size]
+
+                    buffer += data
+                    current_size += len(data)
+                    file.write(data)
+
+        try:
+            logIt_thread(log_path, debug=False, msg=f'Waiting for answer from client...')
+            ans = endpoint.conn.recv(1024).decode()
+            logIt_thread(log_path, debug=False, msg=f'Client answer: {ans}')
+
+        except (ConnectionError, socket.error) as e:
+            logIt_thread(log_path, msg=f'{e}')
+            self.server.remove_lost_connection(endpoint)
+            return False
+
+        logIt_thread(log_path, debug=False, msg=f'Running move({filename}, {path})...')
+        logIt_thread(log_path, debug=False, msg=f'Renaming {filename}...')
+        filename = str(filename).strip("b'")
+        logIt_thread(log_path, debug=False, msg=f'New filename: {filename}')
+
+        logIt_thread(log_path, debug=False, msg=f'Capturing {filename} absolute path...')
+        src = os.path.abspath(filename)
+        logIt_thread(log_path, debug=False, msg=f'Abs path: {src}')
+
+        logIt_thread(log_path, debug=False, msg=f'Defining destination...')
+        dst = fr"{self.screenshot_path}"
+        logIt_thread(log_path, debug=False, msg=f'Destination: {dst}.')
+
+        logIt_thread(log_path, debug=False, msg=f'Moving file...')
+        shutil.move(src, dst)
+        logIt_thread(log_path, debug=False, msg=f'File {filename} moved to {dst}.')
+
+        try:
+            logIt_thread(log_path, msg=f'Sorting jpg files by creation time...')
+            self.images = glob.glob(fr"{self.screenshot_path}\*.jpg")
+            self.images.sort(key=os.path.getmtime)
+            logIt_thread(log_path, msg=f'Opening latest screenshot...')
+            self.sc = PIL.Image.open(self.images[-1])
+
+        except IndexError:
+            pass
+
+        logIt_thread(log_path, msg=f'Resizing to 650x350...')
+        self.sc_resized = self.sc.resize((650, 350))
+        self.last_screenshot = PIL.ImageTk.PhotoImage(self.sc_resized)
+        self.displayed_screenshot_files.append(self.last_screenshot)
+
+        logIt_thread(log_path, msg=f'Building working frame...')
+        self.tab = Frame(self.notebook, height=350, background='slate gray')
+
+        logIt_thread(log_path, msg=f'Building Preview Button...')
+        button = Button(self.tab, image=self.last_screenshot, command=self.show_picture, border=5, bd=3)
+        button.pack(padx=5, pady=10)
+
+        logIt_thread(log_path, msg=f'Adding tab to notebook...')
+        self.notebook.add(self.tab, text=f"Screenshot {endpoint.ident}")
+
+        logIt_thread(log_path, msg=f'Displaying latest notebook tab...')
+        self.notebook.select(self.tab)
+        self.tabs += 1
+
+        logIt_thread(log_path, msg=f'Calling self.enable_buttons_thread()...')
+        self.enable_buttons_thread()
+        self.running = False
+        # return True
 
     # Run Anydesk on Client
     def anydesk_command(self, endpoint) -> bool:
@@ -1124,9 +1267,9 @@ class App(tk.Tk):
                 return True
 
         except (WindowsError, ConnectionError, socket.error, RuntimeError) as e:
-            logIt_thread(log_path, msg=f'Connection Error: {e}.')
+            logIt_thread(log_path, debug=True, msg=f'Connection Error: {e}.')
             self.update_statusbar_messages_thread(msg=f'{e}.')
-            logIt_thread(log_path,
+            logIt_thread(log_path, debug=True,
                          msg=f'Calling server.remove_lost_connection({endpoint.conn}, {endpoint.ip})...')
             server.remove_lost_connection(endpoint)
             return False
@@ -1140,7 +1283,7 @@ class App(tk.Tk):
             endpoint.conn.send('lr'.encode())
             logIt_thread(log_path, msg=f'Send Completed.')
             logIt_thread(log_path, msg=f'Waiting for response from client...')
-            msg = endpoint.conn.recv(4096).decode()
+            msg = endpoint.conn.recv(1024).decode()
             logIt_thread(log_path, msg=f'Client response: {msg}')
             self.update_statusbar_messages_thread(msg=f'restart for {endpoint.ident}: {msg.split("|")[1][15:]}')
             logIt_thread(log_path, msg=f'Display popup with last restart info...')
@@ -1163,7 +1306,6 @@ class App(tk.Tk):
         logIt_thread(log_path, msg=f'Calling self.disable_buttons_thread(sidebar=True)...')
         self.disable_buttons_thread()
         self.running = True
-        self.update()
         self.update_statusbar_messages_thread(msg=f'waiting for system information from '
                                                   f'{endpoint.ip} | {endpoint.ident}...')
         try:
@@ -1173,12 +1315,11 @@ class App(tk.Tk):
             file_path = sinfo.run()
             self.update_statusbar_messages_thread(msg=f'system information file received from '
                                                       f'{endpoint.ip} | {endpoint.ident}.')
-            display = DisplayFileContent(self.notebook, None, file_path, self.system_information_tab,
+            display = DisplayFileContent(self.notebook, file_path, self.system_information_tab,
                                          sname=endpoint.ident, txt='System Information')
-            display.run(self)
+            display.run()
             self.running = False
             self.enable_buttons_thread()
-            self.update()
 
         except (WindowsError, socket.error, ConnectionResetError) as e:
             logIt_thread(log_path, debug=True, msg=f'Connection Error: {e}.')
@@ -1622,7 +1763,7 @@ def logIt_thread(log_path=None, debug=False, msg='') -> None:
 
 
 def bytes_to_number(b: int) -> int:
-    self.logIt_thread(log_path, msg=f'Running bytes_to_number({b})...')
+    logIt_thread(log_path, msg=f'Running bytes_to_number({b})...')
     dt = get_date()
     res = 0
     for i in range(4):
