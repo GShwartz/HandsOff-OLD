@@ -131,10 +131,9 @@ class About:
 
 
 class Tasks:
-    def __init__(self, endpoint, app, notebook):
+    def __init__(self, endpoint, app):
         self.endpoint = endpoint
         self.app = app
-        self.notebook = notebook
 
     def display_text(self):
         with open(self.filenameRecv, 'r') as file:
@@ -1276,23 +1275,20 @@ class App(tk.Tk):
                     logIt_thread(log_path, msg=f'Send Completed.')
                     logIt_thread(log_path, msg=f'Initiating StringVar() for textVar...')
                     textVar = StringVar()
-                    while True:
+                    # while True:
+                    while "OK" not in msg:
                         logIt_thread(log_path, msg=f'Waiting for response from client...')
                         msg = endpoint.conn.recv(1024).decode()
                         logIt_thread(log_path, msg=f'Client response: {msg}.')
                         textVar.set(msg)
                         logIt_thread(log_path, msg=f'textVar: {textVar}')
-                        if "OK" not in str(msg):
-                            self.update_statusbar_messages_thread(msg=f'{msg}')
+                        self.update_statusbar_messages_thread(msg=f'{msg}')
 
-                        else:
-                            self.update_statusbar_messages_thread(msg=f'Status: {textVar}')
-                            logIt_thread(log_path, msg=f'Display popup infobox')
-                            messagebox.showinfo(f"From {endpoint.ip} | {endpoint.ident}", f"Anydesk Running.\t\t\t\t")
-                            self.update_statusbar_messages_thread(msg=f'anydesk running on '
-                                                                      f'{endpoint.ip} | {endpoint.ident}.')
-                            return True
-
+                    self.update_statusbar_messages_thread(msg=f'Status: {textVar}')
+                    logIt_thread(log_path, msg=f'Display popup infobox')
+                    messagebox.showinfo(f"From {endpoint.ip} | {endpoint.ident}", f"Anydesk Running.\t\t\t\t")
+                    self.update_statusbar_messages_thread(msg=f'anydesk running on '
+                                                              f'{endpoint.ip} | {endpoint.ident}.')
                 else:
                     logIt_thread(log_path, msg=f'Sending cancel command to {endpoint.conn}...')
                     endpoint.conn.send('n'.encode())
@@ -1376,7 +1372,7 @@ class App(tk.Tk):
     # Display/Kill Tasks on Client
     def tasks(self, endpoint) -> bool:
         self.running = True
-        tasks = Tasks(endpoint, self, self.notebook)
+        tasks = Tasks(endpoint, self)
         tasks.run()
         self.running = False
 
