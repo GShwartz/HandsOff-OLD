@@ -1,4 +1,3 @@
-import re
 from datetime import datetime
 from threading import Thread
 from typing import Optional
@@ -8,6 +7,7 @@ import webbrowser
 import threading
 import PIL.Image
 import argparse
+import logging
 import pystray
 import os.path
 import socket
@@ -17,7 +17,6 @@ import time
 import glob
 import sys
 import csv
-import cv2
 
 # GUI
 from tkinter import simpledialog
@@ -26,12 +25,10 @@ from tkinter import messagebox
 from tkinter import ttk
 from tkinter import *
 import tkinter as tk
-import tkinter
 
 # Local Modules
 from Modules.server import Server
-# from Modules import vital_signs
-from Modules import freestyle
+# from Modules import freestyle
 
 
 class About:
@@ -133,51 +130,7 @@ class About:
         return webbrowser.open_new_tab(url)
 
 
-class DisplayFileContent:
-    # List to hold captured screenshot images
-    displayed_screenshot_files = []
-    frames = []
-    tabs = 0
-    notebooks = {}
-
-    def __init__(self, notebook: Frame, filepath, tab: Optional[Frame], sname, txt=''):
-        self.notebook = notebook
-        self.filepath = filepath
-        self.tab = tab
-        self.sname = sname
-        self.txt = txt
-
-        logIt_thread(log_path,
-                     msg=f'Running display_file_content({filepath}, {tab}, txt="{txt}")...')
-
-    def display_text(self):
-        with open(self.filepath, 'r') as file:
-            data = file.read()
-            self.tab = Frame(self.notebook, height=350)
-            tab_scrollbar = Scrollbar(self.tab, orient=VERTICAL)
-            tab_scrollbar.pack(side=LEFT, fill=Y)
-            tab_textbox = Text(self.tab, yscrollcommand=tab_scrollbar.set)
-            tab_textbox.pack(fill=BOTH)
-            self.notebook.add(self.tab, text=f"{self.txt} {self.sname}")
-            tab_scrollbar.configure(command=tab_textbox.yview)
-            tab_textbox.config(state=NORMAL)
-            tab_textbox.delete(1.0, END)
-            tab_textbox.insert(END, data)
-            tab_textbox.config(state=DISABLED)
-            self.notebook.select(self.tab)
-            self.tabs += 1
-
-    def run(self):
-        self.display_text()
-
-
 class Tasks:
-    # List to hold captured screenshot images
-    displayed_screenshot_files = []
-    frames = []
-    tabs = 0
-    notebooks = {}
-
     def __init__(self, endpoint, app, notebook):
         self.endpoint = endpoint
         self.app = app
@@ -186,19 +139,19 @@ class Tasks:
     def display_text(self):
         with open(self.filenameRecv, 'r') as file:
             data = file.read()
-            self.tab = Frame(self.notebook, height=350)
+            self.tab = Frame(self.app.notebook, height=350)
             tab_scrollbar = Scrollbar(self.tab, orient=VERTICAL)
             tab_scrollbar.pack(side=LEFT, fill=Y)
             tab_textbox = Text(self.tab, yscrollcommand=tab_scrollbar.set)
             tab_textbox.pack(fill=BOTH)
-            self.notebook.add(self.tab, text=f"Tasks {self.endpoint.ident}")
+            self.app.notebook.add(self.tab, text=f"Tasks {self.endpoint.ident}")
             tab_scrollbar.configure(command=tab_textbox.yview)
             tab_textbox.config(state=NORMAL)
             tab_textbox.delete(1.0, END)
             tab_textbox.insert(END, data)
             tab_textbox.config(state=DISABLED)
-            self.notebook.select(self.tab)
-            self.tabs += 1
+            self.app.notebook.select(self.tab)
+            self.app.tabs += 1
 
     def what_task(self) -> str:
         logIt_thread(log_path, msg=f'Waiting for task name...')
@@ -448,14 +401,7 @@ class Tasks:
             except FileExistsError:
                 pass
 
-            # backslash_index = self.filenameRecv.rfind("\\")
-            # if backslash_index != -1:
-            #     self.filenameRecv = self.filenameRecv[backslash_index:].strip('\\')
-            # self.full_tasks_path = os.path.join(dst, self.filenameRecv)
-
-            # Sending confirmation to Endpoint
             self.post_run()
-            # self.endpoint.conn.send("OK".encode())
 
         except (WindowsError, socket.error) as e:
             logIt_thread(log_path, msg=f'Error: {e}')
@@ -537,7 +483,7 @@ class Screenshot:
 
         except (ConnectionError, socket.error) as e:
             logIt_thread(log_path, msg=f'{e}')
-            self.server.remove_lost_connection(self.endpoint)
+            self.app.server.remove_lost_connection(self.endpoint)
             return False
 
         self.get_file_name()
@@ -1794,17 +1740,18 @@ class App(tk.Tk):
                     logIt_thread(log_path, msg=f'Updating self.temp dictionary...')
                     self.temp[row[0]] = row[2]
 
+                    logIt_thread(log_path, msg=f'Calling self.create_notebook()...')
+                    if not self.notebooks:
+                        self.create_notebook()
+
             # Error can raise when clicking on empty space so the row is None or empty.
             except IndexError:
                 pass
 
-            logIt_thread(log_path, msg=f'Calling self.create_notebook()...')
-            if not self.notebooks:
-                self.create_notebook()
-
             # Create a Controller LabelFrame with Buttons and connect shell by TreeView Table selection
             for endpoint in self.server.endpoints:
                 if row[2] == endpoint.ip:
+                    self.enable_buttons_thread()
                     temp_notebook = {endpoint.ident: {endpoint.ip: self.notebook}}
                     if temp_notebook not in self.notebooks.items():
                         self.notebooks.update(temp_notebook)
