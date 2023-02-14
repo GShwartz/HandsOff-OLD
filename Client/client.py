@@ -5,9 +5,13 @@ import PySimpleGUI as sg
 import subprocess
 import threading
 import PIL.Image
+import win32gui
+import win32con
+import win32ui
 import pystray
 import socket
 import psutil
+import ctypes
 import time
 import wget
 import uuid
@@ -116,34 +120,38 @@ class Screenshot:
         self.dt = get_date()
 
         logIt_thread(log_path, msg='Defining screenshot file name...')
-        self.filename = rf"{app_path}\screenshot {self.client.hostname} {self.client.localIP} {self.dt}.jpg"
+        self.filename = rf"screenshot {self.client.hostname} {self.client.localIP} {self.dt}.jpg"
         logIt_thread(log_path, msg=f'Screenshot file name: {self.filename}')
 
-    def make_script(self):
-        logIt_thread(log_path, msg='Running make_script()...')
-        logIt_thread(log_path, msg=f'Writing script to {self.ps_path}...')
-        with open(self.ps_path, 'w') as file:
-            file.write("Add-Type -AssemblyName System.Windows.Forms\n")
-            file.write("Add-Type -AssemblyName System.Drawing\n\n")
-            file.write("$Screen = [System.Windows.Forms.SystemInformation]::VirtualScreen\n\n")
-            file.write("$Width  = $Screen.Width\n")
-            file.write("$Height = $Screen.Height\n")
-            file.write("$Left = $Screen.Left\n")
-            file.write("$Top = $Screen.Top\n\n")
-            file.write("$bitmap = New-Object System.Drawing.Bitmap $Width, $Height\n")
-            file.write("$graphic = [System.Drawing.Graphics]::FromImage($bitmap)\n")
-            file.write("$graphic.CopyFromScreen($Left, $Top, 0, 0, $bitmap.Size)\n\n")
-            file.write(rf"$bitmap.Save('{self.filename}')")
-
-        time.sleep(0.2)
-        logIt_thread(log_path, msg=f'Writing script to {self.ps_path} completed.')
-
     def run_script(self):
-        logIt_thread(log_path, msg='Running run_script()...')
-        logIt_thread(log_path, msg=f'Running PS script...')
-        ps = subprocess.Popen(["powershell.exe", rf"{self.ps_path}"], stdout=sys.stdout)
-        ps.communicate()
-        logIt_thread(log_path, msg=f'PS script Completed.')
+        logIt_thread(log_path, msg=f'Capturing screenshot...')
+        desktop = win32gui.GetDesktopWindow()
+
+        SM_CXVIRTUALSCREEN = 78
+        SM_CYVIRTUALSCREEN = 79
+        SM_XVIRTUALSCREEN = 76
+        SM_YVIRTUALSCREEN = 77
+
+        width = ctypes.windll.user32.GetSystemMetrics(SM_CXVIRTUALSCREEN)
+        height = ctypes.windll.user32.GetSystemMetrics(SM_CYVIRTUALSCREEN)
+        left = ctypes.windll.user32.GetSystemMetrics(SM_XVIRTUALSCREEN)
+        top = ctypes.windll.user32.GetSystemMetrics(SM_YVIRTUALSCREEN)
+
+        desktop_dc = win32gui.GetWindowDC(desktop)
+        img_dc = win32ui.CreateDCFromHandle(desktop_dc)
+
+        mem_dc = img_dc.CreateCompatibleDC()
+        screenshot = win32ui.CreateBitmap()
+        screenshot.CreateCompatibleBitmap(img_dc, width, height)
+        mem_dc.SelectObject(screenshot)
+        mem_dc.BitBlt((0, 0), (width, height), img_dc, (left, top), win32con.SRCCOPY)
+
+        screenshot.SaveBitmapFile(mem_dc, self.filename)
+
+        mem_dc.DeleteDC()
+        win32gui.DeleteObject(screenshot.GetHandle())
+        logIt_thread(log_path, msg=f'Screenshot captured.')
+        return
 
     def send_file(self):
         try:
@@ -195,8 +203,6 @@ class Screenshot:
 
     def run(self):
         logIt_thread(log_path, msg='Running screenshot()...')
-        logIt_thread(log_path, msg='Calling make_script()...')
-        self.make_script()
         logIt_thread(log_path, msg='Calling run_script()...')
         self.run_script()
         logIt_thread(log_path, msg='Calling send_file()...')
@@ -206,8 +212,183 @@ class Screenshot:
 
         logIt_thread(log_path, msg=f'Removing \n{self.filename} | \n{self.ps_path}...')
         os.remove(self.filename)
-        os.remove(self.ps_path)
         logIt_thread(log_path, msg=f'=== End of screenshot() ===')
+
+
+class Tasks:
+    def __init__(self, client):
+        self.client = client
+        self.task_list = []
+
+    def command_to_file(self):
+        logIt_thread(log_path, msg=f'Running command_to_file()...')
+        try:
+            logIt_thread(log_path, msg=f'Opening file: {self.taskfile}...')
+            with open(self.taskfile, 'w') as task_file:
+                task_file.write(f"{'=' * 80}\n")
+                task_file.write(f"IP: {self.client.localIP} | NAME: {self.client.hostname} | "
+                                f"LOGGED USER: {os.getlogin()} | {self.dt}\n")
+                task_file.write(f"{'=' * 80}\n")
+
+            with open(self.taskfile, 'a') as task_file:
+                subprocess.run(['tasklist'], stdout=task_file)
+                task_file.write('\n')
+
+            return True
+
+        except (FileNotFoundError, FileExistsError) as e:
+            logIt_thread(log_path, msg=f'File Error: {e}')
+            return False
+
+    def send_file_name(self):
+        logIt_thread(log_path, msg=f'Running send_file_name()...')
+        try:
+            logIt_thread(log_path, msg=f'Sending file name: {self.taskfile}...')
+            self.client.soc.send(f"{self.taskfile}".encode())
+            logIt_thread(log_path, msg=f'Send Completed.')
+            return True
+
+        except (WindowsError, socket.error) as e:
+            logIt_thread(log_path, msg=f'Connection Error: {e}')
+            return False
+
+    def print_file_content(self):
+        logIt_thread(log_path, msg=f'Running print_file_content()...')
+        logIt_thread(log_path, msg=f'Opening file: {self.taskfile}...')
+        with open(self.taskfile, 'r') as file:
+            logIt_thread(log_path, msg=f'Adding content to list...')
+            for line in file.readlines():
+                self.task_list.append(line)
+
+        logIt_thread(log_path, msg=f'Printing content from list...')
+        for t in self.task_list:
+            print(t)
+
+    def send_file_size(self):
+        logIt_thread(log_path, msg=f'Running send_file_size()...')
+        logIt_thread(log_path, msg=f'Defining file size...')
+        length = os.path.getsize(self.taskfile)
+        logIt_thread(log_path, msg=f'File Size: {length}')
+
+        try:
+            logIt_thread(log_path, msg=f'Sending file size...')
+            self.client.soc.send(convert_to_bytes(length))
+            logIt_thread(log_path, msg=f'Send Completed.')
+            return True
+
+        except (WindowsError, socket.error) as e:
+            logIt_thread(log_path, msg=f'Connection Error: {e}')
+            return False
+
+    def send_file_content(self):
+        logIt_thread(log_path, msg=f'Running send_file_content()...')
+        logIt_thread(log_path, msg=f'Opening file: {self.taskfile}...')
+        with open(self.taskfile, 'rb') as tsk_file:
+            logIt_thread(log_path, msg=f'Reading content from {self.taskfile}...')
+            tsk_data = tsk_file.read(1024)
+            try:
+                logIt_thread(log_path, msg=f'Sending file content...')
+                while tsk_data:
+                    self.client.soc.send(tsk_data)
+                    if not tsk_data:
+                        break
+
+                    tsk_data = tsk_file.read(1024)
+
+                logIt_thread(log_path, msg=f'Send Completed.')
+
+            except (WindowsError, socket.error) as e:
+                logIt_thread(log_path, msg=f'Connection Error: {e}')
+                return False
+
+    def confirm(self) -> bool:
+        logIt_thread(log_path, msg=f'Running confirm()...')
+        try:
+            logIt_thread(log_path, msg=f'Waiting for confirmation from server...')
+            self.client.soc.settimeout(10)
+            msg = self.client.soc.recv(1024).decode()
+            self.client.soc.settimeout(None)
+            logIt_thread(log_path, msg=f'Server Confirmation: {msg}')
+
+        except (WindowsError, socket.error) as e:
+            logIt_thread(log_path, msg=f'Connection Error: {e}')
+            return False
+
+        try:
+            logIt_thread(log_path, msg=f'Sending confirmation...')
+            self.client.soc.send(f"{self.client.hostname} | {self.client.localIP}: Task List Sent.\n".encode())
+            logIt_thread(log_path, msg=f'Send Completed.')
+            return True
+
+        except (WindowsError, socket.error) as e:
+            logIt_thread(log_path, msg=f'Connection Error: {e}')
+            return False
+
+    def kill(self) -> bool:
+        logIt_thread(log_path, msg=f'Waiting for task name...')
+        try:
+            self.client.soc.settimeout(10)
+            task2kill = self.client.soc.recv(1024).decode()
+            self.client.soc.settimeout(None)
+            logIt_thread(log_path, msg=f'Task name: {task2kill}')
+
+        except (WindowsError, socket.error) as e:
+            logIt_thread(log_path, msg=f'Connection Error: {e}')
+            return False
+
+        if str(task2kill).lower()[:1] == 'q':
+            return True
+
+        logIt_thread(log_path, msg=f'Killing {task2kill}...')
+        os.system(f'taskkill /IM {task2kill} /F')
+        logIt_thread(log_path, msg=f'{task2kill} killed.')
+
+        logIt_thread(log_path, msg=f'Sending killed confirmation to server...')
+        try:
+            self.client.soc.send(f"Task: {task2kill} Killed.".encode())
+            logIt_thread(log_path, msg=f'Send Completed.')
+
+        except (WindowsError, socket.error) as e:
+            logIt_thread(log_path, msg=f'Connection Error: {e}')
+            return False
+
+        return True
+
+    def run(self) -> bool:
+        logIt_thread(log_path, msg=f'Defining tasks file name...')
+        self.dt = get_date()
+        self.taskfile = rf"tasks {self.client.hostname} {str(self.client.localIP)} {self.dt}.txt"
+        logIt_thread(log_path, msg=f'Tasks file name: {self.taskfile}')
+
+        logIt_thread(log_path, msg=f'Calling command_to_file()...')
+        self.command_to_file()
+        logIt_thread(log_path, msg=f'Calling send_file_name()...')
+        self.send_file_name()
+        logIt_thread(log_path, msg=f'Calling print_file_content()...')
+        self.print_file_content()
+        logIt_thread(log_path, msg=f'Calling send_file_size()...')
+        self.send_file_size()
+        logIt_thread(log_path, msg=f'Calling send_file_content()...')
+        self.send_file_content()
+        logIt_thread(log_path, msg=f'Calling confirm()...')
+        self.confirm()
+
+        logIt_thread(log_path, msg=f'Removing file: {self.taskfile}...')
+        os.remove(self.taskfile)
+
+        try:
+            self.client.soc.settimeout(10)
+            kil = self.client.soc.recv(1024).decode()
+            self.client.soc.settimeout(None)
+
+        except (WindowsError, socket.error):
+            return False
+
+        if str(kil)[:4].lower() == "kill":
+            logIt_thread(log_path, msg=f'Calling kill()...')
+            self.kill()
+
+        return True
 
 
 class Welcome:
@@ -484,7 +665,7 @@ Catch {
                 # Task List
                 elif str(command.lower())[:5] == "tasks":
                     logIt_thread(log_path, msg='Calling tasks()...')
-                    task = Tasks(self.client.soc, log_path, self.client.hostname, self.client.localIP)
+                    task = Tasks(self.client)
                     task.run()
 
                 # Restart Machine
@@ -663,7 +844,7 @@ def main():
 
 
 if __name__ == "__main__":
-    client_version = "1.0.1"
+    client_version = "1.0.0"
     app_path = r'c:\HandsOff'
     updater_file = rf'{app_path}\updater.exe'
     log_path = fr'{app_path}\client_log.txt'
