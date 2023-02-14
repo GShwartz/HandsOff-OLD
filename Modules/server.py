@@ -193,8 +193,9 @@ class Server:
                                             f'{endpoint.ip} | {endpoint.ident}...')
             for ep in self.endpoints:
                 if ep.conn == endpoint.conn:
+                    ep.conn.close()
                     self.endpoints.remove(endpoint)
-                    # self.app.temp.clear()
+                    self.app.temp.clear()
 
             # Update statusbar message
             self.app.update_statusbar_messages_thread(
