@@ -3,7 +3,7 @@
 ### A small and free <i>Client</i> <-> <i>Server</i> solution for IT & HD specialists.  <br />
 
 ### The Idea
-Do you love your job but hate the custumer's <b>technophobic</b> nature and unwillingness to cooperate? <br />
+Do you love your job but hate the customer's <b>technophobic</b> nature and unwillingness to cooperate? <br />
 <b>ME TOO!</b> <br /><br /> 
 This is where <b>HandsOff</b> comes in. <br />
 The entire idea behind this solution is that the other side only holds the <b>phone</b> and nothing else<br />
