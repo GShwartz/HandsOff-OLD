@@ -30,12 +30,8 @@ import tkinter
 
 # Local Modules
 from Modules.server import Server
-from Modules import vital_signs
+# from Modules import vital_signs
 from Modules import freestyle
-from Modules import sysinfo
-
-# TODO:
-#   1. Fix bug in System information not displaying in notebook
 
 
 class About:
@@ -464,6 +460,224 @@ class Tasks:
         except (WindowsError, socket.error) as e:
             logIt_thread(log_path, msg=f'Error: {e}')
             return False
+
+
+class Screenshot:
+    def __init__(self, endpoint, app):
+        self.endpoint = endpoint
+        self.app = app
+        self.screenshot_path = fr"{path}\{self.endpoint.ident}"
+
+    def get_file_name(self):
+        try:
+            self.filename = self.endpoint.conn.recv(1024)
+            self.filename = str(self.filename).strip("b'")
+            self.endpoint.conn.send("Filename OK".encode())
+            self.screenshot_file_path = os.path.join(self.screenshot_path, self.filename)
+
+        except (ConnectionError, socket.error) as e:
+            logIt_thread(log_path, msg=f'{e}')
+            self.server.remove_lost_connection(self.endpoint)
+            return False
+
+    def get_file_size(self):
+        try:
+            self.size = self.endpoint.conn.recv(4)
+            self.endpoint.conn.send("OK".encode())
+            self.size = bytes_to_number(self.size)
+
+        except (ConnectionError, socket.error) as e:
+            logIt_thread(log_path, msg=f'{e}')
+            self.server.remove_lost_connection(self.endpoint)
+            return False
+
+    def get_file_content(self):
+        current_size = 0
+        buffer = b""
+        try:
+            logIt_thread(log_path, debug=False, msg=f'Opening file: {self.filename} for writing...')
+            with open(self.screenshot_file_path, 'wb') as file:
+                logIt_thread(log_path, debug=False, msg=f'Fetching file content...')
+                while current_size < self.size:
+                    data = self.endpoint.conn.recv(1024)
+                    if not data:
+                        break
+
+                    if len(data) + current_size > self.size:
+                        data = data[:self.size - current_size]
+
+                    buffer += data
+                    current_size += len(data)
+                    file.write(data)
+
+            logIt_thread(log_path, debug=False, msg=f'Fetch completed.')
+
+        except FileExistsError:
+            logIt_thread(log_path, debug=False, msg=f'File Exists error.')
+            pass
+
+    def confirm(self):
+        try:
+            logIt_thread(log_path, debug=False, msg=f'Waiting for answer from client...')
+            self.ans = self.endpoint.conn.recv(1024).decode()
+            logIt_thread(log_path, debug=False, msg=f'Client answer: {self.ans}')
+
+        except (ConnectionError, socket.error) as e:
+            logIt_thread(log_path, msg=f'{e}')
+            self.server.remove_lost_connection(self.endpoint)
+            return False
+
+    def show_picture(self):
+        self.sc.show()
+
+    def run(self):
+        try:
+            logIt_thread(log_path, msg=f'Sending screen command to client...')
+            self.endpoint.conn.send('screen'.encode())
+
+        except (ConnectionError, socket.error) as e:
+            logIt_thread(log_path, msg=f'{e}')
+            self.server.remove_lost_connection(self.endpoint)
+            return False
+
+        self.get_file_name()
+        self.get_file_size()
+        self.get_file_content()
+
+        try:
+            logIt_thread(log_path, msg=f'Sorting jpg files by creation time...')
+            self.images = glob.glob(fr"{self.screenshot_path}\*.jpg")
+            self.images.sort(key=os.path.getmtime)
+            logIt_thread(log_path, msg=f'Opening latest screenshot...')
+            self.sc = PIL.Image.open(self.images[-1])
+
+        except IndexError:
+            pass
+
+        logIt_thread(log_path, msg=f'Resizing to 650x350...')
+        self.sc_resized = self.sc.resize((650, 350))
+        self.last_screenshot = PIL.ImageTk.PhotoImage(self.sc_resized)
+
+        logIt_thread(log_path, msg=f'Building working frame...')
+        self.tab = Frame(self.app.notebook, height=350, background='slate gray')
+        logIt_thread(log_path, msg=f'Building Preview Button...')
+        button = Button(self.tab, image=self.last_screenshot, command=self.show_picture, border=5, bd=3)
+        button.pack(padx=5, pady=10)
+        self.endpoint.conn.send("OK".encode())
+
+        logIt_thread(log_path, msg=f'Adding tab to notebook...')
+        self.app.notebook.add(self.tab, text=f"Screenshot {self.endpoint.ident}")
+        logIt_thread(log_path, msg=f'Displaying latest notebook tab...')
+        self.app.notebook.select(self.tab)
+        self.app.displayed_screenshot_files.append(self.last_screenshot)
+        self.app.tabs += 1
+
+
+class Sysinfo:
+    def __init__(self, endpoint, app):
+        self.app = app
+        self.endpoint = endpoint
+        self.path = os.path.join(path, self.endpoint.ident)
+
+    def make_dir(self):
+        try:
+            os.makedirs(self.path)
+
+        except FileExistsError:
+            logIt_thread(log_path, debug=False, msg=f'Passing FileExistsError...')
+            pass
+
+    def get_file_name(self):
+        try:
+            logIt_thread(log_path, msg=f'Sending si command to {self.endpoint.conn}...')
+            self.endpoint.conn.send('si'.encode())
+            logIt_thread(log_path, msg=f'Send complete.')
+            self.filename = self.endpoint.conn.recv(1024).decode()
+            self.file_path = os.path.join(self.path, self.filename)
+
+        except (WindowsError, socket.error) as e:
+            logIt_thread(log_path, msg=f'Connection error: {e}')
+            return False
+
+    def get_file_size(self):
+        try:
+            self.size = self.endpoint.conn.recv(4)
+            self.endpoint.conn.send("OK".encode())
+            self.size = bytes_to_number(self.size)
+
+        except (WindowsError, socket.error) as e:
+            logIt_thread(log_path, msg=f'Connection error: {e}')
+            return False
+
+    def get_file_content(self):
+        current_size = 0
+        buffer = b""
+        with open(self.file_path, 'wb') as tsk_file:
+            while current_size < self.size:
+                logIt_thread(log_path, msg=f'Receiving file content from {self.endpoint.ip}...')
+                data = self.endpoint.conn.recv(1024)
+                if not data:
+                    break
+
+                if len(data) + current_size > self.size:
+                    data = data[:self.size - current_size]
+
+                buffer += data
+                current_size += len(data)
+                tsk_file.write(data)
+
+    def confirm(self):
+        try:
+            self.endpoint.conn.settimeout(10)
+            self.endpoint.conn.send(f"Received file: {self.filename}\n".encode())
+            logIt_thread(log_path, msg=f'Waiting for msg from {self.endpoint.ip}...')
+            msg = self.endpoint.conn.recv(1024).decode()
+            print(msg)
+            self.endpoint.conn.settimeout(None)
+
+        except (WindowsError, socket.error) as e:
+            logIt_thread(log_path, msg=f'Connection error: {e}')
+            return False
+
+    def file_validation(self):
+        try:
+            with open(self.file_path, 'r') as file:
+                data = file.read()
+                # print(data)   # for debugging
+
+        except Exception as e:
+            logIt_thread(log_path, msg=f'Error: {e}')
+            return False
+
+    def display_text(self):
+        with open(self.file_path, 'r') as file:
+            data = file.read()
+            self.tab = Frame(self.app.notebook, height=350)
+            tab_scrollbar = Scrollbar(self.tab, orient=VERTICAL)
+            tab_scrollbar.pack(side=LEFT, fill=Y)
+            tab_textbox = Text(self.tab, yscrollcommand=tab_scrollbar.set)
+            tab_textbox.pack(fill=BOTH)
+            self.app.notebook.add(self.tab, text=f"SysInfo {self.endpoint.ident}")
+            tab_scrollbar.configure(command=tab_textbox.yview)
+            tab_textbox.config(state=NORMAL)
+            tab_textbox.delete(1.0, END)
+            tab_textbox.insert(END, data)
+            tab_textbox.config(state=DISABLED)
+            self.app.notebook.select(self.tab)
+            self.app.tabs += 1
+
+    def run(self):
+        self.make_dir()
+        logIt_thread(log_path, msg=f'Defining file name...')
+        dt = get_date()
+        self.get_file_name()
+        self.get_file_size()
+        self.get_file_content()
+        self.confirm()
+        self.file_validation()
+        self.display_text()
+
+        return self.file_path
 
 
 class App(tk.Tk):
@@ -1074,140 +1288,19 @@ class App(tk.Tk):
         self.update_statusbar_messages_thread(msg='Details window cleared.')
         return
 
-    def show_picture(self):
-        self.sc.show()
-
     # Screenshot from Client
     def screenshot_command(self, endpoint) -> bool:
-        logIt_thread(log_path, msg=f'Running screenshot({endpoint.conn}, {endpoint.ip}, {endpoint.ident})...')
-        self.screenshot_path = fr"{path}\{endpoint.ident}"
         logIt_thread(log_path, msg=f'Calling self.disable_buttons_thread()...')
         self.disable_buttons_thread()
         self.running = True
-        try:
-            logIt_thread(log_path, msg=f'Sending screen command to client...')
-            endpoint.conn.send('screen'.encode())
-
-        except (ConnectionError, socket.error) as e:
-            logIt_thread(log_path, msg=f'{e}')
-            self.server.remove_lost_connection(endpoint)
-            return False
-
-        try:
-            filename = endpoint.conn.recv(1024)
-            endpoint.conn.send("Filename OK".encode())
-
-        except (ConnectionError, socket.error) as e:
-            logIt_thread(log_path, msg=f'{e}')
-            self.server.remove_lost_connection(endpoint)
-            return False
-
-        try:
-            size = endpoint.conn.recv(4)
-            size = bytes_to_number(size)
-
-        except (ConnectionError, socket.error) as e:
-            logIt_thread(log_path, msg=f'{e}')
-            self.server.remove_lost_connection(endpoint)
-            return False
-
-        current_size = 0
-        buffer = b""
-        try:
-            logIt_thread(log_path, debug=False, msg=f'Opening file: {filename} for writing...')
-            with open(filename, 'wb') as file:
-                logIt_thread(log_path, debug=False, msg=f'Fetching file content...')
-                while current_size < size:
-                    data = endpoint.conn.recv(1024)
-                    if not data:
-                        break
-
-                    if len(data) + current_size > size:
-                        data = data[:size - current_size]
-
-                    buffer += data
-                    current_size += len(data)
-                    file.write(data)
-
-            logIt_thread(log_path, debug=False, msg=f'Fetch completed.')
-
-        except FileExistsError:
-            logIt_thread(log_path, debug=False, msg=f'File Exists error.')
-            logIt_thread(log_path, debug=False, msg=f'Opening {filename} for appends...')
-            with open(filename, 'ab') as file:
-                while current_size < size:
-                    logIt_thread(log_path, debug=False, msg=f'Fetching file content...')
-                    data = endpoint.conn.recv(1024)
-                    if not data:
-                        break
-
-                    if len(data) + current_size > size:
-                        data = data[:size - current_size]
-
-                    buffer += data
-                    current_size += len(data)
-                    file.write(data)
-
-        try:
-            logIt_thread(log_path, debug=False, msg=f'Waiting for answer from client...')
-            ans = endpoint.conn.recv(1024).decode()
-            logIt_thread(log_path, debug=False, msg=f'Client answer: {ans}')
-
-        except (ConnectionError, socket.error) as e:
-            logIt_thread(log_path, msg=f'{e}')
-            self.server.remove_lost_connection(endpoint)
-            return False
-
-        logIt_thread(log_path, debug=False, msg=f'Running move({filename}, {path})...')
-        logIt_thread(log_path, debug=False, msg=f'Renaming {filename}...')
-        filename = str(filename).strip("b'")
-        logIt_thread(log_path, debug=False, msg=f'New filename: {filename}')
-
-        logIt_thread(log_path, debug=False, msg=f'Capturing {filename} absolute path...')
-        src = os.path.abspath(filename)
-        logIt_thread(log_path, debug=False, msg=f'Abs path: {src}')
-
-        logIt_thread(log_path, debug=False, msg=f'Defining destination...')
-        dst = fr"{self.screenshot_path}"
-        logIt_thread(log_path, debug=False, msg=f'Destination: {dst}.')
-
-        logIt_thread(log_path, debug=False, msg=f'Moving file...')
-        shutil.move(src, dst)
-        logIt_thread(log_path, debug=False, msg=f'File {filename} moved to {dst}.')
-
-        try:
-            logIt_thread(log_path, msg=f'Sorting jpg files by creation time...')
-            self.images = glob.glob(fr"{self.screenshot_path}\*.jpg")
-            self.images.sort(key=os.path.getmtime)
-            logIt_thread(log_path, msg=f'Opening latest screenshot...')
-            self.sc = PIL.Image.open(self.images[-1])
-
-        except IndexError:
-            pass
-
-        logIt_thread(log_path, msg=f'Resizing to 650x350...')
-        self.sc_resized = self.sc.resize((650, 350))
-        self.last_screenshot = PIL.ImageTk.PhotoImage(self.sc_resized)
-        self.displayed_screenshot_files.append(self.last_screenshot)
-
-        logIt_thread(log_path, msg=f'Building working frame...')
-        self.tab = Frame(self.notebook, height=350, background='slate gray')
-
-        logIt_thread(log_path, msg=f'Building Preview Button...')
-        button = Button(self.tab, image=self.last_screenshot, command=self.show_picture, border=5, bd=3)
-        button.pack(padx=5, pady=10)
-
-        logIt_thread(log_path, msg=f'Adding tab to notebook...')
-        self.notebook.add(self.tab, text=f"Screenshot {endpoint.ident}")
-
-        logIt_thread(log_path, msg=f'Displaying latest notebook tab...')
-        self.notebook.select(self.tab)
-        self.tabs += 1
+        get_screenshot = Screenshot(endpoint, self)
+        get_screenshot.run()
 
         logIt_thread(log_path, msg=f'Calling self.enable_buttons_thread()...')
         self.enable_buttons_thread()
         self.running = False
-        # return True
+        self.update_statusbar_messages_thread(msg=f'Screenshot received from '
+                                                  f'{endpoint.ip} | {endpoint.ident}.')
 
     # Run Anydesk on Client
     def anydesk_command(self, endpoint) -> bool:
@@ -1310,16 +1403,13 @@ class App(tk.Tk):
                                                   f'{endpoint.ip} | {endpoint.ident}...')
         try:
             logIt_thread(log_path, msg=f'Initializing Module: sysinfo...')
-            sinfo = sysinfo.Sysinfo(endpoint, path, log_path, self)
+            sinfo = Sysinfo(endpoint, self)
             logIt_thread(log_path, msg=f'Calling sysinfo.run()...')
             file_path = sinfo.run()
-            self.update_statusbar_messages_thread(msg=f'system information file received from '
-                                                      f'{endpoint.ip} | {endpoint.ident}.')
-            display = DisplayFileContent(self.notebook, file_path, self.system_information_tab,
-                                         sname=endpoint.ident, txt='System Information')
-            display.run()
             self.running = False
             self.enable_buttons_thread()
+            self.update_statusbar_messages_thread(msg=f'system information file received from '
+                                                      f'{endpoint.ip} | {endpoint.ident}.')
 
         except (WindowsError, socket.error, ConnectionResetError) as e:
             logIt_thread(log_path, debug=True, msg=f'Connection Error: {e}.')
