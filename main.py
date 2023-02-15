@@ -458,26 +458,6 @@ class Commands:
                               name="Vitals Thread")
         vitalsThread.start()
 
-    # Refresh server info & connected stations table with vital signs
-    def refresh_command(self, event=0) -> None:
-        logIt_thread(log_path, msg=f'Running refresh()...')
-        logIt_thread(log_path, msg=f'Calling self_disable_buttons_thread(sidebar=False)...')
-        self.app.disable_buttons_thread()
-        logIt_thread(log_path, msg=f'Resetting tmp_availables list...')
-        self.app.server.tmp_availables = []
-        self.app.temp.clear()
-        logIt_thread(log_path, msg=f'Calling vital_signs_thread()...')
-        self.vital_signs_thread()
-        logIt_thread(log_path, msg=f'Calling server_information()...')
-        self.app.server_information()
-        logIt_thread(log_path, msg=f'Calling update_tools_menu()...')
-        self.app.update_tools_menu(None)
-        logIt_thread(log_path, msg=f'Calling show_available_connections()...')
-        self.app.show_available_connections()
-        logIt_thread(log_path, msg=f'Calling connection_history()...')
-        self.app.connection_history()
-        self.app.update_statusbar_messages_thread(msg='refresh complete.')
-
     # Run Anydesk on Client
     def anydesk_command(self) -> bool:
         logIt_thread(log_path, msg=f'Running anydesk({self.endpoint.conn}, {self.endpoint.ip})...')
@@ -711,7 +691,7 @@ class App(tk.Tk):
         self.style = ttk.Style()
         self.update_url = StringVar()
         self.new_url = ''
-        self.server = Server(log_path, self, args.ip, args.port)
+        self.server = Server(log_path, self, args.ip, args.port, path)
         self.running = False
 
         # ======== Server Config ==========
@@ -751,7 +731,7 @@ class App(tk.Tk):
 
         # Bind Keyboard Shortcut Keys
         self.bind("<F1>", Commands(None, self).about)
-        self.bind("<F5>", Commands(None, self).refresh_command)
+        self.bind("<F5>", self.refresh_command)
         self.bind("<F6>", Commands(None, self).clear_notebook_command)
 
         # Set Closing protocol
@@ -866,7 +846,7 @@ class App(tk.Tk):
         file.add_separator()
         file.add_command(label="Exit", command=self.on_closing)
 
-        self.tools.add_command(label="Refresh <F5>", command=Commands(None, self).refresh_command)
+        self.tools.add_command(label="Refresh <F5>", command=self.refresh_command)
         self.tools.add_command(label="Clear Details <F6>", command=Commands(None, self).clear_notebook_command)
         self.tools.add_command(label="Save Connection History <F10>",
                                command=Commands(None, self).save_connection_history_thread,
@@ -991,7 +971,7 @@ class App(tk.Tk):
 
         self.refresh_btn = Button(self.controller_btns, text=" Refresh", image=refresh_img,
                                   compound=LEFT, anchor=W,
-                                  width=75, pady=5, command=Commands(None, self).refresh_command)
+                                  width=75, pady=5, command=self.refresh_command)
         self.refresh_btn.image = refresh_img
         self.refresh_btn.grid(row=0, column=0, pady=5, padx=2)
 
@@ -1212,7 +1192,7 @@ class App(tk.Tk):
             self.update_statusbar_messages_thread(msg=f'{e}')
             logIt_thread(log_path, msg=f'Calling server.remove_lost_connection('
                                        f'{endpoint.conn}, {endpoint.ip})...')
-            server.remove_lost_connection(endpoint)
+            self.server.remove_lost_connection(endpoint)
             return False
 
     # Display Server Information
@@ -1304,6 +1284,26 @@ class App(tk.Tk):
             logIt_thread(log_path, msg=f'Waiting for input...')
             cmd = input(f"")
 
+    # Refresh server info & connected stations table with vital signs
+    def refresh_command(self, event=0) -> None:
+        logIt_thread(log_path, msg=f'Running refresh()...')
+        logIt_thread(log_path, msg=f'Calling self_disable_buttons_thread(sidebar=False)...')
+        self.disable_buttons_thread()
+        logIt_thread(log_path, msg=f'Resetting tmp_availables list...')
+        self.server.tmp_availables = []
+        self.temp.clear()
+        logIt_thread(log_path, msg=f'Calling vital_signs_thread()...')
+        Commands(None, self).vital_signs_thread()
+        logIt_thread(log_path, msg=f'Calling server_information()...')
+        self.server_information()
+        logIt_thread(log_path, msg=f'Calling update_tools_menu()...')
+        self.update_tools_menu(None)
+        logIt_thread(log_path, msg=f'Calling show_available_connections()...')
+        self.show_available_connections()
+        logIt_thread(log_path, msg=f'Calling connection_history()...')
+        self.connection_history()
+        self.update_statusbar_messages_thread(msg='refresh complete.')
+
     # Manage Connected Table & Controller LabelFrame Buttons
     def select_item(self, event) -> bool:
         logIt_thread(log_path, msg=f'Running select_item()...')
@@ -1344,6 +1344,7 @@ class App(tk.Tk):
                             logIt_thread(log_path, msg=f'Disconnected from endpoint {endpoint.ip}...')
                             self.server.remove_lost_connection(endpoint)
                             self.temp.clear()
+                            self.refresh_command()
                             break
 
                         self.temp.clear()
