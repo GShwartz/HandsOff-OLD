@@ -76,13 +76,38 @@ class Screenshot:
             self.app.server.remove_lost_connection(self.endpoint)
             return False
 
+    def show_picture_thread(self):
+        Thread(target=self.show_picture, name="Show Picture").start()
+
     def show_picture(self):
+        self.button.config(bg='sea green')
         self.sc.show()
+
+    def display_notebook_frame(self):
+        logIt_thread(self.log_path, msg=f'Building working frame...')
+        self.tab = Frame(self.app.notebook, height=350, background='slate gray')
+        logIt_thread(self.log_path, msg=f'Building Preview Button...')
+        self.button = Button(self.tab, image=self.last_screenshot, command=self.show_picture_thread, background='sea green')
+        self.button.pack(padx=5, pady=5)
+        self.endpoint.conn.send("OK".encode())
+
+        logIt_thread(self.log_path, msg=f'Adding tab to notebook...')
+        self.app.notebook.add(self.tab, text=f"Screenshot {self.endpoint.ident}")
+        logIt_thread(self.log_path, msg=f'Displaying latest notebook tab...')
+        self.app.notebook.select(self.tab)
+        self.app.displayed_screenshot_files.append(self.last_screenshot)
+        self.app.tabs += 1
+
+        self.app.enable_buttons_thread()
+        self.app.running = False
+        self.app.update_statusbar_messages_thread(msg=f'Screenshot received from '
+                                                      f'{self.endpoint.ip} | {self.endpoint.ident}.')
 
     def run(self):
         self.app.disable_buttons_thread()
         self.app.running = True
-        self.app.update_statusbar_messages_thread(msg=f'Fetching screenshot from {self.endpoint.ip} | {self.endpoint.ident}...')
+        self.app.update_statusbar_messages_thread(
+            msg=f'Fetching screenshot from {self.endpoint.ip} | {self.endpoint.ident}...')
 
         try:
             logIt_thread(self.log_path, msg=f'Sending screen command to client...')
@@ -112,23 +137,7 @@ class Screenshot:
         self.last_screenshot = PIL.ImageTk.PhotoImage(self.sc_resized)
 
         logIt_thread(self.log_path, msg=f'Building working frame...')
-        self.tab = Frame(self.app.notebook, height=350, background='slate gray')
-        logIt_thread(self.log_path, msg=f'Building Preview Button...')
-        button = Button(self.tab, image=self.last_screenshot, command=self.show_picture, border=5, bd=3)
-        button.pack(padx=5, pady=10)
-        self.endpoint.conn.send("OK".encode())
-
-        logIt_thread(self.log_path, msg=f'Adding tab to notebook...')
-        self.app.notebook.add(self.tab, text=f"Screenshot {self.endpoint.ident}")
-        logIt_thread(self.log_path, msg=f'Displaying latest notebook tab...')
-        self.app.notebook.select(self.tab)
-        self.app.displayed_screenshot_files.append(self.last_screenshot)
-        self.app.tabs += 1
-
-        self.app.enable_buttons_thread()
-        self.app.running = False
-        self.app.update_statusbar_messages_thread(msg=f'Screenshot received from '
-                                                  f'{self.endpoint.ip} | {self.endpoint.ident}.')
+        self.display_notebook_frame()
 
 
 def logIt_thread(log_path=None, debug=False, msg='') -> None:
