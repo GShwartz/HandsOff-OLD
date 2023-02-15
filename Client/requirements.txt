@@ -1,5 +1,7 @@
+PySimpleGUI
 Pillow
+requests~=2.28.2
 pystray
 psutil
 wget
-PySimpleGUI
+pywin32
