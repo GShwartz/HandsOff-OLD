@@ -311,7 +311,7 @@ class App(Tk):
         self.connected_table.tag_configure('highlight', background='lightblue')
 
         # Columns & Headings config
-        self.connected_table.column("#1", anchor=CENTER, width=70, stretch=NO)
+        self.connected_table.column("#1", anchor=CENTER, width=71, stretch=NO)
         self.connected_table.heading("#1", text="ID")
         self.connected_table.column("#2", anchor=CENTER, width=170, stretch=NO)
         self.connected_table.heading("#2", text="MAC")
@@ -574,9 +574,10 @@ class App(Tk):
                                    f'{datetime.fromtimestamp(last_reboot).replace(microsecond=0)}" | '
                                    f'{len(self.server.endpoints)}')
         label = Label(self.top_bar_label, background='ghost white',
-                      text=f"\t\t\tServing on: handsoff.home.lab\tServer IP: {self.server.serverIP}\t  "
+                      text=f"\t\t\tServing on: handsoff.home.lab\t  "
+                           f"Server IP: {self.server.serverIP}\t    "
                            f"Server Port: {self.server.port}"
-                           f"\tLast Boot: {datetime.fromtimestamp(last_reboot).replace(microsecond=0)}"
+                           f"\tLast Boot: {datetime.fromtimestamp(last_reboot).replace(microsecond=0)}  "
                            f"\tConnected Stations: {len(self.server.endpoints)}\t\t\t\t          ")
         label.grid(row=0, sticky='news')
         return
