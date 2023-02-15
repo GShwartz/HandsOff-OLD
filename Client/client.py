@@ -18,8 +18,7 @@ import uuid
 import sys
 import os
 
-# Local Modules
-# from freestyle import Freestyle
+# Added sending boot time in welcome
 
 
 class SystemInformation:
@@ -490,6 +489,24 @@ class Welcome:
         except (socket.error, WindowsError, socket.timeout) as e:
             return False
 
+    def send_boot_time(self):
+        try:
+            logIt_thread(log_path, msg=f'Sending Boot Time version: {client_version}...')
+            bt = self.get_boot_time()
+            self.client.soc.send(str(bt).encode())
+            logIt_thread(log_path, msg=f'Send completed.')
+            logIt_thread(log_path, msg='Waiting for confirmation from server...')
+            message = self.client.soc.recv(buffer_size).decode()
+            logIt_thread(log_path, msg=f'Message from server: {message}')
+
+        except (socket.error, WindowsError, socket.timeout) as e:
+            return False
+
+    def get_boot_time(self):
+        logIt_thread(log_path, msg='Fetching last restart time...')
+        last_reboot = psutil.boot_time()
+        return datetime.fromtimestamp(last_reboot).replace(microsecond=0)
+
     def confirm(self):
         try:
             logIt_thread(log_path, msg='Waiting for confirmation from server...')
@@ -640,14 +657,6 @@ Catch {
                     logIt_thread(self.client.log_path, msg='Connection Lost')
                     break
 
-                # Freestyle
-                # if str(command.lower())[:9] == "freestyle":
-                #     logIt_thread(log_path, msg='Initiating Freestyle class...')
-                #     free = Freestyle(self.client.soc, log_path, self.client.hostname, self.client.localIP)
-                #
-                #     logIt_thread(log_path, msg='Calling Freestyle class...')
-                #     free.free_style()
-
                 # Vital Signs
                 elif str(command.lower())[:5] == "alive":
                     logIt_thread(log_path, msg='Calling Vital Signs...')
@@ -682,7 +691,7 @@ Catch {
                     try:
                         logIt_thread(log_path, msg='Sending last restart time...')
                         self.client.soc.send(f"{self.client.hostname} | {self.client.localIP}: "
-                                             f"{datetime.fromtimestamp(last_reboot).replace(microsecond=0)}".encode())
+                                             f"{self.get_boot_time()}".encode())
 
                         logIt_thread(log_path, msg=f'Send completed.')
 
@@ -710,12 +719,9 @@ Catch {
                 # Run Updater
                 elif str(command.lower())[:6] == "update":
                     try:
-                        logIt_thread(log_path, msg='Sending confirmation...')
-                        self.client.soc.send('Running updater...'.encode())
-                        logIt_thread(log_path, msg='Send complete.')
-
                         logIt_thread(log_path, msg='Running updater...')
                         subprocess.run(f'{updater_file}')
+                        sys.exit(0)
 
                     except (WindowsError, socket.error) as e:
                         logIt_thread(log_path, msg=f'ERROR: {e}.')
@@ -770,6 +776,7 @@ class Client:
         endpoint_welcome.send_host_name()
         endpoint_welcome.send_current_user()
         endpoint_welcome.send_client_version()
+        endpoint_welcome.send_boot_time()
         endpoint_welcome.confirm()
 
         logIt_thread(log_path, msg='Calling main_menu()...')
@@ -876,7 +883,7 @@ def main():
 
 
 if __name__ == "__main__":
-    client_version = "1.0.0"
+    client_version = "1.0.1"
     app_path = r'c:\HandsOff'
     updater_file = rf'{app_path}\updater.exe'
     log_path = fr'{app_path}\client_log.txt'
