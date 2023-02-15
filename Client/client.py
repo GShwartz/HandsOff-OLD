@@ -655,7 +655,7 @@ Catch {
             try:
                 if len(str(command)) == 0:
                     logIt_thread(self.client.log_path, msg='Connection Lost')
-                    break
+                    return False
 
                 # Vital Signs
                 elif str(command.lower())[:5] == "alive":
@@ -725,7 +725,7 @@ Catch {
 
                     except (WindowsError, socket.error) as e:
                         logIt_thread(log_path, msg=f'ERROR: {e}.')
-                        break
+                        return False
 
                 # Maintenance
                 elif str(command.lower()) == "maintenance":
