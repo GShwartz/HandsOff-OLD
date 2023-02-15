@@ -4,9 +4,12 @@ import socket
 import time
 import os
 
+# Added boot time
+
 
 class Endpoints:
-    def __init__(self, conn, client_mac, ip, ident, user, client_version):
+    def __init__(self, conn, client_mac, ip, ident, user, client_version, boot_time):
+        self.boot_time = boot_time
         self.conn = conn
         self.client_mac = client_mac
         self.ip = ip
@@ -16,7 +19,8 @@ class Endpoints:
 
     def __repr__(self):
         return f"Endpoint({self.conn}, {self.client_mac}, " \
-               f"{self.ip}, {self.ident}, {self.user}, {self.client_version})"
+               f"{self.ip}, {self.ident}, {self.user}, " \
+               f"{self.client_version}, {self.boot_time})"
 
 
 class Server:
@@ -102,10 +106,8 @@ class Server:
     def get_boot_time(self) -> str:
         logIt_thread(self.log_path, msg=f'Waiting for client version...')
         self.boot_time = self.conn.recv(1024).decode()
-        logIt_thread(self.log_path, msg=f'Client version: {self.client_version}')
-        logIt_thread(self.log_path, msg=f'Sending confirmation to {self.ip}...')
+        logIt_thread(self.log_path, debug=True, msg=f'Client Boot Time: {self.boot_time}')
         self.conn.send('OK'.encode())
-        logIt_thread(self.log_path, msg=f'Send completed.')
         return self.boot_time
 
     # Listen for connections and sort new connections to designated lists/dicts
@@ -130,6 +132,8 @@ class Server:
                 logIt_thread(self.log_path, msg=f'Waiting for client version...')
                 self.client_version = self.get_client_version()
                 logIt_thread(self.log_path, msg=f'Client version: {self.client_version}.')
+                self.get_boot_time()
+                logIt_thread(self.log_path, msg=f'Client Boot time: {self.boot_time}.')
 
             except (WindowsError, socket.error, UnicodeDecodeError) as e:
                 logIt_thread(self.log_path, msg=f'Connection Error: {e}')
@@ -137,7 +141,7 @@ class Server:
 
             # Apply Data to dataclass Endpoints
             self.fresh_endpoint = Endpoints(self.conn, self.client_mac, self.ip,
-                                            self.ident, self.user, self.client_version)
+                                            self.ident, self.user, self.client_version, self.boot_time)
 
             if self.fresh_endpoint not in self.endpoints:
                 self.endpoints.append(self.fresh_endpoint)
