@@ -1,183 +1,177 @@
 from datetime import datetime
 from threading import Thread
-from PIL import Image
-import subprocess
-import socket
+from tkinter import *
+import PIL.ImageTk
+import PIL.Image
 import shutil
-import time
+import socket
+import glob
 import os
 
 
 class Screenshot:
-    def __init__(self, endpoint, root, log_path):
+    def __init__(self, endpoint, app, path, log_path):
         self.endpoint = endpoint
-        self.root = root
+        self.app = app
+        self.path = path
         self.log_path = log_path
+        self.screenshot_path = fr"{self.path}\{self.endpoint.ident}"
 
-    def get_date(self):
-        d = datetime.now().replace(microsecond=0)
-        dt = str(d.strftime("%m/%d/%Y %H:%M:%S"))
-
-        return dt
-
-    def logIt_thread(self, log_path=None, debug=False, msg=''):
-        self.logit_thread = Thread(target=self.logIt, args=(log_path, debug, msg), name="Log Thread")
-        self.logit_thread.start()
-        return
-
-    def logIt(self, logfile=None, debug=None, msg=''):
-        dt = self.get_date()
-        if debug:
-            print(f"{dt}: {msg}")
-
-        if logfile is not None:
-            try:
-                if not os.path.exists(logfile):
-                    with open(logfile, 'w') as lf:
-                        lf.write(f"{dt}: {msg}\n")
-
-                    return True
-
-                else:
-                    with open(logfile, 'a') as lf:
-                        lf.write(f"{dt}: {msg}\n")
-
-                    return True
-
-            except FileExistsError:
-                pass
-
-    def bytes_to_number(self, b):
-        res = 0
-        for i in range(4):
-            res += b[i] << (i * 8)
-        return res
-
-    def recv_file(self):
-        def file_name():
-            self.logIt_thread(self.log_path, debug=False, msg=f'Running file_name()...')
-            try:
-                self.logIt_thread(self.log_path, debug=False, msg=f'Waiting for filename from client...')
-                filename = self.endpoint.conn.recv(1024)
-                self.logIt_thread(self.log_path, debug=False, msg=f'File name: {filename}')
-
-                self.logIt_thread(self.log_path, debug=False, msg=f'Sending confirmation to client...')
-                self.endpoint.conn.send("Filename OK".encode())
-                self.logIt_thread(self.log_path, debug=False, msg=f'Send completed.')
-
-                return filename
-
-            except (WindowsError, socket.error) as e:
-                self.logIt_thread(self.log_path, debug=True, msg=f'Error: {e}')
-                return False
-
-        def fetch(filename):
-            self.logIt_thread(self.log_path, debug=False, msg=f'Running fetch()...')
-            try:
-                self.logIt_thread(self.log_path, debug=False, msg=f'Waiting for file size...')
-                size = self.endpoint.conn.recv(4)
-                self.logIt_thread(self.log_path, debug=False, msg=f'File size: {size}')
-
-                self.logIt_thread(self.log_path, debug=False, msg=f'Converting size bytes to numbers...')
-                size = self.bytes_to_number(size)
-                self.logIt_thread(self.log_path, debug=False, msg=f'Converting completed.')
-
-                current_size = 0
-                buffer = b""
-                try:
-                    self.logIt_thread(self.log_path, debug=False, msg=f'Opening file: {filename} for writing...')
-                    with open(filename, 'wb') as file:
-                        self.logIt_thread(self.log_path, debug=False, msg=f'Fetching file content...')
-                        while current_size < size:
-                            data = self.endpoint.conn.recv(1024)
-                            if not data:
-                                break
-
-                            if len(data) + current_size > size:
-                                data = data[:size - current_size]
-
-                            buffer += data
-                            current_size += len(data)
-                            file.write(data)
-
-                    self.logIt_thread(self.log_path, debug=False, msg=f'Fetch completed.')
-
-                except FileExistsError:
-                    self.logIt_thread(self.log_path, debug=False, msg=f'File Exists error.')
-                    self.logIt_thread(self.log_path, debug=False, msg=f'Opening {filename} for appends...')
-                    with open(filename, 'ab') as file:
-                        while current_size < size:
-                            self.logIt_thread(self.log_path, debug=False, msg=f'Fetching file content...')
-                            data = self.endpoint.conn.recv(1024)
-                            if not data:
-                                break
-
-                            if len(data) + current_size > size:
-                                data = data[:size - current_size]
-
-                            buffer += data
-                            current_size += len(data)
-                            file.write(data)
-
-                    self.logIt_thread(self.log_path, debug=False, msg=f'Fetch completed.')
-
-                # Show Image
-                with Image.open(filename) as img:
-                    img.show()
-
-                return
-
-            except (WindowsError, socket.error) as e:
-                self.logIt_thread(self.log_path, debug=True, msg=f'Error: {e}')
-                return False
-
-        def confirm():
-            self.logIt_thread(self.log_path, debug=False, msg=f'Running confirm()...')
-            try:
-                self.logIt_thread(self.log_path, debug=False, msg=f'Waiting for answer from client...')
-                ans = self.endpoint.conn.recv(1024).decode()
-                self.logIt_thread(self.log_path, debug=False, msg=f'Client answer: {ans}')
-
-            except (WindowsError, socket.error) as e:
-                self.logIt_thread(self.log_path, debug=False, msg=f'Error: {e}')
-                return False
-
-        def move(filename, path):
-            self.logIt_thread(self.log_path, debug=False, msg=f'Running move({filename}, {path})...')
-            # Move screenshot file to directory
-            self.logIt_thread(self.log_path, debug=False, msg=f'Renaming {filename}...')
-            filename = str(filename).strip("b'")
-            self.logIt_thread(self.log_path, debug=False, msg=f'New filename: {filename}')
-
-            self.logIt_thread(self.log_path, debug=False, msg=f'Capturing {filename} absolute path...')
-            src = os.path.abspath(filename)
-            self.logIt_thread(self.log_path, debug=False, msg=f'Abs path: {src}')
-
-            self.logIt_thread(self.log_path, debug=False, msg=f'Defining destination...')
-            dst = fr"{path}"
-            self.logIt_thread(self.log_path, debug=False, msg=f'Destination: {dst}.')
-
-            self.logIt_thread(self.log_path, debug=False, msg=f'Moving file...')
-            shutil.move(src, dst)
-            self.logIt_thread(self.log_path, debug=False, msg=f'File {filename} moved to {dst}.')
-
-        path = os.path.join(self.root, self.endpoint.ident)
+    def get_file_name(self):
         try:
-            os.makedirs(path)
+            self.filename = self.endpoint.conn.recv(1024)
+            self.filename = str(self.filename).strip("b'")
+            self.endpoint.conn.send("Filename OK".encode())
+            self.screenshot_file_path = os.path.join(self.screenshot_path, self.filename)
+
+        except (ConnectionError, socket.error) as e:
+            logIt_thread(self.log_path, msg=f'{e}')
+            self.app.server.remove_lost_connection(self.endpoint)
+            return False
+
+    def get_file_size(self):
+        try:
+            self.size = self.endpoint.conn.recv(4)
+            self.endpoint.conn.send("OK".encode())
+            self.size = bytes_to_number(self.size)
+
+        except (ConnectionError, socket.error) as e:
+            logIt_thread(self.log_path, msg=f'{e}')
+            self.app.server.remove_lost_connection(self.endpoint)
+            return False
+
+    def get_file_content(self):
+        current_size = 0
+        buffer = b""
+        try:
+            logIt_thread(self.log_path, debug=False, msg=f'Opening file: {self.filename} for writing...')
+            with open(self.screenshot_file_path, 'wb') as file:
+                logIt_thread(self.log_path, debug=False, msg=f'Fetching file content...')
+                while current_size < self.size:
+                    data = self.endpoint.conn.recv(1024)
+                    if not data:
+                        break
+
+                    if len(data) + current_size > self.size:
+                        data = data[:self.size - current_size]
+
+                    buffer += data
+                    current_size += len(data)
+                    file.write(data)
+
+            logIt_thread(self.log_path, debug=False, msg=f'Fetch completed.')
+
+        except FileExistsError:
+            logIt_thread(self.log_path, debug=False, msg=f'File Exists error.')
+            pass
+
+    def confirm(self):
+        try:
+            logIt_thread(self.log_path, debug=False, msg=f'Waiting for answer from client...')
+            self.ans = self.endpoint.conn.recv(1024).decode()
+            logIt_thread(self.log_path, debug=False, msg=f'Client answer: {self.ans}')
+
+        except (ConnectionError, socket.error) as e:
+            logIt_thread(log_path, msg=f'{e}')
+            self.app.server.remove_lost_connection(self.endpoint)
+            return False
+
+    def show_picture(self):
+        self.sc.show()
+
+    def run(self):
+        self.app.disable_buttons_thread()
+        self.app.running = True
+        self.app.update_statusbar_messages_thread(msg=f'Fetching screenshot from {self.endpoint.ip} | {self.endpoint.ident}...')
+
+        try:
+            logIt_thread(self.log_path, msg=f'Sending screen command to client...')
+            self.endpoint.conn.send('screen'.encode())
+
+        except (ConnectionError, socket.error) as e:
+            logIt_thread(self.log_path, msg=f'{e}')
+            self.app.server.remove_lost_connection(self.endpoint)
+            return False
+
+        self.get_file_name()
+        self.get_file_size()
+        self.get_file_content()
+
+        try:
+            logIt_thread(self.log_path, msg=f'Sorting jpg files by creation time...')
+            self.images = glob.glob(fr"{self.screenshot_path}\*.jpg")
+            self.images.sort(key=os.path.getmtime)
+            logIt_thread(self.log_path, msg=f'Opening latest screenshot...')
+            self.sc = PIL.Image.open(self.images[-1])
+
+        except IndexError:
+            pass
+
+        logIt_thread(self.log_path, msg=f'Resizing to 650x350...')
+        self.sc_resized = self.sc.resize((650, 350))
+        self.last_screenshot = PIL.ImageTk.PhotoImage(self.sc_resized)
+
+        logIt_thread(self.log_path, msg=f'Building working frame...')
+        self.tab = Frame(self.app.notebook, height=350, background='slate gray')
+        logIt_thread(self.log_path, msg=f'Building Preview Button...')
+        button = Button(self.tab, image=self.last_screenshot, command=self.show_picture, border=5, bd=3)
+        button.pack(padx=5, pady=10)
+        self.endpoint.conn.send("OK".encode())
+
+        logIt_thread(self.log_path, msg=f'Adding tab to notebook...')
+        self.app.notebook.add(self.tab, text=f"Screenshot {self.endpoint.ident}")
+        logIt_thread(self.log_path, msg=f'Displaying latest notebook tab...')
+        self.app.notebook.select(self.tab)
+        self.app.displayed_screenshot_files.append(self.last_screenshot)
+        self.app.tabs += 1
+
+        self.app.enable_buttons_thread()
+        self.app.running = False
+        self.app.update_statusbar_messages_thread(msg=f'Screenshot received from '
+                                                  f'{self.endpoint.ip} | {self.endpoint.ident}.')
+
+
+def logIt_thread(log_path=None, debug=False, msg='') -> None:
+    logit_thread = Thread(target=logIt,
+                          args=(log_path, debug, msg),
+                          daemon=True,
+                          name="Log Thread")
+    logit_thread.start()
+
+
+def bytes_to_number(b: int) -> int:
+    dt = get_date()
+    res = 0
+    for i in range(4):
+        res += b[i] << (i * 8)
+    return res
+
+
+def get_date() -> str:
+    d = datetime.now().replace(microsecond=0)
+    dt = str(d.strftime("%m/%d/%Y %H:%M:%S"))
+
+    return dt
+
+
+def logIt(logfile=None, debug=None, msg='') -> bool:
+    dt = get_date()
+    if debug:
+        print(f"{dt}: {msg}")
+
+    if logfile is not None:
+        try:
+            if not os.path.exists(logfile):
+                with open(logfile, 'w') as lf:
+                    lf.write(f"{dt}: {msg}\n")
+
+                return True
+
+            else:
+                with open(logfile, 'a') as lf:
+                    lf.write(f"{dt}: {msg}\n")
+
+                return True
 
         except FileExistsError:
             pass
-
-        self.logIt_thread(self.log_path, debug=False, msg=f'Defining filename...')
-        filename = file_name()
-        self.logIt_thread(self.log_path, debug=False, msg=f'File name: {filename}.')
-
-        self.logIt_thread(self.log_path, debug=False, msg=f'Calling fetch({filename})...')
-        fetch(filename)
-
-        confirm()
-
-        self.logIt_thread(self.log_path, debug=False, msg=f'Calling move({filename}, {path})')
-        move(filename, path)
-
-        self.logIt_thread(self.log_path, debug=False, msg=f'=== End of self.recv() ===')
