@@ -20,7 +20,8 @@ class Endpoints:
 
 
 class Server:
-    def __init__(self, log_path, app, ip, port):
+    def __init__(self, log_path, app, ip, port, path):
+        self.path = path
         self.port = port
         self.serverIP = ip
         self.hostname = socket.gethostname()
@@ -98,6 +99,15 @@ class Server:
         logIt_thread(self.log_path, msg=f'Send completed.')
         return self.client_version
 
+    def get_boot_time(self) -> str:
+        logIt_thread(self.log_path, msg=f'Waiting for client version...')
+        self.boot_time = self.conn.recv(1024).decode()
+        logIt_thread(self.log_path, msg=f'Client version: {self.client_version}')
+        logIt_thread(self.log_path, msg=f'Sending confirmation to {self.ip}...')
+        self.conn.send('OK'.encode())
+        logIt_thread(self.log_path, msg=f'Send completed.')
+        return self.boot_time
+
     # Listen for connections and sort new connections to designated lists/dicts
     def connect(self) -> None:
         logIt_thread(self.log_path, msg=f'Running connect()...')
@@ -139,7 +149,7 @@ class Server:
     # Check if connected stations are still connected
     def vital_signs(self) -> bool:
         logIt_thread(self.log_path, msg=f'Running vital_signs()...')
-        if len(self.endpoints) == 0:
+        if not self.endpoints:
             self.app.update_statusbar_messages_thread(msg='No connected stations.')
             return False
 
@@ -191,16 +201,12 @@ class Server:
         try:
             logIt_thread(self.log_path, msg=f'Removing '
                                             f'{endpoint.ip} | {endpoint.ident}...')
-            for ep in self.endpoints:
-                if ep.conn == endpoint.conn:
-                    ep.conn.close()
-                    self.endpoints.remove(endpoint)
-                    self.app.temp.clear()
+            self.endpoints.remove(endpoint)
+            self.app.refresh_command()
 
             # Update statusbar message
             self.app.update_statusbar_messages_thread(
                 msg=f'{endpoint.ip} | {endpoint.ident} | {endpoint.user} removed from connected list.')
-
             logIt_thread(self.log_path, msg=f'{endpoint.ip} | {endpoint.ident} removed.')
             return True
 
