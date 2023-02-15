@@ -30,240 +30,8 @@ import tkinter as tk
 from Modules.server import Server
 from Modules.about import About
 from Modules.tasks import Tasks
-
-
-class Screenshot:
-    def __init__(self, endpoint, app):
-        self.endpoint = endpoint
-        self.app = app
-        self.screenshot_path = fr"{path}\{self.endpoint.ident}"
-
-    def get_file_name(self):
-        try:
-            self.filename = self.endpoint.conn.recv(1024)
-            self.filename = str(self.filename).strip("b'")
-            self.endpoint.conn.send("Filename OK".encode())
-            self.screenshot_file_path = os.path.join(self.screenshot_path, self.filename)
-
-        except (ConnectionError, socket.error) as e:
-            logIt_thread(log_path, msg=f'{e}')
-            self.server.remove_lost_connection(self.endpoint)
-            return False
-
-    def get_file_size(self):
-        try:
-            self.size = self.endpoint.conn.recv(4)
-            self.endpoint.conn.send("OK".encode())
-            self.size = bytes_to_number(self.size)
-
-        except (ConnectionError, socket.error) as e:
-            logIt_thread(log_path, msg=f'{e}')
-            self.server.remove_lost_connection(self.endpoint)
-            return False
-
-    def get_file_content(self):
-        current_size = 0
-        buffer = b""
-        try:
-            logIt_thread(log_path, debug=False, msg=f'Opening file: {self.filename} for writing...')
-            with open(self.screenshot_file_path, 'wb') as file:
-                logIt_thread(log_path, debug=False, msg=f'Fetching file content...')
-                while current_size < self.size:
-                    data = self.endpoint.conn.recv(1024)
-                    if not data:
-                        break
-
-                    if len(data) + current_size > self.size:
-                        data = data[:self.size - current_size]
-
-                    buffer += data
-                    current_size += len(data)
-                    file.write(data)
-
-            logIt_thread(log_path, debug=False, msg=f'Fetch completed.')
-
-        except FileExistsError:
-            logIt_thread(log_path, debug=False, msg=f'File Exists error.')
-            pass
-
-    def confirm(self):
-        try:
-            logIt_thread(log_path, debug=False, msg=f'Waiting for answer from client...')
-            self.ans = self.endpoint.conn.recv(1024).decode()
-            logIt_thread(log_path, debug=False, msg=f'Client answer: {self.ans}')
-
-        except (ConnectionError, socket.error) as e:
-            logIt_thread(log_path, msg=f'{e}')
-            self.server.remove_lost_connection(self.endpoint)
-            return False
-
-    def show_picture(self):
-        self.sc.show()
-
-    def run(self):
-        self.app.disable_buttons_thread()
-        self.app.running = True
-        self.app.update_statusbar_messages_thread(msg=f'Fetching screenshot from {self.endpoint.ip} | {self.endpoint.ident}...')
-
-        try:
-            logIt_thread(log_path, msg=f'Sending screen command to client...')
-            self.endpoint.conn.send('screen'.encode())
-
-        except (ConnectionError, socket.error) as e:
-            logIt_thread(log_path, msg=f'{e}')
-            self.app.server.remove_lost_connection(self.endpoint)
-            return False
-
-        self.get_file_name()
-        self.get_file_size()
-        self.get_file_content()
-
-        try:
-            logIt_thread(log_path, msg=f'Sorting jpg files by creation time...')
-            self.images = glob.glob(fr"{self.screenshot_path}\*.jpg")
-            self.images.sort(key=os.path.getmtime)
-            logIt_thread(log_path, msg=f'Opening latest screenshot...')
-            self.sc = PIL.Image.open(self.images[-1])
-
-        except IndexError:
-            pass
-
-        logIt_thread(log_path, msg=f'Resizing to 650x350...')
-        self.sc_resized = self.sc.resize((650, 350))
-        self.last_screenshot = PIL.ImageTk.PhotoImage(self.sc_resized)
-
-        logIt_thread(log_path, msg=f'Building working frame...')
-        self.tab = Frame(self.app.notebook, height=350, background='slate gray')
-        logIt_thread(log_path, msg=f'Building Preview Button...')
-        button = Button(self.tab, image=self.last_screenshot, command=self.show_picture, border=5, bd=3)
-        button.pack(padx=5, pady=10)
-        self.endpoint.conn.send("OK".encode())
-
-        logIt_thread(log_path, msg=f'Adding tab to notebook...')
-        self.app.notebook.add(self.tab, text=f"Screenshot {self.endpoint.ident}")
-        logIt_thread(log_path, msg=f'Displaying latest notebook tab...')
-        self.app.notebook.select(self.tab)
-        self.app.displayed_screenshot_files.append(self.last_screenshot)
-        self.app.tabs += 1
-
-        self.app.enable_buttons_thread()
-        self.app.running = False
-        self.app.update_statusbar_messages_thread(msg=f'Screenshot received from '
-                                                  f'{self.endpoint.ip} | {self.endpoint.ident}.')
-
-
-class Sysinfo:
-    def __init__(self, endpoint, app):
-        self.app = app
-        self.endpoint = endpoint
-        self.path = os.path.join(path, self.endpoint.ident)
-
-    def make_dir(self):
-        try:
-            os.makedirs(self.path)
-
-        except FileExistsError:
-            logIt_thread(log_path, debug=False, msg=f'Passing FileExistsError...')
-            pass
-
-    def get_file_name(self):
-        try:
-            logIt_thread(log_path, msg=f'Sending si command to {self.endpoint.conn}...')
-            self.endpoint.conn.send('si'.encode())
-            logIt_thread(log_path, msg=f'Send complete.')
-            self.filename = self.endpoint.conn.recv(1024).decode()
-            self.file_path = os.path.join(self.path, self.filename)
-
-        except (WindowsError, socket.error) as e:
-            logIt_thread(log_path, msg=f'Connection error: {e}')
-            return False
-
-    def get_file_size(self):
-        try:
-            self.size = self.endpoint.conn.recv(4)
-            self.endpoint.conn.send("OK".encode())
-            self.size = bytes_to_number(self.size)
-
-        except (WindowsError, socket.error) as e:
-            logIt_thread(log_path, msg=f'Connection error: {e}')
-            return False
-
-    def get_file_content(self):
-        current_size = 0
-        buffer = b""
-        with open(self.file_path, 'wb') as tsk_file:
-            while current_size < self.size:
-                logIt_thread(log_path, msg=f'Receiving file content from {self.endpoint.ip}...')
-                data = self.endpoint.conn.recv(1024)
-                if not data:
-                    break
-
-                if len(data) + current_size > self.size:
-                    data = data[:self.size - current_size]
-
-                buffer += data
-                current_size += len(data)
-                tsk_file.write(data)
-
-    def confirm(self):
-        try:
-            self.endpoint.conn.settimeout(10)
-            self.endpoint.conn.send(f"Received file: {self.filename}\n".encode())
-            logIt_thread(log_path, msg=f'Waiting for msg from {self.endpoint.ip}...')
-            msg = self.endpoint.conn.recv(1024).decode()
-            print(msg)
-            self.endpoint.conn.settimeout(None)
-
-        except (WindowsError, socket.error) as e:
-            logIt_thread(log_path, msg=f'Connection error: {e}')
-            return False
-
-    def file_validation(self):
-        try:
-            with open(self.file_path, 'r') as file:
-                data = file.read()
-                # print(data)   # for debugging
-
-        except Exception as e:
-            logIt_thread(log_path, msg=f'Error: {e}')
-            return False
-
-    def display_text(self):
-        with open(self.file_path, 'r') as file:
-            data = file.read()
-            self.tab = Frame(self.app.notebook, height=350)
-            tab_scrollbar = Scrollbar(self.tab, orient=VERTICAL)
-            tab_scrollbar.pack(side=LEFT, fill=Y)
-            tab_textbox = Text(self.tab, yscrollcommand=tab_scrollbar.set)
-            tab_textbox.pack(fill=BOTH)
-            self.app.notebook.add(self.tab, text=f"SysInfo {self.endpoint.ident}")
-            tab_scrollbar.configure(command=tab_textbox.yview)
-            tab_textbox.config(state=NORMAL)
-            tab_textbox.delete(1.0, END)
-            tab_textbox.insert(END, data)
-            tab_textbox.config(state=DISABLED)
-            self.app.notebook.select(self.tab)
-            self.app.tabs += 1
-
-    def run(self):
-        self.app.disable_buttons_thread()
-        self.app.running = True
-
-        self.app.update_statusbar_messages_thread(msg=f'waiting for system information from '
-                                                  f'{self.endpoint.ip} | {self.endpoint.ident}...')
-
-        self.make_dir()
-        self.get_file_name()
-        self.get_file_size()
-        self.get_file_content()
-        self.confirm()
-        self.file_validation()
-        self.display_text()
-
-        self.app.running = False
-        self.app.enable_buttons_thread()
-        self.app.update_statusbar_messages_thread(msg=f'system information file received from '
-                                                  f'{self.endpoint.ip} | {self.endpoint.ident}.')
+from Modules.screenshot import Screenshot
+from Modules.sysinfo import Sysinfo
 
 
 class Commands:
@@ -339,7 +107,7 @@ class Commands:
                                                 filetypes=(('CSV files', '.csv'), ('TXT files', '.txt')))
         if not filename:
             logIt_thread(log_path, msg=f'Save canceled.')
-            self.refresh_command(event=0)
+            self.app.refresh_command(event=0)
             return False
 
         if filename.endswith('.csv'):
@@ -387,7 +155,7 @@ class Commands:
             time.sleep(0.5)
 
             messagebox.showinfo("Restart All Clients", "Done!\t\t\t\t")
-            # self.app.refresh_command()
+            self.app.refresh_command()
             self.app.enable_buttons_thread()
             self.app.refresh_command()
             self.app.update_statusbar_messages_thread(msg='Restart command completed.')
@@ -412,20 +180,20 @@ class Commands:
         if sure:
             for endpoint in self.app.server.endpoints:
                 try:
-                    self.endpoint.conn.send('update'.encode())
+                    endpoint.conn.send('update'.encode())
                     logIt_thread(log_path, msg=f'Send Completed.')
                     logIt_thread(log_path, msg=f'Waiting for response from '
-                                               f'{self.endpoint.ip} | {self.endpoint.ident}...')
-                    msg = self.endpoint.conn.recv(1024).decode()
-                    logIt_thread(log_path, msg=f'{self.endpoint.ip}|{self.endpoint.ident}: {msg}')
+                                               f'{endpoint.ip} | {endpoint.ident}...')
+                    # msg = endpoint.conn.recv(1024).decode()
+                    # logIt_thread(log_path, msg=f'{endpoint.ip}|{endpoint.ident}: {msg}')
 
                 except (WindowsError, socket.error) as e:
                     logIt_thread(log_path, msg=f'ERROR: {e}.')
-                    self.app.remove_lost_connection(self.endpoint)
+                    self.app.remove_lost_connection(endpoint)
                     return False
 
             logIt_thread(log_path, msg=f'Displaying update info popup window...')
-            messagebox.showinfo(f"Update {self.endpoint.ident}", "Update command sent.")
+            messagebox.showinfo(f"Update {endpoint.ident}", "Update command sent.")
             self.app.refresh_command()
             self.app.enable_buttons_thread()
             return True
@@ -515,9 +283,9 @@ class Commands:
                 return True
 
         except (WindowsError, ConnectionError, socket.error, RuntimeError) as e:
-            logIt_thread(log_path, debug=True, msg=f'Connection Error: {e}.')
+            logIt_thread(log_path, debug=False, msg=f'Connection Error: {e}.')
             self.app.update_statusbar_messages_thread(msg=f'{e}.')
-            logIt_thread(log_path, debug=True,
+            logIt_thread(log_path, debug=False,
                          msg=f'Calling server.remove_lost_connection({self.endpoint})...')
             self.app.server.remove_lost_connection(self.endpoint)
             return False
@@ -531,46 +299,40 @@ class Commands:
 
     # Update Selected Client
     def update_selected_endpoint(self) -> bool:
-        self.app.running = True
-        self.app.disable_buttons_thread()
-
         logIt_thread(log_path, msg=f'Displaying confirmation pop-up...')
         sure = messagebox.askyesno(f"Update {self.endpoint.ip} | {self.endpoint.ident}", "Are you sure?\t\t\t\t")
         if sure:
             logIt_thread(log_path, msg=f'Sending update command to {self.endpoint.ip} | {self.endpoint.ident}...')
             try:
                 self.endpoint.conn.send('update'.encode())
-                logIt_thread(log_path, msg=f'Send Completed.')
-                logIt_thread(log_path, msg=f'Waiting for response from {self.endpoint.ip} | {self.endpoint.ident}...')
-                msg = self.endpoint.conn.recv(1024).decode()
-                logIt_thread(log_path, msg=f'{self.endpoint.ip}|{self.endpoint.ident}: {msg}')
+                logIt_thread(log_path, msg=f'Send completed.')
+                self.app.update_statusbar_messages_thread(msg=f'Update command sent to '
+                                                              f'{self.endpoint.ip} | {self.endpoint.ident}.')
+                logIt_thread(log_path, msg=f'Calling self.refresh()...')
                 self.app.refresh_command()
+                return True
 
-            except (WindowsError, socket.error) as e:
-                logIt_thread(log_path, msg=f'ERROR: {e}.')
+            except (RuntimeError, WindowsError, socket.error) as e:
+                logIt_thread(log_path, msg=f'Connection Error: {e}')
+                self.app.update_statusbar_messages_thread(msg=f'{e}')
+                logIt_thread(log_path, msg=f'Calling server.remove_lost_connection('
+                                           f'{self.endpoint})...')
+                self.app.server.remove_lost_connection(self.endpoint)
                 return False
 
-            logIt_thread(log_path, msg=f'Displaying update info popup window...')
-            messagebox.showinfo(f"Update {self.endpoint.ident}", "Update command sent.")
-            self.app.enable_buttons_thread()
-            self.app.refresh_command(event=0)
-            return True
-
         else:
-            self.app.running = False
-            self.app.enable_buttons_thread()
             return False
 
     # Grab Screenshot Thread
     def screenshot_thread(self):
-        screenThread = Thread(target=Screenshot(self.endpoint, self.app).run,
+        screenThread = Thread(target=Screenshot(self.endpoint, self.app, path, log_path).run,
                               daemon=True,
                               name='Screenshot Thread')
         screenThread.start()
 
     # System Information Thread
     def sysinfo_thread(self):
-        sysinfoThread = Thread(target=Sysinfo(self.endpoint, self.app).run,
+        sysinfoThread = Thread(target=Sysinfo(self.endpoint, self.app, path, log_path).run,
                                daemon=True,
                                name="System Information Thread")
         sysinfoThread.start()
@@ -593,14 +355,11 @@ class Commands:
                 logIt_thread(log_path, msg=f'Sending restart command to client...')
                 self.endpoint.conn.send('restart'.encode())
                 logIt_thread(log_path, msg=f'Send completed.')
-                logIt_thread(log_path, msg=f'Calling server.remove_lost_connection('
-                                           f'{self.endpoint})...')
-                self.app.server.remove_lost_connection(self.endpoint)
-                logIt_thread(log_path, msg=f'Restart command completed.')
-                self.app.update_statusbar_messages_thread(msg=f'restart command sent to '
-                                                          f'{self.endpoint.ip} | {self.endpoint.ident}.')
+                self.app.refresh_command()
                 logIt_thread(log_path, msg=f'Calling self.refresh()...')
                 self.app.refresh_command()
+                self.app.update_statusbar_messages_thread(msg=f'restart command sent to '
+                                                              f'{self.endpoint.ip} | {self.endpoint.ident}.')
                 return True
 
             except (RuntimeError, WindowsError, socket.error) as e:
