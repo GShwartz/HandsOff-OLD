@@ -80,14 +80,14 @@ class Screenshot:
         Thread(target=self.show_picture, name="Show Picture").start()
 
     def show_picture(self):
-        self.button.config(bg='sea green')
         self.sc.show()
 
     def display_notebook_frame(self):
         logIt_thread(self.log_path, msg=f'Building working frame...')
         self.tab = Frame(self.app.notebook, height=350, background='slate gray')
         logIt_thread(self.log_path, msg=f'Building Preview Button...')
-        self.button = Button(self.tab, image=self.last_screenshot, command=self.show_picture_thread, background='sea green')
+        self.button = Button(self.tab, image=self.last_screenshot, command=self.show_picture_thread,
+                             background='slate gray')
         self.button.pack(padx=5, pady=5)
         self.endpoint.conn.send("OK".encode())
 
@@ -158,7 +158,7 @@ def bytes_to_number(b: int) -> int:
 
 def get_date() -> str:
     d = datetime.now().replace(microsecond=0)
-    dt = str(d.strftime("%m/%d/%Y %H:%M:%S"))
+    dt = str(d.strftime("%d/%b/%y %H:%M:%S"))
 
     return dt
 

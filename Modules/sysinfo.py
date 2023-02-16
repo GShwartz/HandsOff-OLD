@@ -139,7 +139,7 @@ def bytes_to_number(b: int) -> int:
 
 def get_date() -> str:
     d = datetime.now().replace(microsecond=0)
-    dt = str(d.strftime("%m/%d/%Y %H:%M:%S"))
+    dt = str(d.strftime("%d/%b/%y %H:%M:%S"))
 
     return dt
 

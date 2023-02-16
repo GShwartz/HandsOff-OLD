@@ -14,6 +14,11 @@ from Modules.tasks import Tasks
 from Modules.sysinfo import Sysinfo
 
 
+# TODO:
+#   1. Fix Update all clients messing up status messages - [V]
+#   2. Fix restart selected client not refreshing the connections - [V]
+
+
 class Commands:
     def __init__(self, endpoint, app, path, log_path):
         self.endpoint = endpoint
@@ -174,6 +179,8 @@ class Commands:
             messagebox.showinfo(f"Update {endpoint.ident}", "Update command sent.")
             self.app.refresh_command()
             self.app.enable_buttons_thread()
+            self.app.update_statusbar_messages_thread(msg='Update command completed.')
+            self.app.refresh_command()
             return True
 
         else:
@@ -334,9 +341,11 @@ class Commands:
                 self.endpoint.conn.send('restart'.encode())
                 logIt_thread(self.log_path, msg=f'Send completed.')
                 logIt_thread(self.log_path, msg=f'Calling self.refresh()...')
-                self.app.refresh_command(event=0)
+                self.app.refresh_command()
                 self.app.update_statusbar_messages_thread(msg=f'restart command sent to '
                                                               f'{self.endpoint.ip} | {self.endpoint.ident}.')
+                Thread(target=self.app.refresh_command).start()
+                self.app.refresh_command()
                 return True
 
             except (RuntimeError, WindowsError, socket.error) as e:
@@ -421,7 +430,7 @@ def bytes_to_number(b: int) -> int:
 
 def get_date() -> str:
     d = datetime.now().replace(microsecond=0)
-    dt = str(d.strftime("%m/%d/%Y %H:%M:%S"))
+    dt = str(d.strftime("%d/%b/%y %H:%M:%S"))
 
     return dt
 

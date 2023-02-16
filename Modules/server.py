@@ -106,7 +106,7 @@ class Server:
     def get_boot_time(self) -> str:
         logIt_thread(self.log_path, msg=f'Waiting for client version...')
         self.boot_time = self.conn.recv(1024).decode()
-        logIt_thread(self.log_path, debug=True, msg=f'Client Boot Time: {self.boot_time}')
+        logIt_thread(self.log_path, debug=False, msg=f'Client Boot Time: {self.boot_time}')
         self.conn.send('OK'.encode())
         return self.boot_time
 
@@ -236,7 +236,7 @@ def bytes_to_number(b: int) -> int:
 
 def get_date() -> str:
     d = datetime.now().replace(microsecond=0)
-    dt = str(d.strftime("%m/%d/%Y %H:%M:%S"))
+    dt = str(d.strftime("%d/%b/%y %H:%M:%S"))
 
     return dt
 
