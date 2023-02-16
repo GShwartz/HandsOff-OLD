@@ -17,6 +17,7 @@ from Modules.sysinfo import Sysinfo
 # TODO:
 #   1. Fix Update all clients messing up status messages - [V]
 #   2. Fix restart selected client not refreshing the connections - [V]
+#   3. Change datetime format in temp logger - [V]
 
 
 class Commands:
@@ -175,11 +176,9 @@ class Commands:
                     self.app.remove_lost_connection(endpoint)
                     return False
 
-            logIt_thread(self.log_path, msg=f'Displaying update info popup window...')
-            messagebox.showinfo(f"Update {endpoint.ident}", "Update command sent.")
             self.app.refresh_command()
             self.app.enable_buttons_thread()
-            self.app.update_statusbar_messages_thread(msg='Update command completed.')
+            self.app.update_statusbar_messages_thread(msg='Update command sent.')
             self.app.refresh_command()
             return True
 
@@ -201,8 +200,7 @@ class Commands:
 
     # About Window
     def about(self, event=0) -> None:
-        about = About(self.app)
-        about.run()
+        About(self.app).run()
 
     # Vitals Thread
     def vital_signs_thread(self) -> None:
