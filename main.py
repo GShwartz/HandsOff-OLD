@@ -32,8 +32,6 @@ from Modules.server import Server
 from Modules.about import About
 from Modules.tasks import Tasks
 
-import calendar
-
 
 class App(Tk):
     top_windows = []
@@ -686,13 +684,13 @@ class App(Tk):
         self.disable_buttons_thread()
         logIt_thread(log_path, msg=f'Resetting tmp_availables list...')
         self.server.tmp_availables = []
+        logIt_thread(log_path, msg=f'Clearing self.temp...')
         self.temp.clear()
+        logIt_thread(log_path, msg=f'Calling server.vital_signs()...')
         self.server.vital_signs()
-        # logIt_thread(log_path, msg=f'Calling vital_signs_thread()...')
-        # Commands(None, self, path, log_path).vital_signs_thread()
-        logIt_thread(log_path, msg=f'Running thread: server_information')
+        logIt_thread(log_path, msg=f'Calling self.server_information')
         self.server_information()
-        logIt_thread(log_path, msg=f'Calling update_tools_menu()...')
+        logIt_thread(log_path, msg=f'Calling self.update_tools_menu()...')
         self.update_tools_menu(None)
         logIt_thread(log_path, msg=f'Calling show_available_connections()...')
         self.show_available_connections()
