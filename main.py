@@ -32,6 +32,8 @@ from Modules.server import Server
 from Modules.about import About
 from Modules.tasks import Tasks
 
+import calendar
+
 
 class App(Tk):
     top_windows = []
@@ -50,7 +52,7 @@ class App(Tk):
 
     # App Display sizes
     WIDTH = 1150
-    HEIGHT = 870
+    HEIGHT = 875
 
     def __init__(self):
         super().__init__()
@@ -173,12 +175,6 @@ class App(Tk):
                               'relief': 'ridge',
                               'foreground': 'ghost white'},
                 "map": {"background": [("selected", 'green')]}},
-
-            "Sysinfo.Heading": {
-                "configure": {"padding": 1,
-                              "background": 'slate grey',
-                              'relief': 'ridge',
-                              'foreground': 'ghost white'}}
         })
 
         self.style.theme_use("HandsOff")
@@ -254,7 +250,7 @@ class App(Tk):
         self.main_frame.columnconfigure(0, weight=1)
 
         logIt_thread(log_path, msg=f'Building main frame top bar...')
-        self.main_frame_top = Frame(self.main_frame, relief='flat')
+        self.main_frame_top = Frame(self.main_frame, relief='solid', border=1, background='gainsboro', height=1)
         self.main_frame_top.grid(row=0, column=0, sticky="nwes")
 
         logIt_thread(log_path, msg=f'Building main frame top bar labelFrame...')
@@ -573,34 +569,39 @@ class App(Tk):
             self.server.remove_lost_connection(endpoint)
             return False
 
+    # Build Table for Server Information
     def server_information_table(self):
-        self.sysinfo_table = ttk.Treeview(self.main_frame_top,
+        self.svrinfo_table = ttk.Treeview(self.main_frame_top,
                                           columns=("Serving On", "Server IP", "Server Port",
                                                    "Boot Time", "Connected Stations"),
                                           show="headings", height=1)
-        # self.style.configure("Sysinfo.Heading")
-        self.sysinfo_table.pack(fill=BOTH)
+        self.svrinfo_table.pack(fill=BOTH)
         logIt_thread(log_path, msg=f'Defining highlight event for Connected Table...')
 
         # Columns & Headings config
-        self.sysinfo_table.column("#1", anchor=CENTER, width=300, stretch=NO)
-        self.sysinfo_table.heading("#1", text="Serving On")
-        self.sysinfo_table.column("#2", anchor=CENTER, width=220, stretch=NO)
-        self.sysinfo_table.heading("#2", text="Server IP")
-        self.sysinfo_table.column("#3", anchor=CENTER, width=100, stretch=NO)
-        self.sysinfo_table.heading("#3", text="Server Port")
-        self.sysinfo_table.column("#4", anchor=CENTER, width=250, stretch=NO)
-        self.sysinfo_table.heading("#4", text="Boot Time")
-        self.sysinfo_table.column("#5", anchor=CENTER, width=170, stretch=YES)
-        self.sysinfo_table.heading("#5", text="Connected Stations")
+        self.svrinfo_table.column("#1", anchor=CENTER, width=300, stretch=NO)
+        self.svrinfo_table.heading("#1", text="Serving On")
+        self.svrinfo_table.column("#2", anchor=CENTER, width=220, stretch=NO)
+        self.svrinfo_table.heading("#2", text="Server IP")
+        self.svrinfo_table.column("#3", anchor=CENTER, width=100, stretch=NO)
+        self.svrinfo_table.heading("#3", text="Server Port")
+        self.svrinfo_table.column("#4", anchor=CENTER, width=250, stretch=YES)
+        self.svrinfo_table.heading("#4", text="Boot Time")
+        self.svrinfo_table.column("#5", anchor=CENTER, width=170, stretch=YES)
+        self.svrinfo_table.heading("#5", text="Connected Stations")
 
     # Display Server Information
     def server_information(self) -> None:
         logIt_thread(log_path, msg=f'Running show server information...')
         last_reboot = psutil.boot_time()
         bt = datetime.fromtimestamp(last_reboot).replace(microsecond=0)
-        self.sysinfo_table.delete(*self.sysinfo_table.get_children())
-        self.sysinfo_table.insert('', 'end', values=(serving_on, self.server.serverIP, self.server.port, bt,
+        try:
+            self.svrinfo_table.delete(*self.svrinfo_table.get_children())
+
+        except Exception:
+            pass
+
+        self.svrinfo_table.insert('', 'end', values=(serving_on, self.server.serverIP, self.server.port, bt,
                                                      len(self.server.endpoints)))
         return
 
@@ -686,10 +687,11 @@ class App(Tk):
         logIt_thread(log_path, msg=f'Resetting tmp_availables list...')
         self.server.tmp_availables = []
         self.temp.clear()
-        logIt_thread(log_path, msg=f'Calling vital_signs_thread()...')
-        Commands(None, self, path, log_path).vital_signs_thread()
+        self.server.vital_signs()
+        # logIt_thread(log_path, msg=f'Calling vital_signs_thread()...')
+        # Commands(None, self, path, log_path).vital_signs_thread()
         logIt_thread(log_path, msg=f'Running thread: server_information')
-        Thread(target=self.server_information, name="Server Information Thread").start()
+        self.server_information()
         logIt_thread(log_path, msg=f'Calling update_tools_menu()...')
         self.update_tools_menu(None)
         logIt_thread(log_path, msg=f'Calling show_available_connections()...')
@@ -781,8 +783,7 @@ def bytes_to_number(b: int) -> int:
 
 def get_date() -> str:
     d = datetime.now().replace(microsecond=0)
-    dt = str(d.strftime("%m/%d/%Y %H:%M:%S"))
-
+    dt = str(d.strftime("%d/%b/%y %H:%M:%S"))
     return dt
 
 
