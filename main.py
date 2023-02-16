@@ -55,6 +55,7 @@ class App(Tk):
         self.running = False
 
         # Start listener
+        logger.info("Calling listener")
         self.server.listener()
 
         # Create local app DIR
@@ -97,17 +98,27 @@ class App(Tk):
         self.grid_rowconfigure(5, weight=1)
 
         # Initiate app's styling
+        logger.info("Calling make_style")
         self.make_style()
 
         # Build and display
+        logger.info("Calling build_menubar...")
         self.build_menubar(None)
+        logger.info("Calling build_main_window_frames...")
         self.build_main_window_frames()
+        logger.info("Calling build_connected_table...")
         self.build_connected_table()
-        self.server_information_table()
+        logger.info("Calling server_information_table...")
+        self.build_server_information_table()
+        logger.info("Calling server_information...")
         self.server_information()
+        logger.info("Calling build_controller_buttons...")
         self.build_controller_buttons(None)
+        logger.info("Calling create_notebook...")
         self.create_notebook()
+        logger.info("Calling show_available_connections...")
         self.show_available_connections()
+        logger.info("Calling connection_history...")
         self.connection_history()
 
     # Update status bar messages Thread
@@ -148,7 +159,6 @@ class App(Tk):
 
     # Define GUI Styles
     def make_style(self):
-        logIt_thread(log_path, msg=f'Styling App...')
         self.style.theme_create("HandsOff", parent='classic', settings={
             "TNotebook": {"configure": {"tabmargins": [2, 5, 2, 1], 'background': 'slate gray'}},
             "TNotebook.Tab": {"configure": {"padding": [7, 1], "background": 'SkyBlue3'},
@@ -166,6 +176,7 @@ class App(Tk):
         self.style.theme_use("HandsOff")
         self.style.configure("Treeview.Heading", font=('Arial Bold', 8))
         self.style.map("Treeview", background=[('selected', 'sea green')])
+        logger.info("make_style completed.")
 
     # Update menubar
     def update_tools_menu(self, endpoint):
@@ -189,9 +200,10 @@ class App(Tk):
             self.unbind("<F11>")
             self.unbind("<F12>")
 
+        logger.info("update_tools completed.")
+
     # Create Menubar
     def build_menubar(self, endpoint):
-        logIt_thread(log_path, msg=f'Running build_menubar()...')
         menubar = Menu(self, tearoff=0)
         file = Menu(menubar, tearoff=0)
         self.tools = Menu(self, tearoff=0)
@@ -221,54 +233,78 @@ class App(Tk):
         menubar.add_cascade(label='Tools', menu=self.tools)
         menubar.add_cascade(label="Help", menu=helpbar)
 
-        logIt_thread(log_path, msg=f'Displaying Menubar...')
         self.config(menu=menubar)
+        logger.info("build_menubar completed.")
         return
 
     # Build Main Frame GUI
     def build_main_window_frames(self) -> None:
-        logIt_thread(log_path, msg=f'Running build_main_window_frames()...')
-        logIt_thread(log_path, msg=f'Building main frame...')
+        logger.debug("Building main frame...")
         self.main_frame = Frame(self, relief="raised", bd=1, background='snow')
         self.main_frame.configure(border=1)
         self.main_frame.grid(row=0, column=0, sticky="nswe", padx=1)
         self.main_frame.rowconfigure(5, weight=1)
         self.main_frame.columnconfigure(0, weight=1)
 
-        logIt_thread(log_path, msg=f'Building server information frame...')
+        logger.debug("Building server information frame...")
         self.srvinfo_frame = Frame(self.main_frame, relief='solid', border=1, height=1, background='ghost white')
         self.srvinfo_frame.grid(row=0, column=0, sticky="nwes")
 
-        logIt_thread(log_path, msg=f'Building connected table frame...')
+        logger.debug("Building connected table frame...")
         self.connected_table = Frame(self.main_frame, relief='flat')
         self.connected_table.grid(row=1, column=0, sticky="news", pady=2)
 
-        logIt_thread(log_path, msg=f'Building controller frame in main frame...')
+        logger.debug("Building controller frame in main frame...")
         self.controller_frame = Frame(self.main_frame, relief='flat', background='white', height=60)
         self.controller_frame.grid(row=2, column=0, sticky='news', pady=2)
 
-        logIt_thread(log_path,
-                     msg=f'Building controller buttons label frame in main frame...')
+        logger.debug("Building controller buttons label frame in main frame...")
         self.controller_btns = LabelFrame(self.controller_frame, text="Controller", relief='solid', height=60,
                                           background='gainsboro')
         self.controller_btns.pack(fill=BOTH)
 
-        logIt_thread(log_path, msg=f'Building connected table in main frame...')
+        logger.debug("Building connected table in main frame...")
         self.table_frame = LabelFrame(self.connected_table, text="Connected Stations",
                                       relief='solid', background='gainsboro')
         self.table_frame.pack(fill=BOTH)
 
-        logIt_thread(log_path, msg=f'Building details frame in main frame...')
+        logger.debug("Building details frame in main frame...")
         self.details_frame = Frame(self.main_frame, relief='flat', pady=2, height=310)
         self.details_frame.grid(row=3, column=0, sticky='news')
 
-        logIt_thread(log_path, msg=f'Building statusbar frame in main frame...')
+        logger.debug("Building statusbar frame in main frame...")
         self.statusbar_frame = Frame(self.main_frame, relief=SUNKEN, bd=1)
         self.statusbar_frame.grid(row=5, column=0, sticky='news')
 
-        logIt_thread(log_path, msg=f'Building statusbar label frame in main frame...')
+        logger.debug("Building statusbar label frame in main frame...")
         self.status_label = Label(self.statusbar_frame, text='Status', relief=FLAT, anchor=W)
         self.status_label.pack(fill=BOTH)
+
+        logger.debug("build_main_window_frames completed.")
+
+    # Build Table for Server Information
+    def build_server_information_table(self):
+        logger.debug("Displaying server information table...")
+        self.svrinfo_table = ttk.Treeview(self.srvinfo_frame,
+                                          columns=("Serving On", "Server IP", "Server Port",
+                                                   "Boot Time", "Connected Stations"),
+                                          show="headings", height=1, selectmode=NONE)
+        self.svrinfo_table.pack(fill=BOTH)
+
+        # Columns & Headings config
+        logger.debug("Building server information table columns...")
+        self.svrinfo_table.column("#1", anchor=CENTER, width=300, stretch=NO)
+        self.svrinfo_table.heading("#1", text="Serving On")
+        self.svrinfo_table.column("#2", anchor=CENTER, width=220, stretch=NO)
+        self.svrinfo_table.heading("#2", text="Server IP")
+        self.svrinfo_table.column("#3", anchor=CENTER, width=100, stretch=NO)
+        self.svrinfo_table.heading("#3", text="Server Port")
+        self.svrinfo_table.column("#4", anchor=CENTER, width=250, stretch=YES)
+        self.svrinfo_table.heading("#4", text="Boot Time")
+        self.svrinfo_table.column("#5", anchor=CENTER, width=170, stretch=YES)
+        self.svrinfo_table.heading("#5", text="Connected Stations")
+        self.svrinfo_table.tag_configure('evenrow', background='snow')
+        logger.info("server_information_table completed.")
 
     # Create Treeview Table for connected stations
     def build_connected_table(self) -> None:
@@ -278,11 +314,11 @@ class App(Tk):
             self.connected_table.tk.call(self.connected_table, "tag", "remove", "highlight")
             self.connected_table.tk.call(self.connected_table, "tag", "add", "highlight", item)
 
-        logIt_thread(log_path, msg=f'Running build_connected_table()...')
-        logIt_thread(log_path, msg=f'Displaying Scrollbar...')
+        logger.debug("Displaying Scrollbar...")
         self.table_sb = Scrollbar(self.table_frame, orient=VERTICAL)
         self.table_sb.pack(side=LEFT, fill=Y)
-        logIt_thread(log_path, msg=f'Displaying connected table...')
+
+        logger.debug("Displaying connected table...")
         self.connected_table = ttk.Treeview(self.table_frame,
                                             columns=("ID", "MAC Address",
                                                      "IP Address", "Station Name",
@@ -291,10 +327,11 @@ class App(Tk):
                                             selectmode='browse', yscrollcommand=self.table_sb.set)
         self.connected_table.pack(fill=BOTH)
         self.table_sb.config(command=self.connected_table.yview)
-        logIt_thread(log_path, msg=f'Defining highlight event for Connected Table...')
+        logger.debug("Defining highlight event for Connected Table...")
         self.connected_table.tag_configure('highlight', background='lightblue')
 
         # Columns & Headings config
+        logger.debug("Building connected table columns...")
         self.connected_table.column("#1", anchor=CENTER, width=71, stretch=NO)
         self.connected_table.heading("#1", text="ID")
         self.connected_table.column("#2", anchor=CENTER, width=170, stretch=NO)
@@ -312,99 +349,106 @@ class App(Tk):
         self.connected_table.bind("<Button 1>", self.select_item)
         self.connected_table.bind("<Motion>", highlight)
 
-        logIt_thread(log_path, msg=f'Stying table row colors...')
+        logger.debug("Stying table row colors...")
         self.connected_table.tag_configure('oddrow', background='snow')
         self.connected_table.tag_configure('evenrow', background='ghost white')
 
+        logger.info("build_connected_table completed.")
+
     # Create Controller Buttons
     def build_controller_buttons(self, endpoint):
-        logIt_thread(log_path, msg=f'Building refresh button...')
+        logger.debug("Defining refresh button's image...")
         refresh_img = PIL.ImageTk.PhotoImage(
             PIL.Image.open('images/refresh_green.png').resize((17, 17), PIL.Image.LANCZOS))
 
+        logger.debug("Building refresh button...")
         self.refresh_btn = Button(self.controller_btns, text=" Refresh", image=refresh_img,
                                   compound=LEFT, anchor=W,
                                   width=75, pady=5, command=self.refresh_command)
         self.refresh_btn.image = refresh_img
         self.refresh_btn.grid(row=0, column=0, pady=5, padx=2)
 
-        logIt_thread(log_path, msg=f'Building screenshot button...')
+        logger.debug("Building screenshot button...")
         self.screenshot_btn = Button(self.controller_btns, text="Screenshot", width=10,
                                      pady=5, padx=10,
                                      command=lambda: Commands(endpoint, self, path, log_path).screenshot_thread())
         self.screenshot_btn.grid(row=0, column=1, sticky="w", pady=5, padx=2, ipadx=2)
-        logIt_thread(log_path, msg=f'Updating controller buttons list...')
+        logger.debug("Updating controller buttons list...")
         self.buttons.append(self.screenshot_btn)
 
-        logIt_thread(log_path, msg=f'Building anydesk button...')
+        logger.debug("Building anydesk button...")
         self.anydesk_btn = Button(self.controller_btns, text="Anydesk", width=14, pady=5,
                                   command=lambda: Commands(endpoint, self, path, log_path).anydesk_command())
         self.anydesk_btn.grid(row=0, column=2, sticky="w", pady=5, padx=2, ipadx=2)
-        logIt_thread(log_path,
-                     msg=f'Updating controller buttons list...')
+        logger.debug("Updating controller buttons list...")
         self.buttons.append(self.anydesk_btn)
 
-        logIt_thread(log_path, msg=f'Building last restart button...')
+        logger.debug("Building last restart button...")
         self.last_restart_btn = Button(self.controller_btns, text="Last Restart", width=14,
                                        pady=5,
                                        command=lambda: self.last_restart_command(endpoint))
         self.last_restart_btn.grid(row=0, column=3, sticky="w", pady=5, padx=2, ipadx=2)
-        logIt_thread(log_path, msg=f'Updating controller buttons list...')
+        logger.debug("Updating controller buttons list...")
         self.buttons.append(self.last_restart_btn)
 
-        logIt_thread(log_path, msg=f'Building system information button...')
+        logger.debug("Building system information button...")
         self.sysinfo_btn = Button(self.controller_btns, text="SysInfo", width=14, pady=5,
                                   command=lambda: Commands(endpoint, self, path, log_path).sysinfo_thread())
         self.sysinfo_btn.grid(row=0, column=4, sticky="w", pady=5, padx=2, ipadx=2)
-        logIt_thread(log_path, msg=f'Updating controller buttons list...')
+        logger.debug("Updating controller buttons list...")
         self.buttons.append(self.sysinfo_btn)
 
-        logIt_thread(log_path, msg=f'Building tasks button...')
+        logger.debug("Building tasks button...")
         self.tasks_btn = Button(self.controller_btns, text="Tasks", width=14, pady=5,
                                 command=lambda: Commands(endpoint, self, path, log_path).tasks())
         self.tasks_btn.grid(row=0, column=5, sticky="w", pady=5, padx=2, ipadx=2)
-        logIt_thread(log_path, msg=f'Updating controller buttons list...')
+        logger.debug("Updating controller buttons list...")
         self.buttons.append(self.tasks_btn)
 
-        logIt_thread(log_path, msg=f'Building restart button...')
+        logger.debug("Building restart button...")
         self.restart_btn = Button(self.controller_btns, text="Restart", width=14, pady=5,
                                   command=lambda: Commands(endpoint, self, path, log_path).restart_command())
         self.restart_btn.grid(row=0, column=6, sticky="w", pady=5, padx=2, ipadx=2)
-        logIt_thread(log_path, msg=f'Updating controller buttons list...')
+        logger.debug("Updating controller buttons list...")
         self.buttons.append(self.restart_btn)
 
-        logIt_thread(log_path, msg=f'Building local files button...')
+        logger.debug("Building local files button....")
         self.browse_btn = Button(self.controller_btns, text="Local Files", width=14, pady=5,
                                  command=lambda: Commands(endpoint, self, path, log_path).browse_local_files_command())
         self.browse_btn.grid(row=0, column=7, sticky="w", pady=5, padx=2, ipadx=2)
+        logger.debug("Updating controller buttons list...")
         self.buttons.append(self.browse_btn)
 
-        logIt_thread(log_path, msg=f'Building Update Client button...')
+        logger.debug("Building Update Client button...")
         self.update_client = Button(self.controller_btns, text="Update Client", width=14,
                                     pady=5, state=NORMAL,
                                     command=lambda: Commands(endpoint, self, path,
                                                              log_path).update_selected_endpoint_thread())
         self.update_client.grid(row=0, column=8, sticky="w", pady=5, padx=2, ipadx=2)
+        logger.debug("Updating controller buttons list...")
         self.buttons.append(self.update_client)
 
-        logIt_thread(log_path, msg=f'Building Maintenance button...')
+        logger.debug("Building Maintenance button...")
         self.maintenance = Button(self.controller_btns, text="Maintenance", width=14,
                                   pady=5, state=DISABLED,
                                   command=lambda: Commands(endpoint, self, path, log_path).run_maintenance_thread())
         self.maintenance.grid(row=0, column=9, sticky="w", pady=5, padx=2, ipadx=2)
+        # logger.debug("Updating controller buttons list...")
         # self.buttons.append(self.maintenance)
+        logger.info("build_controller_buttons completed.")
 
     # Build Table for Connection History
     def create_connection_history_table(self) -> None:
-        logIt_thread(log_path, msg=f'Running create_connection_history_table()...')
-        logIt_thread(log_path, msg=f'Displaying connection history labelFrame...')
+        logger.debug("Displaying connection history labelFrame...")
         self.history_labelFrame = LabelFrame(self.main_frame, text="Connection History",
                                              relief='solid', background='gainsboro')
         self.history_labelFrame.grid(row=4, column=0, sticky='news')
-        logIt_thread(log_path, msg=f'Displaying Scrollbar in history labelFrame...')
+
+        logger.debug("Displaying Scrollbar in history labelFrame...")
         self.history_table_scrollbar = Scrollbar(self.history_labelFrame, orient=VERTICAL)
         self.history_table_scrollbar.pack(side=LEFT, fill=Y)
-        logIt_thread(log_path, msg=f'Displaying connection history table in labelFrame...')
+
+        logger.debug("Displaying connection history table in labelFrame...")
         self.history_table = ttk.Treeview(self.history_labelFrame,
                                           columns=("ID", "MAC Address",
                                                    "IP Address", "Station Name",
@@ -416,6 +460,7 @@ class App(Tk):
         self.history_table_scrollbar.config(command=self.history_table.yview)
 
         # Table Columns & Headings
+        logger.debug("Building connection history table columns...")
         self.history_table.column("#1", anchor=CENTER, width=100)
         self.history_table.heading("#1", text="ID")
         self.history_table.column("#2", anchor=CENTER)
@@ -429,6 +474,12 @@ class App(Tk):
         self.history_table.column("#6", anchor=CENTER)
         self.history_table.heading("#6", text="Time")
 
+        logger.debug(f'Stying table row colors...')
+        self.history_table.tag_configure('oddrow', background='snow')
+        self.history_table.tag_configure('evenrow', background='ghost white')
+
+        logger.info("create_connection_history_table completed.")
+
     # Build Notebook
     def create_notebook(self, event=0):
         def on_tab_change(event):
@@ -436,55 +487,60 @@ class App(Tk):
             if self.tabs == 0:
                 return
 
-        logIt_thread(log_path, msg=f'Building details LabelFrame...')
+        logger.debug("Building details LabelFrame...")
         self.details_labelFrame = LabelFrame(self.main_frame, text="Details", relief='solid',
                                              foreground='white', height=400, background='slate gray')
         self.details_labelFrame.grid(row=3, sticky='news', columnspan=3)
 
-        logIt_thread(log_path, msg=f'Clearing frames list...')
+        logger.debug("Clearing frames list...")
         self.frames.clear()
 
-        logIt_thread(log_path, msg=f'Building notebook...')
+        logger.debug("Building notebook...")
         self.notebook = ttk.Notebook(self.details_labelFrame, height=250)
         self.notebook.pack(expand=True, pady=5, fill=X)
         self.notebook.bind("<<NotebookTabChanged>>", on_tab_change)
 
-        logIt_thread(log_path, msg=f'Building tabs...')
+        logger.debug("Defining screenshot tab...")
         self.screenshot_tab = Frame(self.notebook, height=330)
 
+        logger.debug("Defining system information tab...")
         self.system_information_tab = Frame(self.notebook, height=330)
         self.tasks_tab = Frame(self.notebook, height=330)
 
-        logIt_thread(log_path, msg=f'Building sysinfo scrollbar...')
+        logger.debug("Building sysinfo scrollbar...")
         self.system_scrollbar = Scrollbar(self.system_information_tab, orient=VERTICAL)
         self.system_scrollbar.pack(side=LEFT, fill=Y)
 
-        logIt_thread(log_path, msg=f'Building sysinfo textbox...')
+        logger.debug("Building sysinfo textbox...")
         self.system_information_textbox = Text(self.system_information_tab,
                                                yscrollcommand=self.system_scrollbar.set)
         self.system_information_textbox.pack(fill=BOTH)
-        logIt_thread(log_path, msg=f'Building tasks scrollbar...')
+
+        logger.debug("Building tasks scrollbar...")
         self.tasks_scrollbar = Scrollbar(self.tasks_tab, orient=VERTICAL)
         self.tasks_scrollbar.pack(side=LEFT, fill=Y)
 
-        logIt_thread(log_path, msg=f'Building tasks textbox...')
+        logger.debug("Building tasks textbox...")
         self.tasks_tab_textbox = Text(self.tasks_tab, yscrollcommand=self.tasks_scrollbar.set)
         self.tasks_tab_textbox.pack(fill=X)
 
+        logger.info("create_notebook completed.")
+
     # Update Status Bar Messages
     def update_statusbar_messages(self, msg=''):
+        logger.debug(f"Displaying statusbar message: {msg}...")
         self.status_label.config(text=f"Status: {msg}")
 
     # Close App
     def on_closing(self, event=0) -> None:
-        logIt_thread(log_path, msg=f'Displaying minimize popup window...')
+        logger.debug("Displaying minimize popup window...")
         minimize = messagebox.askyesnocancel("Exit or Minimize", "Minimize to Tray?")
-        logIt_thread(log_path, msg=f'Minimize: {minimize}')
+        logger.debug("Minimize: {minimize}")
         if minimize is None:
             return
 
         elif minimize:
-            logIt_thread(log_path, msg=f'Hiding app window...')
+            logger.debug("Hiding app window...")
             self.withdraw()
 
         else:
@@ -504,207 +560,175 @@ class App(Tk):
 
                 thread.join(timeout=0.5)
 
-            logIt_thread(log_path, msg=f'Hiding app window...')
             self.withdraw()
-            logIt_thread(log_path, msg=f'Destroying app window...')
+            logger.debug("Destroying app window...")
             self.destroy()
             sys.exit(0)
 
     # Enable Controller Buttons
     def enable_buttons(self):
-        logIt_thread(log_path, msg=f'Running enable_buttons()...')
         for button in list(self.buttons):
-            logIt_thread(log_path, msg=f'Enabling {button.config("text")[-1]} button...')
+            logger.debug(f'Enabling {button.config("text")[-1]} button...')
             button.config(state=NORMAL)
+
+        logger.info("enable_buttons completed.")
 
     # Disable Controller Buttons
     def disable_buttons(self):
-        logIt_thread(log_path, msg=f'Running disable_buttons()...')
         for button in list(self.buttons):
-            logIt_thread(log_path, msg=f'Disabling {button.config("text")[-1]}...')
+            logger.debug(f'Disabling {button.config("text")[-1]}...')
             button.config(state=DISABLED)
+
+        logger.info("disable_buttons completed.")
 
     # Display Clients Last Restart
     def last_restart_command(self, endpoint) -> bool:
-        logIt_thread(log_path, msg=f'Running last_restart('
-                                   f'{endpoint.conn}, {endpoint.ip}, {endpoint.ident})...')
+        logger.info(f'Running last_restart on {endpoint.ip} | {endpoint.ident})...')
         try:
-            logIt_thread(log_path, msg=f'Sending lr command to client...')
+            logger.debug(f'Sending lr command to client...')
             endpoint.conn.send('lr'.encode())
-            logIt_thread(log_path, msg=f'Send Completed.')
-            logIt_thread(log_path, msg=f'Waiting for response from client...')
+            logger.debug(f'Send completed. waiting for response from client...')
             msg = endpoint.conn.recv(1024).decode()
-            logIt_thread(log_path, msg=f'Client response: {msg}')
+            logger.debug(f'Client response: {msg}')
+            logger.debug(f'Updating statusbar message: restart for {endpoint.ident}: {msg.split("|")[1][15:]}')
             self.update_statusbar_messages_thread(msg=f'restart for {endpoint.ident}: {msg.split("|")[1][15:]}')
-            logIt_thread(log_path, msg=f'Display popup with last restart info...')
+            logger.debug(f'Displaying popup:  Last Restart for: {endpoint.ip} | {endpoint.ident}...')
             messagebox.showinfo(f"Last Restart for: {endpoint.ip} | {endpoint.ident}",
                                 f"\t{msg.split('|')[1][15:]}\t\t\t")
+
+            logger.info(f'last_restart_command completed.')
             return True
 
         except (WindowsError, socket.error, ConnectionResetError) as e:
-            logIt_thread(log_path, msg=f'Connection Error: {e}.')
+            logger.error(f'Connection Error: {e}.')
+            logger.debug(f'Updating statusbar message')
             self.update_statusbar_messages_thread(msg=f'{e}')
-            logIt_thread(log_path, msg=f'Calling server.remove_lost_connection('
-                                       f'{endpoint.conn}, {endpoint.ip})...')
+            logger.debug(f'Calling server.remove_lost_connection({endpoint}...')
             self.server.remove_lost_connection(endpoint)
+            logger.debug(f'Calling refresh_command')
             self.refresh_command()
             return False
 
-    # Build Table for Server Information
-    def server_information_table(self):
-        # self.svrinfo_labelFrame = LabelFrame(self.srvinfo_frame, text="Server Information",
-        #                                      relief='solid', background='ghost white')
-        # self.svrinfo_labelFrame.pack(anchor=CENTER)
-
-        self.svrinfo_table = ttk.Treeview(self.srvinfo_frame,
-                                          columns=("Serving On", "Server IP", "Server Port",
-                                                   "Boot Time", "Connected Stations"),
-                                          show="headings", height=1, selectmode=NONE)
-        self.svrinfo_table.pack(fill=BOTH)
-        logIt_thread(log_path, msg=f'Defining highlight event for Connected Table...')
-
-        # Columns & Headings config
-        self.svrinfo_table.column("#1", anchor=CENTER, width=300, stretch=NO)
-        self.svrinfo_table.heading("#1", text="Serving On")
-        self.svrinfo_table.column("#2", anchor=CENTER, width=220, stretch=NO)
-        self.svrinfo_table.heading("#2", text="Server IP")
-        self.svrinfo_table.column("#3", anchor=CENTER, width=100, stretch=NO)
-        self.svrinfo_table.heading("#3", text="Server Port")
-        self.svrinfo_table.column("#4", anchor=CENTER, width=250, stretch=YES)
-        self.svrinfo_table.heading("#4", text="Boot Time")
-        self.svrinfo_table.column("#5", anchor=CENTER, width=170, stretch=YES)
-        self.svrinfo_table.heading("#5", text="Connected Stations")
-
     # Display Server Information
     def server_information(self) -> None:
-        logIt_thread(log_path, msg=f'Running show server information...')
+        logger.info(f'Running server_information...')
+        logger.debug(f'Retrieving server last boot time...')
         last_reboot = psutil.boot_time()
         bt = datetime.fromtimestamp(last_reboot).strftime('%d/%b/%y %H:%M:%S %p')
         try:
+            logger.debug(f'Clearing system information table...')
             self.svrinfo_table.delete(*self.svrinfo_table.get_children())
 
         except Exception:
             pass
 
         c = 0
+        logger.debug(f'Updating system information table...')
         if c % 2 == 0:
             self.svrinfo_table.insert('', 'end', values=(serving_on, self.server.serverIP, self.server.port, bt,
                                                          len(self.server.endpoints)), tags=('evenrow',))
 
-        # self.svrinfo_table.insert('', 'end', values=(serving_on, self.server.serverIP, self.server.port, bt,
-        #                                              len(self.server.endpoints)))
-        self.svrinfo_table.tag_configure('evenrow', background='snow')
+        logger.info(f'server_information completed.')
         return
 
     # Display Available Stations
     def show_available_connections(self) -> None:
+        logger.info(f'Running show_available_connections...')
         # Clear previous entries in GUI table
-        logIt_thread(log_path, msg=f'Cleaning connected table entries...')
-        self.connected_table.delete(*self.connected_table.get_children())
+        try:
+            logger.debug(f'Clearing system information table...')
+            self.connected_table.delete(*self.connected_table.get_children())
 
-        logIt_thread(log_path, msg=f'Running show_available_connections()...')
+        except Exception:
+            pass
+
         if not self.server.endpoints:
-            logIt_thread(log_path, msg='No connected Stations')
+            logger.debug(f'No connected Stations')
             return
 
-        # Cleaning availables list
-        logIt_thread(log_path, msg=f'Cleaning availables list...')
-        self.server.tmp_availables = []
-
-        logIt_thread(log_path, msg=f'Creating tmp_availables list...')
+        logger.debug(f'Updating connected table...')
         for count, endpoint in enumerate(self.server.endpoints):
-            self.server.tmp_availables.append((count, endpoint.client_mac, endpoint.ip,
-                                               endpoint.ident, endpoint.user, endpoint.client_version))
-        logIt_thread(log_path, msg=f'Available list created.')
-
-        for item in self.server.tmp_availables:
-            endpoint = next(endpoint for endpoint in self.server.endpoints if endpoint.client_mac == item[1])
-            tag = 'evenrow' if item[0] % 2 == 0 else 'oddrow'
-
-            logIt_thread(log_path, msg='Updating connected table...')
-            self.connected_table.insert('', 'end', values=(item[0], endpoint.client_mac, endpoint.ip,
+            tag = 'evenrow' if count % 2 == 0 else 'oddrow'
+            self.connected_table.insert('', 'end', values=(count, endpoint.client_mac, endpoint.ip,
                                                            endpoint.ident, endpoint.user,
                                                            endpoint.client_version, endpoint.boot_time),
                                         tags=(tag,))
 
+        logger.info(f'show_available_connections completed.')
+
     # Display Connection History
     def connection_history(self) -> bool:
-        logIt_thread(log_path, msg=f'Running connection_history()...')
-        logIt_thread(log_path, msg=f'Calling self.show_available_connections()...')
+        logger.info(f'Running connection_history...')
+        logger.debug(f'Calling show_available_connections...')
         self.show_available_connections()
-        logIt_thread(log_path, msg=f'Calling self.disable_buttons_thread(sidebar=False)...')
+        logger.debug(f'disable_buttons_thread...')
         self.disable_buttons_thread()
-        logIt_thread(log_path, msg=f'Calling self.create_connection_history_table()...')
+        logger.debug(f'Calling create_connection_history_table...')
         self.create_connection_history_table()
-
-        self.update_statusbar_messages_thread(msg=f'Status: displaying connection history.')
-        c = 0  # Initiate Counter for Connection Number
         try:
+            logger.debug(f'Updating history table...')
+            c = 0
             for entry, t in self.server.connHistory.items():
-                if c % 2 == 0:
-                    self.history_table.insert('', 'end', values=(c, entry.client_mac, entry.ip,
-                                                                 entry.ident, entry.user,
-                                                                 t), tags=('evenrow',))
-
-                else:
-                    self.history_table.insert('', 'end', values=(c, entry.client_mac, entry.ip,
-                                                                 entry.ident, entry.user,
-                                                                 t), tags=('oddrow',))
+                tag = 'evenrow' if c % 2 == 0 else 'oddrow'
+                self.history_table.insert('', 'end', values=(c, entry.client_mac, entry.ip,
+                                                             entry.ident, entry.user,
+                                                             t), tags=(tag,))
                 c += 1
-                logIt_thread(log_path, msg=f'Stying table row colors...')
-                self.history_table.tag_configure('oddrow', background='snow')
-                self.history_table.tag_configure('evenrow', background='ghost white')
 
+            logger.debug(f'Updating statusbar message: displaying connection history...')
+            self.update_statusbar_messages_thread(msg=f'displaying connection history.')
+            logger.info(f'connection_history completed.')
             return True
 
         except (KeyError, socket.error, ConnectionResetError) as e:
-            logIt_thread(log_path, msg=f'ERROR: {e}')
+            logger.error(f'ERROR: {e}.')
+            logger.debug(f'Updating statusbar message...')
             self.update_statusbar_messages_thread(msg=f'Status: {e}.')
             return False
 
     # Shell Connection to Client
     def shell(self, endpoint) -> None:
-        logIt_thread(log_path, msg=f'Running shell({endpoint.conn}, {endpoint.ip})...')
+        logger.info(f'Running shell({endpoint.conn}, {endpoint.ip})...')
+        logger.debug(f'Updating statusbar message: shell connected to {endpoint.ip} | {endpoint.ident}...')
         self.update_statusbar_messages_thread(msg=f'shell connected to {endpoint.ip} | {endpoint.ident}.')
         while True:
-            # Wait for User Input & hide print
-            logIt_thread(log_path, msg=f'Waiting for input...')
+            logger.debug(f'Waiting for input...')
             cmd = input(f"")
 
     # Refresh server info & connected stations table with vital signs
     def refresh_command(self, event=0) -> None:
-        logIt_thread(log_path, msg=f'Running refresh()...')
-        logIt_thread(log_path, msg=f'Calling self_disable_buttons_thread(sidebar=False)...')
+        logger.info(f'Running refresh...')
+        logger.debug(f'Calling self_disable_buttons_thread...')
         self.disable_buttons_thread()
-        logIt_thread(log_path, msg=f'Resetting tmp_availables list...')
-        self.server.tmp_availables = []
-        logIt_thread(log_path, msg=f'Clearing self.temp...')
+        logger.debug(f'Clearing self.temp...')
         self.temp.clear()
-        logIt_thread(log_path, msg=f'Calling server.vital_signs()...')
+        logger.debug(f'Calling server.vital_signs...')
         self.server.vital_signs()
-        logIt_thread(log_path, msg=f'Calling self.server_information')
+        logger.debug(f'Calling self.server_information...')
         self.server_information()
-        logIt_thread(log_path, msg=f'Calling self.update_tools_menu()...')
+        logger.debug(f'Calling self.update_tools_menu...')
         self.update_tools_menu(None)
-        logIt_thread(log_path, msg=f'Calling show_available_connections()...')
+        logger.debug(f'Calling show_available_connections...')
         self.show_available_connections()
-        logIt_thread(log_path, msg=f'Calling connection_history()...')
+        logger.debug(f'Calling connection_history...')
         self.connection_history()
+        logger.debug(f'Updating statusbar message: refresh complete...')
         self.update_statusbar_messages_thread(msg='refresh complete.')
+        logger.info(f'refresh completed.')
 
     # Manage Connected Table & Controller LabelFrame Buttons
     def select_item(self, event) -> bool:
-        logIt_thread(log_path, msg=f'Running select_item()...')
+        logger.info(f'Running select_item...')
         # Respond to mouse clicks on connected table
         rowid = self.connected_table.identify_row(event.y)
         row = self.connected_table.item(rowid)['values']
         if row:
             try:
                 if row[2] not in self.temp.values():
-                    logIt_thread(log_path, msg=f'Updating self.temp dictionary...')
+                    logger.debug(f'Updating temp dictionary...')
                     self.temp[row[0]] = row[2]
 
-                    logIt_thread(log_path, msg=f'Calling self.create_notebook()...')
+                    logger.debug(f'Calling create_notebook...')
                     if not self.notebooks:
                         self.create_notebook()
 
@@ -712,7 +736,7 @@ class App(Tk):
             except IndexError:
                 pass
 
-            # Create a Controller LabelFrame with Buttons and connect shell by TreeView Table selection
+            # Connect shell by TreeView Table selection
             for endpoint in self.server.endpoints:
                 if row[2] == endpoint.ip:
                     self.enable_buttons_thread()
@@ -722,6 +746,7 @@ class App(Tk):
 
                     if not self.running:
                         self.build_controller_buttons(endpoint)
+                        logger.debug(f'Connecting shell to {endpoint.ip} | {endpoint.ident}...')
                         shellThread = Thread(target=self.shell,
                                              args=(endpoint,),
                                              daemon=True,
@@ -729,13 +754,18 @@ class App(Tk):
                         shellThread.start()
                         shellThread.join(timeout=0.1)
                         if not shellThread.is_alive():
-                            logIt_thread(log_path, msg=f'Disconnected from endpoint {endpoint.ip}...')
+                            logger.debug(f'Disconnected from endpoint {endpoint.ip}...')
+                            logger.debug(f'Calling server.remove_lost_connection({endpoint})...')
                             self.server.remove_lost_connection(endpoint)
+                            logger.debug(f'Clearing temp dict...')
                             self.temp.clear()
+                            logger.debug(f'Calling refresh_command...')
                             self.refresh_command()
                             break
 
+                        logger.debug(f'Clearing temp dict...')
                         self.temp.clear()
+                        logger.info(f'select_item completed.')
 
 
 def on_icon_clicked(icon, item):
@@ -754,52 +784,6 @@ def on_icon_clicked(icon, item):
                 pass
 
         app.destroy()
-
-
-def logIt_thread(log_path=None, debug=False, msg='') -> None:
-    logit_thread = Thread(target=logIt,
-                          args=(log_path, debug, msg),
-                          daemon=True,
-                          name="Log Thread")
-    logit_thread.start()
-
-
-def bytes_to_number(b: int) -> int:
-    logIt_thread(log_path, msg=f'Running bytes_to_number({b})...')
-    dt = get_date()
-    res = 0
-    for i in range(4):
-        res += b[i] << (i * 8)
-    return res
-
-
-def get_date() -> str:
-    d = datetime.now().replace(microsecond=0)
-    dt = str(d.strftime("%d/%b/%y %H:%M:%S"))
-    return dt
-
-
-def logIt(logfile=None, debug=None, msg='') -> bool:
-    dt = get_date()
-    if debug:
-        print(f"{dt}: {msg}")
-
-    if logfile is not None:
-        try:
-            if not os.path.exists(logfile):
-                with open(logfile, 'w') as lf:
-                    lf.write(f"{dt}: {msg}\n")
-
-                return True
-
-            else:
-                with open(logfile, 'a') as lf:
-                    lf.write(f"{dt}: {msg}\n")
-
-                return True
-
-        except FileExistsError:
-            pass
 
 
 def main():
@@ -831,6 +815,24 @@ if __name__ == '__main__':
     serverIP = str(socket.gethostbyname(hostname))
     path = r'c:\HandsOff'
     log_path = fr'{path}\server_log.txt'
+    logger = logging.getLogger(__name__)
+    logger.setLevel(logging.DEBUG)
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    info = logging.FileHandler(log_path)
+    info.setLevel(logging.INFO)
+    info.setFormatter(formatter)
+
+    debug = logging.FileHandler(log_path)
+    debug.setLevel(logging.DEBUG)
+    debug.setFormatter(formatter)
+
+    error = logging.FileHandler(log_path)
+    error.setLevel(logging.ERROR)
+    error.setFormatter(info)
+
+    logger.addHandler(info)
+    logger.addHandler(debug)
+    logger.addHandler(error)
 
     parser = argparse.ArgumentParser()
     parser.add_argument('-i', '--ip', action='store', default=serverIP, type=str, help='Server IP')
