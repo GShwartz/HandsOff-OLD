@@ -1,5 +1,7 @@
+from tkinter import simpledialog, filedialog, messagebox, ttk
 from datetime import datetime
 from threading import Thread
+from tkinter import *
 import PIL.ImageTk
 import subprocess
 import webbrowser
@@ -17,12 +19,6 @@ import glob
 import sys
 import csv
 
-# GUI
-from tkinter import simpledialog
-from tkinter import filedialog
-from tkinter import messagebox
-from tkinter import ttk
-from tkinter import *
 
 # Local Modules
 from Modules.screenshot import Screenshot
@@ -55,12 +51,9 @@ class App(Tk):
     def __init__(self):
         super().__init__()
         self.style = ttk.Style()
-        self.update_url = StringVar()
-        self.new_url = ''
         self.server = Server(log_path, self, args.ip, args.port, path)
         self.running = False
 
-        # ======== Server Config ==========
         # Start listener
         self.server.listener()
 
@@ -69,12 +62,8 @@ class App(Tk):
             os.makedirs(path)
 
         # Run Listener Thread
-        listenerThread = Thread(target=self.server.run,
-                                daemon=True,
-                                name="Listener Thread")
-        listenerThread.start()
+        listenerThread = Thread(target=self.server.run, daemon=True, name="Listener Thread").start()
 
-        # ======== GUI Config ===========
         # Set main window preferences
         self.title("HandsOff")
         self.iconbitmap('HandsOff.ico')
@@ -121,7 +110,6 @@ class App(Tk):
         self.show_available_connections()
         self.connection_history()
 
-    # ==++==++==++== THREADED ==++==++==++== #
     # Update status bar messages Thread
     def update_statusbar_messages_thread(self, msg=''):
         statusbarThread = Thread(target=self.update_statusbar_messages,
@@ -172,7 +160,7 @@ class App(Tk):
                               "background": 'slate grey',
                               'relief': 'ridge',
                               'foreground': 'ghost white'},
-                "map": {"background": [("selected", 'green')]}},
+                "map": {"background": [("selected", 'green')]}}
         })
 
         self.style.theme_use("HandsOff")
@@ -241,27 +229,22 @@ class App(Tk):
     def build_main_window_frames(self) -> None:
         logIt_thread(log_path, msg=f'Running build_main_window_frames()...')
         logIt_thread(log_path, msg=f'Building main frame...')
-        self.main_frame = Frame(self, relief="raised", bd=1)
+        self.main_frame = Frame(self, relief="raised", bd=1, background='snow')
         self.main_frame.configure(border=1)
         self.main_frame.grid(row=0, column=0, sticky="nswe", padx=1)
         self.main_frame.rowconfigure(5, weight=1)
         self.main_frame.columnconfigure(0, weight=1)
 
-        logIt_thread(log_path, msg=f'Building main frame top bar...')
-        self.main_frame_top = Frame(self.main_frame, relief='solid', border=1, background='gainsboro', height=1)
-        self.main_frame_top.grid(row=0, column=0, sticky="nwes")
+        logIt_thread(log_path, msg=f'Building server information frame...')
+        self.srvinfo_frame = Frame(self.main_frame, relief='solid', border=1, height=1, background='ghost white')
+        self.srvinfo_frame.grid(row=0, column=0, sticky="nwes")
 
-        logIt_thread(log_path, msg=f'Building main frame top bar labelFrame...')
-        self.top_bar_label = LabelFrame(self.main_frame, text="Server Information", relief='solid',
-                                        background='gainsboro')
-        # self.top_bar_label.grid(row=0, column=0, sticky='news')
-
-        logIt_thread(log_path, msg=f'Building table frame in main frame...')
-        self.main_frame_table = Frame(self.main_frame, relief='flat')
-        self.main_frame_table.grid(row=1, column=0, sticky="news", pady=2)
+        logIt_thread(log_path, msg=f'Building connected table frame...')
+        self.connected_table = Frame(self.main_frame, relief='flat')
+        self.connected_table.grid(row=1, column=0, sticky="news", pady=2)
 
         logIt_thread(log_path, msg=f'Building controller frame in main frame...')
-        self.controller_frame = Frame(self.main_frame, relief='flat', background='gainsboro', height=60)
+        self.controller_frame = Frame(self.main_frame, relief='flat', background='white', height=60)
         self.controller_frame.grid(row=2, column=0, sticky='news', pady=2)
 
         logIt_thread(log_path,
@@ -271,7 +254,7 @@ class App(Tk):
         self.controller_btns.pack(fill=BOTH)
 
         logIt_thread(log_path, msg=f'Building connected table in main frame...')
-        self.table_frame = LabelFrame(self.main_frame_table, text="Connected Stations",
+        self.table_frame = LabelFrame(self.connected_table, text="Connected Stations",
                                       relief='solid', background='gainsboro')
         self.table_frame.pack(fill=BOTH)
 
@@ -541,7 +524,6 @@ class App(Tk):
             logIt_thread(log_path, msg=f'Disabling {button.config("text")[-1]}...')
             button.config(state=DISABLED)
 
-    # ==++==++==++== CONTROLLER BUTTONS COMMANDS==++==++==++==
     # Display Clients Last Restart
     def last_restart_command(self, endpoint) -> bool:
         logIt_thread(log_path, msg=f'Running last_restart('
@@ -565,14 +547,19 @@ class App(Tk):
             logIt_thread(log_path, msg=f'Calling server.remove_lost_connection('
                                        f'{endpoint.conn}, {endpoint.ip})...')
             self.server.remove_lost_connection(endpoint)
+            self.refresh_command()
             return False
 
     # Build Table for Server Information
     def server_information_table(self):
-        self.svrinfo_table = ttk.Treeview(self.main_frame_top,
+        # self.svrinfo_labelFrame = LabelFrame(self.srvinfo_frame, text="Server Information",
+        #                                      relief='solid', background='ghost white')
+        # self.svrinfo_labelFrame.pack(anchor=CENTER)
+
+        self.svrinfo_table = ttk.Treeview(self.srvinfo_frame,
                                           columns=("Serving On", "Server IP", "Server Port",
                                                    "Boot Time", "Connected Stations"),
-                                          show="headings", height=1)
+                                          show="headings", height=1, selectmode=NONE)
         self.svrinfo_table.pack(fill=BOTH)
         logIt_thread(log_path, msg=f'Defining highlight event for Connected Table...')
 
@@ -592,15 +579,21 @@ class App(Tk):
     def server_information(self) -> None:
         logIt_thread(log_path, msg=f'Running show server information...')
         last_reboot = psutil.boot_time()
-        bt = datetime.fromtimestamp(last_reboot).replace(microsecond=0)
+        bt = datetime.fromtimestamp(last_reboot).strftime('%d/%b/%y %H:%M:%S %p')
         try:
             self.svrinfo_table.delete(*self.svrinfo_table.get_children())
 
         except Exception:
             pass
 
-        self.svrinfo_table.insert('', 'end', values=(serving_on, self.server.serverIP, self.server.port, bt,
-                                                     len(self.server.endpoints)))
+        c = 0
+        if c % 2 == 0:
+            self.svrinfo_table.insert('', 'end', values=(serving_on, self.server.serverIP, self.server.port, bt,
+                                                         len(self.server.endpoints)), tags=('evenrow',))
+
+        # self.svrinfo_table.insert('', 'end', values=(serving_on, self.server.serverIP, self.server.port, bt,
+        #                                              len(self.server.endpoints)))
+        self.svrinfo_table.tag_configure('evenrow', background='snow')
         return
 
     # Display Available Stations
@@ -652,6 +645,7 @@ class App(Tk):
                     self.history_table.insert('', 'end', values=(c, entry.client_mac, entry.ip,
                                                                  entry.ident, entry.user,
                                                                  t), tags=('evenrow',))
+
                 else:
                     self.history_table.insert('', 'end', values=(c, entry.client_mac, entry.ip,
                                                                  entry.ident, entry.user,
@@ -836,14 +830,12 @@ if __name__ == '__main__':
     hostname = socket.gethostname()
     serverIP = str(socket.gethostbyname(hostname))
     path = r'c:\HandsOff'
+    log_path = fr'{path}\server_log.txt'
+
     parser = argparse.ArgumentParser()
     parser.add_argument('-i', '--ip', action='store', default=serverIP, type=str, help='Server IP')
     parser.add_argument('-p', '--port', action='store', default=port, type=int, help='Server Port')
-
     args = parser.parse_args()
 
-    log_path = fr'{path}\server_log.txt'
-    # local_tools = Locals()
     app = App()
-
     main()
