@@ -147,7 +147,8 @@ class Server:
                 self.endpoints.append(self.fresh_endpoint)
 
             self.connHistory.update({self.fresh_endpoint: dt})
-            self.app.display_server_information_thread()
+            Thread(target=self.app.server_information, name="Server Information").start()
+            # self.app.display_server_information_thread()
             self.welcome_message()
 
     # Check if connected stations are still connected
