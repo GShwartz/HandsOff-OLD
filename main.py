@@ -114,6 +114,7 @@ class App(Tk):
         self.build_menubar(None)
         self.build_main_window_frames()
         self.build_connected_table()
+        self.server_information_table()
         self.server_information()
         self.build_controller_buttons(None)
         self.create_notebook()
@@ -172,6 +173,12 @@ class App(Tk):
                               'relief': 'ridge',
                               'foreground': 'ghost white'},
                 "map": {"background": [("selected", 'green')]}},
+
+            "Sysinfo.Heading": {
+                "configure": {"padding": 1,
+                              "background": 'slate grey',
+                              'relief': 'ridge',
+                              'foreground': 'ghost white'}}
         })
 
         self.style.theme_use("HandsOff")
@@ -253,7 +260,7 @@ class App(Tk):
         logIt_thread(log_path, msg=f'Building main frame top bar labelFrame...')
         self.top_bar_label = LabelFrame(self.main_frame, text="Server Information", relief='solid',
                                         background='gainsboro')
-        self.top_bar_label.grid(row=0, column=0, sticky='news')
+        # self.top_bar_label.grid(row=0, column=0, sticky='news')
 
         logIt_thread(log_path, msg=f'Building table frame in main frame...')
         self.main_frame_table = Frame(self.main_frame, relief='flat')
@@ -398,7 +405,8 @@ class App(Tk):
         logIt_thread(log_path, msg=f'Building Update Client button...')
         self.update_client = Button(self.controller_btns, text="Update Client", width=14,
                                     pady=5, state=NORMAL,
-                                    command=lambda: Commands(endpoint, self, path, log_path).update_selected_endpoint_thread())
+                                    command=lambda: Commands(endpoint, self, path,
+                                                             log_path).update_selected_endpoint_thread())
         self.update_client.grid(row=0, column=8, sticky="w", pady=5, padx=2, ipadx=2)
         self.buttons.append(self.update_client)
 
@@ -565,21 +573,35 @@ class App(Tk):
             self.server.remove_lost_connection(endpoint)
             return False
 
+    def server_information_table(self):
+        self.sysinfo_table = ttk.Treeview(self.main_frame_top,
+                                          columns=("Serving On", "Server IP", "Server Port",
+                                                   "Boot Time", "Connected Stations"),
+                                          show="headings", height=1)
+        # self.style.configure("Sysinfo.Heading")
+        self.sysinfo_table.pack(fill=BOTH)
+        logIt_thread(log_path, msg=f'Defining highlight event for Connected Table...')
+
+        # Columns & Headings config
+        self.sysinfo_table.column("#1", anchor=CENTER, width=300, stretch=NO)
+        self.sysinfo_table.heading("#1", text="Serving On")
+        self.sysinfo_table.column("#2", anchor=CENTER, width=220, stretch=NO)
+        self.sysinfo_table.heading("#2", text="Server IP")
+        self.sysinfo_table.column("#3", anchor=CENTER, width=100, stretch=NO)
+        self.sysinfo_table.heading("#3", text="Server Port")
+        self.sysinfo_table.column("#4", anchor=CENTER, width=250, stretch=NO)
+        self.sysinfo_table.heading("#4", text="Boot Time")
+        self.sysinfo_table.column("#5", anchor=CENTER, width=170, stretch=YES)
+        self.sysinfo_table.heading("#5", text="Connected Stations")
+
     # Display Server Information
     def server_information(self) -> None:
         logIt_thread(log_path, msg=f'Running show server information...')
         last_reboot = psutil.boot_time()
-        logIt_thread(log_path, msg=f'Displaying Label: '
-                                   f'{self.server.serverIP} | {self.server.port} | '
-                                   f'{datetime.fromtimestamp(last_reboot).replace(microsecond=0)}" | '
-                                   f'{len(self.server.endpoints)}')
-        label = Label(self.top_bar_label, background='ghost white',
-                      text=f"\t\t\tServing on: handsoff.home.lab\t  "
-                           f"Server IP: {self.server.serverIP}\t    "
-                           f"Server Port: {self.server.port}"
-                           f"\tLast Boot: {datetime.fromtimestamp(last_reboot).replace(microsecond=0)}  "
-                           f"\tConnected Stations: {len(self.server.endpoints)}\t\t\t\t          ")
-        label.grid(row=0, sticky='news')
+        bt = datetime.fromtimestamp(last_reboot).replace(microsecond=0)
+        self.sysinfo_table.delete(*self.sysinfo_table.get_children())
+        self.sysinfo_table.insert('', 'end', values=(serving_on, self.server.serverIP, self.server.port, bt,
+                                                     len(self.server.endpoints)))
         return
 
     # Display Available Stations
@@ -666,8 +688,8 @@ class App(Tk):
         self.temp.clear()
         logIt_thread(log_path, msg=f'Calling vital_signs_thread()...')
         Commands(None, self, path, log_path).vital_signs_thread()
-        logIt_thread(log_path, msg=f'Calling server_information()...')
-        self.server_information()
+        logIt_thread(log_path, msg=f'Running thread: server_information')
+        Thread(target=self.server_information, name="Server Information Thread").start()
         logIt_thread(log_path, msg=f'Calling update_tools_menu()...')
         self.update_tools_menu(None)
         logIt_thread(log_path, msg=f'Calling show_available_connections()...')
@@ -810,6 +832,7 @@ def main():
 
 
 if __name__ == '__main__':
+    serving_on = "handsoff.home.lab"
     port = 55400
     hostname = socket.gethostname()
     serverIP = str(socket.gethostbyname(hostname))
