@@ -4,7 +4,9 @@ import socket
 import time
 import os
 
-# Added boot time
+# TODO:
+#   1. Remove client version recv in vital_signs
+#   2. Refactor inside loop to func that runs under threads.
 
 
 class Endpoints:
@@ -158,7 +160,7 @@ class Server:
             self.app.update_statusbar_messages_thread(msg='No connected stations.')
             return False
 
-        callback = 'yes'
+        self.callback = 'yes'
         i = 0
         self.app.update_statusbar_messages_thread(msg=f'running vitals check...')
         logIt_thread(self.log_path, msg=f'Iterating Through Temp Connected Sockets List...')
@@ -170,19 +172,16 @@ class Server:
                 logIt_thread(self.log_path, msg=f'Waiting for response from {endpoint.conn}...')
                 ans = endpoint.conn.recv(1024).decode()
                 logIt_thread(self.log_path, msg=f'Response from {endpoint.conn}: {ans}.')
-                logIt_thread(self.log_path, msg=f'Waiting for client version from {endpoint.conn}...')
-                ver = endpoint.conn.recv(1024).decode()
-                logIt_thread(self.log_path, msg=f'Response from {endpoint.conn}: {ver}.')
 
             except (WindowsError, socket.error, UnicodeDecodeError):
                 self.remove_lost_connection(endpoint)
                 continue
 
-            if str(ans) == str(callback):
+            if str(ans) == str(self.callback):
                 try:
                     logIt_thread(self.log_path, msg=f'Iterating self.clients dictionary...')
                     self.app.update_statusbar_messages_thread(
-                        msg=f'Station IP: {endpoint.ip} | Station Name: {endpoint.ident} | Client Version: {endpoint.client_version} - ALIVE!')
+                        msg=f'Station IP: {endpoint.ip} | Station Name: {endpoint.ident} - ALIVE!')
                     i += 1
                     time.sleep(0.5)
 
@@ -207,7 +206,7 @@ class Server:
             logIt_thread(self.log_path, msg=f'Removing '
                                             f'{endpoint.ip} | {endpoint.ident}...')
             self.endpoints.remove(endpoint)
-            self.app.refresh_command()
+            # self.app.refresh_command()
 
             # Update statusbar message
             self.app.update_statusbar_messages_thread(

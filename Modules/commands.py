@@ -3,6 +3,7 @@ from datetime import datetime
 from threading import Thread
 import subprocess
 import socket
+import time
 import csv
 import os
 
@@ -272,6 +273,7 @@ class Commands:
             logIt_thread(self.log_path, debug=False,
                          msg=f'Calling server.remove_lost_connection({self.endpoint})...')
             self.app.server.remove_lost_connection(self.endpoint)
+            self.app.refresh_command()
             return False
 
     # Update Selected Client Thread
@@ -301,6 +303,7 @@ class Commands:
                 self.app.update_statusbar_messages_thread(msg=f'{e}')
                 logIt_thread(self.log_path, msg=f'Calling server.remove_lost_connection({self.endpoint})...')
                 self.app.server.remove_lost_connection(self.endpoint)
+                self.app.refresh_command()
                 return False
 
         else:
@@ -326,6 +329,7 @@ class Commands:
 
     # Restart Client
     def restart_command(self) -> bool:
+        self.app.disable_buttons_thread()
         logIt_thread(self.log_path, msg=f'Running restart({self.endpoint.conn})')
         self.app.update_statusbar_messages_thread(msg=f' waiting for restart confirmation...')
         logIt_thread(self.log_path, msg=f'Displaying self.sure() popup window...')
@@ -338,12 +342,11 @@ class Commands:
                 logIt_thread(self.log_path, msg=f'Sending restart command to client...')
                 self.endpoint.conn.send('restart'.encode())
                 logIt_thread(self.log_path, msg=f'Send completed.')
+                time.sleep(2.5)
                 logIt_thread(self.log_path, msg=f'Calling self.refresh()...')
                 self.app.refresh_command()
                 self.app.update_statusbar_messages_thread(msg=f'restart command sent to '
                                                               f'{self.endpoint.ip} | {self.endpoint.ident}.')
-                Thread(target=self.app.refresh_command).start()
-                self.app.refresh_command()
                 return True
 
             except (RuntimeError, WindowsError, socket.error) as e:
@@ -352,6 +355,7 @@ class Commands:
                 logIt_thread(self.log_path, msg=f'Calling server.remove_lost_connection('
                                                 f'{self.endpoint})...')
                 self.app.server.remove_lost_connection(self.endpoint)
+                self.app.refresh_command()
                 return False
 
         else:
@@ -389,6 +393,7 @@ class Commands:
                     msg=f"Maintenance command sent to {self.endpoint.ip} | {self.endpoint.ident}.")
                 logIt_thread(msg=f"Calling server.remove_lost_connection({self.endpoint})")
                 server.remove_lost_connection(self.endpoint)
+                self.app.refresh_command()
                 time.sleep(0.5)
                 logIt_thread(self.log_path, msg=f"Calling self.refresh_command()...")
                 self.app.refresh_command()
