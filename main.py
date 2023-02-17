@@ -367,6 +367,8 @@ class App(Tk):
                                   width=75, pady=5, command=self.refresh_command)
         self.refresh_btn.image = refresh_img
         self.refresh_btn.grid(row=0, column=0, pady=5, padx=2)
+        # logger.debug("Updating controller buttons list...")
+        # self.buttons.append(self.refresh_btn)
 
         logger.debug("Building screenshot button...")
         self.screenshot_btn = Button(self.controller_btns, text="Screenshot", width=10,
@@ -815,9 +817,11 @@ if __name__ == '__main__':
     serverIP = str(socket.gethostbyname(hostname))
     path = r'c:\HandsOff'
     log_path = fr'{path}\server_log.txt'
+
     logger = logging.getLogger(__name__)
     logger.setLevel(logging.DEBUG)
     formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+
     info = logging.FileHandler(log_path)
     info.setLevel(logging.INFO)
     info.setFormatter(formatter)
@@ -828,7 +832,7 @@ if __name__ == '__main__':
 
     error = logging.FileHandler(log_path)
     error.setLevel(logging.ERROR)
-    error.setFormatter(info)
+    error.setFormatter(formatter)
 
     logger.addHandler(info)
     logger.addHandler(debug)
