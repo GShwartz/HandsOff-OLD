@@ -107,13 +107,12 @@ class Screenshot:
         self.app.tabs += 1
 
         self.app.enable_buttons_thread()
-        self.app.running = False
         self.app.update_statusbar_messages_thread(msg=f'Screenshot received from '
                                                       f'{self.endpoint.ip} | {self.endpoint.ident}.')
 
     def run(self):
+        self.app.refresh_btn.config(state=DISABLED)
         self.app.disable_buttons_thread()
-        self.app.running = True
         self.app.update_statusbar_messages_thread(
             msg=f'Fetching screenshot from {self.endpoint.ip} | {self.endpoint.ident}...')
 
@@ -148,6 +147,7 @@ class Screenshot:
 
         logIt_thread(self.log_path, msg=f'Building working frame...')
         self.display_notebook_frame()
+        self.app.refresh_btn.config(state=NORMAL)
 
 
 def logIt_thread(log_path=None, debug=False, msg='') -> None:
