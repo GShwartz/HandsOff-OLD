@@ -5,11 +5,10 @@ import socket
 import time
 import os
 
-# logger = logging.getLogger(__name__)
-
 # TODO:
 #   1. Remove client version recv in vital_signs
 #   2. Refactor the code to use logger module - [V]
+#   3. Thread vital signs - [V]
 
 
 class Endpoints:
@@ -129,6 +128,35 @@ class Server:
         dt = str(d.strftime("%d/%b/%y %H:%M:%S"))
         return dt
 
+    def check_vital_signs(self, endpoint):
+        self.callback = 'yes'
+        self.logger.debug(f'Checking {endpoint.ip}...')
+
+        try:
+            endpoint.conn.send('alive'.encode())
+            ans = endpoint.conn.recv(1024).decode()
+
+        except (WindowsError, socket.error, UnicodeDecodeError) as e:
+            self.logger.debug(f'removing {endpoint}...')
+            self.remove_lost_connection(endpoint)
+            return
+
+        if str(ans) == str(self.callback):
+            try:
+                self.app.update_statusbar_messages_thread(
+                    msg=f'Station IP: {endpoint.ip} | Station Name: {endpoint.ident} - ALIVE!')
+
+            except (IndexError, RuntimeError):
+                return
+
+        else:
+            try:
+                self.logger.debug(f'removing {endpoint}...')
+                self.remove_lost_connection(endpoint)
+
+            except (IndexError, RuntimeError):
+                return
+
     # Check if connected stations are still connected
     def vital_signs(self) -> bool:
         self.logger.info(f'Running vital_signs...')
@@ -138,46 +166,21 @@ class Server:
             return False
 
         self.callback = 'yes'
-        i = 0
         self.logger.debug(f'Updating statusbar message: running vitals check....')
         self.app.update_statusbar_messages_thread(msg=f'running vitals check...')
+        threads = []
         for endpoint in self.endpoints:
-            try:
-                self.logger.debug(f'Sending "alive" to {endpoint.conn}...')
-                endpoint.conn.send('alive'.encode())
-                self.logger.debug(f'Send completed.')
-                self.logger.debug(f'Waiting for response from {endpoint.conn}...')
-                ans = endpoint.conn.recv(1024).decode()
-                self.logger.debug(f'Response from {endpoint.conn}: {ans}.')
+            thread = Thread(target=self.check_vital_signs, args=(endpoint,))
+            thread.start()
+            threads.append(thread)
 
-            except (WindowsError, socket.error, UnicodeDecodeError) as e:
-                self.logger.error(f'Error: {e}.')
-                self.logger.debug(f'Calling remove_lost_connection({endpoint})...')
-                self.remove_lost_connection(endpoint)
-                continue
-
-            if str(ans) == str(self.callback):
-                try:
-                    self.logger.debug(f'Updating statusbar message: '
-                                      f'Station IP: {endpoint.ip} | Station Name: {endpoint.ident} - ALIVE!')
-                    self.app.update_statusbar_messages_thread(
-                        msg=f'Station IP: {endpoint.ip} | Station Name: {endpoint.ident} - ALIVE!')
-                    i += 1
-                    time.sleep(0.5)
-
-                except (IndexError, RuntimeError):
-                    continue
-
-            else:
-                try:
-                    self.logger.debug(f'Calling remove_lost_connection({endpoint})...')
-                    self.remove_lost_connection(endpoint)
-
-                except (IndexError, RuntimeError):
-                    continue
+        # wait for all threads to finish before returning
+        for thread in threads:
+            thread.join()
 
         self.logger.debug(f'Updating statusbar message: Vitals check completed.')
         self.logger.info(f'=== End of vital_signs() ===')
+
         return True
 
     # Remove Lost connections

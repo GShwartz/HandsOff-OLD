@@ -101,6 +101,7 @@ class Sysinfo:
             self.app.tabs += 1
 
     def run(self):
+        self.app.refresh_btn.config(state=DISABLED)
         self.app.disable_buttons_thread()
         self.app.running = True
 
@@ -120,6 +121,7 @@ class Sysinfo:
         self.app.update_statusbar_messages_thread(msg=f'system information file received from '
                                                   f'{self.endpoint.ip} | {self.endpoint.ident}.')
 
+        self.app.refresh_btn.configure(state=NORMAL)
 
 def logIt_thread(log_path=None, debug=False, msg='') -> None:
     logit_thread = Thread(target=logIt,
