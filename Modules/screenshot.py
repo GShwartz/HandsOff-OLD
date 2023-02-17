@@ -17,6 +17,14 @@ class Screenshot:
         self.log_path = log_path
         self.screenshot_path = fr"{self.path}\{self.endpoint.ident}"
 
+    def make_dir(self):
+        try:
+            os.makedirs(self.screenshot_path)
+
+        except FileExistsError:
+            logIt_thread(self.log_path, debug=False, msg=f'Passing FileExistsError...')
+            pass
+
     def get_file_name(self):
         try:
             self.filename = self.endpoint.conn.recv(1024)
@@ -108,6 +116,8 @@ class Screenshot:
         self.app.running = True
         self.app.update_statusbar_messages_thread(
             msg=f'Fetching screenshot from {self.endpoint.ip} | {self.endpoint.ident}...')
+
+        self.make_dir()
 
         try:
             logIt_thread(self.log_path, msg=f'Sending screen command to client...')

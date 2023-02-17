@@ -1,12 +1,15 @@
-from threading import Thread
 from datetime import datetime
+from threading import Thread
+import logging
 import socket
 import time
 import os
 
+# logger = logging.getLogger(__name__)
+
 # TODO:
 #   1. Remove client version recv in vital_signs
-#   2. Refactor inside loop to func that runs under threads.
+#   2. Refactor the code to use logger module - [V]
 
 
 class Endpoints:
@@ -36,150 +39,127 @@ class Server:
         self.connHistory = {}
         self.endpoints = []
 
+        self.init_logger()
+
+    # Initiate logger
+    def init_logger(self):
+        self.logger = logging.getLogger(__name__)
+        self.logger.setLevel(logging.DEBUG)
+        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+
+        info = logging.FileHandler(self.log_path)
+        info.setLevel(logging.INFO)
+        info.setFormatter(formatter)
+
+        debug = logging.FileHandler(self.log_path)
+        debug.setLevel(logging.DEBUG)
+        debug.setFormatter(formatter)
+
+        error = logging.FileHandler(self.log_path)
+        error.setLevel(logging.ERROR)
+        error.setFormatter(formatter)
+
+        self.logger.addHandler(info)
+        self.logger.addHandler(debug)
+        self.logger.addHandler(error)
+
     # Server listener
     def listener(self) -> None:
-        logIt_thread(self.log_path, msg=f'Running listener()...')
         self.server = socket.socket()
         self.server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        logIt_thread(self.log_path, msg=f'Binding {self.serverIP}, {self.port}...')
+        self.logger.debug(f'Binding {self.serverIP}, {self.port}...')
         self.server.bind((self.serverIP, self.port))
         self.server.listen()
 
     # Send welcome message to connected clients
     def welcome_message(self) -> bool:
-        logIt_thread(self.log_path, msg=f'Running welcome_message()...')
+        self.logger.info(f'Running welcome_message...')
         try:
             self.welcome = "Connection Established!"
-            logIt_thread(self.log_path, msg=f'Sending welcome message...')
+            self.logger.debug(f'Sending welcome message...')
             self.conn.send(f"@Server: {self.welcome}".encode())
-            logIt_thread(self.log_path, msg=f'{self.welcome} sent to {self.ident}.')
+            self.logger.debug(f'{self.welcome} sent to {self.ident}.')
             return True
 
         except (WindowsError, socket.error) as e:
-            logIt_thread(self.log_path, msg=f'Connection Error: {e}')
+            self.logger.error(f'Connection Error: {e}.')
             if self.fresh_endpoint in self.endpoints:
+                self.logger.debug(f'Calling remove_lost_connection({self.fresh_endpoint})...')
                 self.remove_lost_connection(self.fresh_endpoint)
                 return False
 
-    def run(self) -> None:
-        logIt_thread(self.log_path, msg=f'Running run()...')
-        logIt_thread(self.log_path, msg=f'Calling connect()...')
-        self.connectThread = Thread(target=self.connect,
-                                    daemon=True,
-                                    name=f"Connect Thread")
-        self.connectThread.start()
-
+    # Get remote MAC address
     def get_mac_address(self) -> str:
-        logIt_thread(self.log_path, msg=f'Waiting for MAC address from {self.ip}...')
+        self.logger.info(f'Running get_mac_address...')
         self.mac = self.conn.recv(1024).decode()
-        logIt_thread(self.log_path, msg=f'MAC Address: {self.mac}')
-        logIt_thread(self.log_path, msg=f'Sending confirmation to {self.ip}...')
         self.conn.send('OK'.encode())
-        logIt_thread(self.log_path, msg=f'Send completed.')
         return self.mac
 
+    # Get remote host name
     def get_hostname(self) -> str:
-        logIt_thread(self.log_path, msg=f'Waiting for remote station name...')
+        self.logger.info(f'Running get_hostname...')
         self.ident = self.conn.recv(1024).decode()
-        logIt_thread(self.log_path, msg=f'Remote station name: {self.ident}')
-        logIt_thread(self.log_path, msg=f'Sending Confirmation to {self.ip}...')
         self.conn.send('OK'.encode())
-        logIt_thread(self.log_path, msg=f'Send completed.')
         return self.ident
 
+    # Get remote user
     def get_user(self) -> str:
-        logIt_thread(self.log_path, msg=f'Waiting for remote station current logged user...')
+        self.logger.info(f'Running get_user...')
         self.user = self.conn.recv(1024).decode()
-        logIt_thread(self.log_path, msg=f'Remote station user: {self.user}')
-        logIt_thread(self.log_path, msg=f'Sending Confirmation to {self.ip}...')
         self.conn.send('OK'.encode())
-        logIt_thread(self.log_path, msg=f'Send completed.')
         return self.user
 
+    # Get client version
     def get_client_version(self) -> str:
-        logIt_thread(self.log_path, msg=f'Waiting for client version...')
+        self.logger.info(f'Running get_client_version...')
         self.client_version = self.conn.recv(1024).decode()
-        logIt_thread(self.log_path, msg=f'Client version: {self.client_version}')
-        logIt_thread(self.log_path, msg=f'Sending confirmation to {self.ip}...')
         self.conn.send('OK'.encode())
-        logIt_thread(self.log_path, msg=f'Send completed.')
         return self.client_version
 
+    # Get boot time
     def get_boot_time(self) -> str:
-        logIt_thread(self.log_path, msg=f'Waiting for client version...')
+        self.logger.info(f'Running get_boot_time...')
         self.boot_time = self.conn.recv(1024).decode()
-        logIt_thread(self.log_path, debug=False, msg=f'Client Boot Time: {self.boot_time}')
         self.conn.send('OK'.encode())
         return self.boot_time
 
-    # Listen for connections and sort new connections to designated lists/dicts
-    def connect(self) -> None:
-        logIt_thread(self.log_path, msg=f'Running connect()...')
-        while True:
-            logIt_thread(self.log_path, msg=f'Accepting connections...')
-            self.conn, (self.ip, self.port) = self.server.accept()
-            logIt_thread(self.log_path, msg=f'Connection from {self.ip} accepted.')
-
-            try:
-                dt = get_date()
-                logIt_thread(self.log_path, msg=f'Waiting for MAC Address...')
-                self.client_mac = self.get_mac_address()
-                logIt_thread(self.log_path, msg=f'MAC: {self.client_mac}.')
-                logIt_thread(self.log_path, msg=f'Waiting for station name...')
-                self.hostname = self.get_hostname()
-                logIt_thread(self.log_path, msg=f'Station name: {self.hostname}.')
-                logIt_thread(self.log_path, msg=f'Waiting for logged user...')
-                self.loggedUser = self.get_user()
-                logIt_thread(self.log_path, msg=f'Logged user: {self.loggedUser}.')
-                logIt_thread(self.log_path, msg=f'Waiting for client version...')
-                self.client_version = self.get_client_version()
-                logIt_thread(self.log_path, msg=f'Client version: {self.client_version}.')
-                self.get_boot_time()
-                logIt_thread(self.log_path, msg=f'Client Boot time: {self.boot_time}.')
-
-            except (WindowsError, socket.error, UnicodeDecodeError) as e:
-                logIt_thread(self.log_path, msg=f'Connection Error: {e}')
-                return  # Restart The Loop
-
-            # Apply Data to dataclass Endpoints
-            self.fresh_endpoint = Endpoints(self.conn, self.client_mac, self.ip,
-                                            self.ident, self.user, self.client_version, self.boot_time)
-
-            if self.fresh_endpoint not in self.endpoints:
-                self.endpoints.append(self.fresh_endpoint)
-
-            self.connHistory.update({self.fresh_endpoint: dt})
-            Thread(target=self.app.server_information, name="Server Information").start()
-            # self.app.display_server_information_thread()
-            self.welcome_message()
+    # Get human readable datetime
+    def get_date(self) -> str:
+        d = datetime.now().replace(microsecond=0)
+        dt = str(d.strftime("%d/%b/%y %H:%M:%S"))
+        return dt
 
     # Check if connected stations are still connected
     def vital_signs(self) -> bool:
-        logIt_thread(self.log_path, msg=f'Running vital_signs()...')
+        self.logger.info(f'Running vital_signs...')
         if not self.endpoints:
+            self.logger.debug(f'Updating statusbar message: No connected stations.')
             self.app.update_statusbar_messages_thread(msg='No connected stations.')
             return False
 
         self.callback = 'yes'
         i = 0
+        self.logger.debug(f'Updating statusbar message: running vitals check....')
         self.app.update_statusbar_messages_thread(msg=f'running vitals check...')
-        logIt_thread(self.log_path, msg=f'Iterating Through Temp Connected Sockets List...')
         for endpoint in self.endpoints:
             try:
-                logIt_thread(self.log_path, msg=f'Sending "alive" to {endpoint.conn}...')
+                self.logger.debug(f'Sending "alive" to {endpoint.conn}...')
                 endpoint.conn.send('alive'.encode())
-                logIt_thread(self.log_path, msg=f'Send completed.')
-                logIt_thread(self.log_path, msg=f'Waiting for response from {endpoint.conn}...')
+                self.logger.debug(f'Send completed.')
+                self.logger.debug(f'Waiting for response from {endpoint.conn}...')
                 ans = endpoint.conn.recv(1024).decode()
-                logIt_thread(self.log_path, msg=f'Response from {endpoint.conn}: {ans}.')
+                self.logger.debug(f'Response from {endpoint.conn}: {ans}.')
 
-            except (WindowsError, socket.error, UnicodeDecodeError):
+            except (WindowsError, socket.error, UnicodeDecodeError) as e:
+                self.logger.error(f'Error: {e}.')
+                self.logger.debug(f'Calling remove_lost_connection({endpoint})...')
                 self.remove_lost_connection(endpoint)
                 continue
 
             if str(ans) == str(self.callback):
                 try:
-                    logIt_thread(self.log_path, msg=f'Iterating self.clients dictionary...')
+                    self.logger.debug(f'Updating statusbar message: '
+                                      f'Station IP: {endpoint.ip} | Station Name: {endpoint.ident} - ALIVE!')
                     self.app.update_statusbar_messages_thread(
                         msg=f'Station IP: {endpoint.ip} | Station Name: {endpoint.ident} - ALIVE!')
                     i += 1
@@ -189,75 +169,89 @@ class Server:
                     continue
 
             else:
-                logIt_thread(self.log_path, msg=f'Iterating self.clients dictionary...')
                 try:
+                    self.logger.debug(f'Calling remove_lost_connection({endpoint})...')
                     self.remove_lost_connection(endpoint)
 
                 except (IndexError, RuntimeError):
                     continue
 
-        self.app.update_statusbar_messages_thread(msg=f'Vitals check completed.')
-        logIt_thread(self.log_path, msg=f'=== End of vital_signs() ===')
+        self.logger.debug(f'Updating statusbar message: Vitals check completed.')
+        self.logger.info(f'=== End of vital_signs() ===')
         return True
 
     # Remove Lost connections
     def remove_lost_connection(self, endpoint) -> bool:
+        self.logger.info(f'Running remove_lost_connection({endpoint})...')
         try:
-            logIt_thread(self.log_path, msg=f'Removing '
-                                            f'{endpoint.ip} | {endpoint.ident}...')
+            self.logger.debug(f'Removing {endpoint.ip} | {endpoint.ident}...')
             self.endpoints.remove(endpoint)
-            # self.app.refresh_command()
 
             # Update statusbar message
+            self.logger.debug(f'Updating statusbar message: '
+                              f'{endpoint.ip} | {endpoint.ident} | {endpoint.user} removed from connected list.')
             self.app.update_statusbar_messages_thread(
                 msg=f'{endpoint.ip} | {endpoint.ident} | {endpoint.user} removed from connected list.')
-            logIt_thread(self.log_path, msg=f'{endpoint.ip} | {endpoint.ident} removed.')
+            self.logger.info(f'=== End of remove_lost_connection({endpoint}) ===')
             return True
 
         except (ValueError, RuntimeError) as e:
-            logIt_thread(self.log_path, msg=f'Runtime Error: {e}.')
+            self.logger.error(f'Error: {e}.')
 
+    # Listen for connections and sort new connections to designated lists/dicts
+    def connect(self) -> None:
+        self.logger.info(f'Running connect...')
+        while True:
+            self.logger.debug(f'Accepting connection...')
+            self.conn, (self.ip, self.port) = self.server.accept()
+            self.logger.debug(f'Connection from {self.ip} accepted.')
 
-def logIt_thread(log_path=None, debug=False, msg='') -> None:
-    logit_thread = Thread(target=logIt,
-                          args=(log_path, debug, msg),
-                          daemon=True,
-                          name="Log Thread")
-    logit_thread.start()
+            try:
+                dt = self.get_date()
+                self.logger.debug(f'Waiting for MAC Address...')
+                self.client_mac = self.get_mac_address()
+                self.logger.debug(f'MAC: {self.client_mac}.')
+                self.logger.debug(f'Waiting for station name...')
+                self.hostname = self.get_hostname()
+                self.logger.debug(f'Station name: {self.hostname}.')
+                self.logger.debug(f'Waiting for logged user...')
+                self.loggedUser = self.get_user()
+                self.logger.debug(f'Logged user: {self.loggedUser}.')
+                self.logger.debug(f'Waiting for client version...')
+                self.client_version = self.get_client_version()
+                self.logger.debug(f'Client version: {self.client_version}.')
+                self.get_boot_time()
+                self.logger.debug(f'Client Boot time: {self.boot_time}.')
 
+            except (WindowsError, socket.error, UnicodeDecodeError) as e:
+                self.logger.debug(f'Connection Error: {e}.')
+                return  # Restart The Loop
 
-def bytes_to_number(b: int) -> int:
-    res = 0
-    for i in range(4):
-        res += b[i] << (i * 8)
-    return res
+            # Apply Data to dataclass Endpoints
+            self.logger.debug(f'Defining fresh endpoint data...')
+            self.fresh_endpoint = Endpoints(self.conn, self.client_mac, self.ip,
+                                            self.ident, self.user, self.client_version, self.boot_time)
+            self.logger.debug(f'Fresh Endpoint: {self.fresh_endpoint}')
 
+            if self.fresh_endpoint not in self.endpoints:
+                self.logger.debug(f'{self.fresh_endpoint} not in endpoints list. adding...')
+                self.endpoints.append(self.fresh_endpoint)
 
-def get_date() -> str:
-    d = datetime.now().replace(microsecond=0)
-    dt = str(d.strftime("%d/%b/%y %H:%M:%S"))
+            self.logger.debug(f'Updating connection history dict...')
+            self.connHistory.update({self.fresh_endpoint: dt})
 
-    return dt
+            self.logger.debug(f'Running Server Information thread...')
+            Thread(target=self.app.server_information, name="Server Information").start()
 
+            self.logger.debug(f'Calling welcome_message...')
+            self.welcome_message()
+            self.logger.info(f'connect completed.')
 
-def logIt(logfile=None, debug=None, msg='') -> bool:
-    dt = get_date()
-    if debug:
-        print(f"{dt}: {msg}")
-
-    if logfile is not None:
-        try:
-            if not os.path.exists(logfile):
-                with open(logfile, 'w') as lf:
-                    lf.write(f"{dt}: {msg}\n")
-
-                return True
-
-            else:
-                with open(logfile, 'a') as lf:
-                    lf.write(f"{dt}: {msg}\n")
-
-                return True
-
-        except FileExistsError:
-            pass
+    # Start connection thread
+    def run(self) -> None:
+        self.logger.info(f'Running run...')
+        self.logger.debug(f'Starting connection thread...')
+        self.connectThread = Thread(target=self.connect,
+                                    daemon=True,
+                                    name=f"Connect Thread")
+        self.connectThread.start()
