@@ -1,6 +1,7 @@
 from tkinter import messagebox, filedialog
 from datetime import datetime
 from threading import Thread
+from tkinter import *
 import subprocess
 import logging
 import socket
@@ -15,6 +16,7 @@ from Modules.about import About
 from Modules.tasks import Tasks
 from Modules.sysinfo import Sysinfo
 
+from tkinter.ttk import Progressbar
 
 # TODO:
 #   1. Fix Update all clients messing up status messages - [V]
@@ -38,21 +40,11 @@ class Commands:
         self.logger.setLevel(logging.DEBUG)
         formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
-        info = logging.FileHandler(self.log_path)
-        info.setLevel(logging.INFO)
-        info.setFormatter(formatter)
+        context = logging.FileHandler(self.log_path)
+        context.setLevel(logging.DEBUG)
+        context.setFormatter(formatter)
 
-        debug = logging.FileHandler(self.log_path)
-        debug.setLevel(logging.DEBUG)
-        debug.setFormatter(formatter)
-
-        error = logging.FileHandler(self.log_path)
-        error.setLevel(logging.ERROR)
-        error.setFormatter(formatter)
-
-        self.logger.addHandler(info)
-        self.logger.addHandler(debug)
-        self.logger.addHandler(error)
+        self.logger.addHandler(context)
 
     # Minimize Window
     def minimize(self):
@@ -170,14 +162,9 @@ class Commands:
         def send_restart(endpoint):
             try:
                 endpoint.conn.send('restart'.encode())
-                time.sleep(1)
-                # msg = endpoint.conn.recv(1024).decode()
-                # self.logger.debug(f'Updating statusbar message: {msg}')
-                # self.app.update_statusbar_messages_thread(msg=f"{msg}")
+                time.sleep(1.15)
                 self.logger.debug(f'Calling server.remove_lost_connection({endpoint}...')
                 self.app.server.remove_lost_connection(endpoint)
-                # self.logger.debug(f'Calling app.refresh_command...')
-                # self.app.refresh_command()
 
             except (WindowsError, socket.error):
                 pass

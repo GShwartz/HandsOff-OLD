@@ -7,8 +7,6 @@ import os
 
 # TODO:
 #   1. Remove client version recv in vital_signs
-#   2. Refactor the code to use logger module - [V]
-#   3. Thread vital signs - [V]
 
 
 class Endpoints:
@@ -45,22 +43,13 @@ class Server:
         self.logger = logging.getLogger(__name__)
         self.logger.setLevel(logging.DEBUG)
         formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        self.logger.propagate = False
 
-        info = logging.FileHandler(self.log_path)
-        info.setLevel(logging.INFO)
-        info.setFormatter(formatter)
+        context = logging.FileHandler(self.log_path)
+        context.setLevel(logging.DEBUG)
+        context.setFormatter(formatter)
 
-        debug = logging.FileHandler(self.log_path)
-        debug.setLevel(logging.DEBUG)
-        debug.setFormatter(formatter)
-
-        error = logging.FileHandler(self.log_path)
-        error.setLevel(logging.ERROR)
-        error.setFormatter(formatter)
-
-        self.logger.addHandler(info)
-        self.logger.addHandler(debug)
-        self.logger.addHandler(error)
+        self.logger.addHandler(context)
 
     # Server listener
     def listener(self) -> None:
@@ -76,6 +65,55 @@ class Server:
                                     daemon=True,
                                     name=f"Connect Thread")
         self.connectThread.start()
+
+    # Listen for connections and sort new connections to designated lists/dicts
+    def connect(self) -> None:
+        self.logger.info(f'Running connect...')
+        while True:
+            self.logger.debug(f'Accepting connection...')
+            self.conn, (self.ip, self.port) = self.server.accept()
+            self.logger.debug(f'Connection from {self.ip} accepted.')
+
+            try:
+                dt = self.get_date()
+                self.logger.debug(f'Waiting for MAC Address...')
+                self.client_mac = self.get_mac_address()
+                self.logger.debug(f'MAC: {self.client_mac}.')
+                self.logger.debug(f'Waiting for station name...')
+                self.hostname = self.get_hostname()
+                self.logger.debug(f'Station name: {self.hostname}.')
+                self.logger.debug(f'Waiting for logged user...')
+                self.loggedUser = self.get_user()
+                self.logger.debug(f'Logged user: {self.loggedUser}.')
+                self.logger.debug(f'Waiting for client version...')
+                self.client_version = self.get_client_version()
+                self.logger.debug(f'Client version: {self.client_version}.')
+                self.get_boot_time()
+                self.logger.debug(f'Client Boot time: {self.boot_time}.')
+
+            except (WindowsError, socket.error, UnicodeDecodeError) as e:
+                self.logger.debug(f'Connection Error: {e}.')
+                return  # Restart The Loop
+
+            # Apply Data to dataclass Endpoints
+            self.logger.debug(f'Defining fresh endpoint data...')
+            self.fresh_endpoint = Endpoints(self.conn, self.client_mac, self.ip,
+                                            self.ident, self.user, self.client_version, self.boot_time)
+            self.logger.debug(f'Fresh Endpoint: {self.fresh_endpoint}')
+
+            if self.fresh_endpoint not in self.endpoints:
+                self.logger.debug(f'{self.fresh_endpoint} not in endpoints list. adding...')
+                self.endpoints.append(self.fresh_endpoint)
+
+            self.logger.debug(f'Updating connection history dict...')
+            self.connHistory.update({self.fresh_endpoint: dt})
+
+            self.logger.debug(f'Running Server Information thread...')
+            Thread(target=self.app.server_information, name="Server Information").start()
+
+            self.logger.debug(f'Calling welcome_message...')
+            self.welcome_message()
+            self.logger.info(f'connect completed.')
 
     # Send welcome message to connected clients
     def welcome_message(self) -> bool:
@@ -135,6 +173,7 @@ class Server:
         dt = str(d.strftime("%d/%b/%y %H:%M:%S"))
         return dt
 
+    # Check vital signs
     def check_vital_signs(self, endpoint):
         self.callback = 'yes'
         self.logger.debug(f'Checking {endpoint.ip}...')
@@ -164,7 +203,7 @@ class Server:
             except (IndexError, RuntimeError):
                 return
 
-    # Check if connected stations are still connected
+    # Run vital signs
     def vital_signs(self) -> bool:
         self.logger.info(f'Running vital_signs...')
         if not self.endpoints:
@@ -181,13 +220,11 @@ class Server:
             thread.start()
             threads.append(thread)
 
-        # wait for all threads to finish before returning
         for thread in threads:
             thread.join()
 
         self.logger.debug(f'Updating statusbar message: Vitals check completed.')
         self.logger.info(f'=== End of vital_signs() ===')
-
         return True
 
     # Remove Lost connections
@@ -207,52 +244,3 @@ class Server:
 
         except (ValueError, RuntimeError) as e:
             self.logger.error(f'Error: {e}.')
-
-    # Listen for connections and sort new connections to designated lists/dicts
-    def connect(self) -> None:
-        self.logger.info(f'Running connect...')
-        while True:
-            self.logger.debug(f'Accepting connection...')
-            self.conn, (self.ip, self.port) = self.server.accept()
-            self.logger.debug(f'Connection from {self.ip} accepted.')
-
-            try:
-                dt = self.get_date()
-                self.logger.debug(f'Waiting for MAC Address...')
-                self.client_mac = self.get_mac_address()
-                self.logger.debug(f'MAC: {self.client_mac}.')
-                self.logger.debug(f'Waiting for station name...')
-                self.hostname = self.get_hostname()
-                self.logger.debug(f'Station name: {self.hostname}.')
-                self.logger.debug(f'Waiting for logged user...')
-                self.loggedUser = self.get_user()
-                self.logger.debug(f'Logged user: {self.loggedUser}.')
-                self.logger.debug(f'Waiting for client version...')
-                self.client_version = self.get_client_version()
-                self.logger.debug(f'Client version: {self.client_version}.')
-                self.get_boot_time()
-                self.logger.debug(f'Client Boot time: {self.boot_time}.')
-
-            except (WindowsError, socket.error, UnicodeDecodeError) as e:
-                self.logger.debug(f'Connection Error: {e}.')
-                return  # Restart The Loop
-
-            # Apply Data to dataclass Endpoints
-            self.logger.debug(f'Defining fresh endpoint data...')
-            self.fresh_endpoint = Endpoints(self.conn, self.client_mac, self.ip,
-                                            self.ident, self.user, self.client_version, self.boot_time)
-            self.logger.debug(f'Fresh Endpoint: {self.fresh_endpoint}')
-
-            if self.fresh_endpoint not in self.endpoints:
-                self.logger.debug(f'{self.fresh_endpoint} not in endpoints list. adding...')
-                self.endpoints.append(self.fresh_endpoint)
-
-            self.logger.debug(f'Updating connection history dict...')
-            self.connHistory.update({self.fresh_endpoint: dt})
-
-            self.logger.debug(f'Running Server Information thread...')
-            Thread(target=self.app.server_information, name="Server Information").start()
-
-            self.logger.debug(f'Calling welcome_message...')
-            self.welcome_message()
-            self.logger.info(f'connect completed.')
