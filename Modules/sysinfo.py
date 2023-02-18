@@ -1,3 +1,4 @@
+import sys
 from datetime import datetime
 from threading import Thread
 from tkinter import *
@@ -46,19 +47,24 @@ class Sysinfo:
     def get_file_content(self):
         current_size = 0
         buffer = b""
-        with open(self.file_path, 'wb') as tsk_file:
-            while current_size < self.size:
-                logIt_thread(self.log_path, msg=f'Receiving file content from {self.endpoint.ip}...')
-                data = self.endpoint.conn.recv(1024)
-                if not data:
-                    break
+        try:
+            with open(self.file_path, 'wb') as tsk_file:
+                while current_size < self.size:
+                    logIt_thread(self.log_path, msg=f'Receiving file content from {self.endpoint.ip}...')
+                    data = self.endpoint.conn.recv(1024)
+                    if not data:
+                        break
 
-                if len(data) + current_size > self.size:
-                    data = data[:self.size - current_size]
+                    if len(data) + current_size > self.size:
+                        data = data[:self.size - current_size]
 
-                buffer += data
-                current_size += len(data)
-                tsk_file.write(data)
+                    buffer += data
+                    current_size += len(data)
+                    tsk_file.write(data)
+
+        except ValueError:
+            print("something is wrong in get_file_content.")
+            sys.exit(1)
 
     def confirm(self):
         try:
@@ -66,7 +72,6 @@ class Sysinfo:
             self.endpoint.conn.send(f"Received file: {self.filename}\n".encode())
             logIt_thread(self.log_path, msg=f'Waiting for msg from {self.endpoint.ip}...')
             msg = self.endpoint.conn.recv(1024).decode()
-            print(msg)
             self.endpoint.conn.settimeout(None)
 
         except (WindowsError, socket.error) as e:
@@ -80,28 +85,35 @@ class Sysinfo:
                 # print(data)   # for debugging
 
         except Exception as e:
-            logIt_thread(self.log_path, msg=f'Error: {e}')
+            logIt_thread(self.log_path, msg=f'File validation Error: {e}')
             return False
 
     def display_text(self):
-        with open(self.file_path, 'r') as file:
-            data = file.read()
-            self.tab = Frame(self.app.notebook, height=350)
-            tab_scrollbar = Scrollbar(self.tab, orient=VERTICAL)
-            tab_scrollbar.pack(side=LEFT, fill=Y)
-            tab_textbox = Text(self.tab, yscrollcommand=tab_scrollbar.set)
-            tab_textbox.pack(fill=BOTH)
-            self.app.notebook.add(self.tab, text=f"SysInfo {self.endpoint.ident}")
-            tab_scrollbar.configure(command=tab_textbox.yview)
-            tab_textbox.config(state=NORMAL)
-            tab_textbox.delete(1.0, END)
-            tab_textbox.insert(END, data)
-            tab_textbox.config(state=DISABLED)
-            self.app.notebook.select(self.tab)
-            self.app.tabs += 1
+        try:
+            with open(self.file_path, 'r') as file:
+                data = file.read()
+                self.tab = Frame(self.app.notebook, height=350)
+                tab_scrollbar = Scrollbar(self.tab, orient=VERTICAL)
+                tab_scrollbar.pack(side=LEFT, fill=Y)
+                tab_textbox = Text(self.tab, yscrollcommand=tab_scrollbar.set)
+                tab_textbox.pack(fill=BOTH)
+                self.app.notebook.add(self.tab, text=f"SysInfo {self.endpoint.ident}")
+                tab_scrollbar.configure(command=tab_textbox.yview)
+                tab_textbox.config(state=NORMAL)
+                tab_textbox.delete(1.0, END)
+                tab_textbox.insert(END, data)
+                tab_textbox.config(state=DISABLED)
+                self.app.notebook.select(self.tab)
+                self.app.tabs += 1
+
+        except ValueError:
+            print("something is wrong in display_text")
+            sys.exit(1)
 
     def run(self):
         self.app.refresh_btn.config(state=DISABLED)
+        self.app.connected_table.unbind("<Button-1>")
+        self.app.connected_table.configure(selectmode='none')
         self.app.disable_buttons_thread()
         self.app.running = True
 
@@ -116,12 +128,14 @@ class Sysinfo:
         self.file_validation()
         self.display_text()
 
-        self.app.running = False
         self.app.enable_buttons_thread()
         self.app.update_statusbar_messages_thread(msg=f'system information file received from '
                                                   f'{self.endpoint.ip} | {self.endpoint.ident}.')
 
         self.app.refresh_btn.configure(state=NORMAL)
+        self.app.connected_table.bind("<Button-1>", self.app.select_item)
+        self.app.connected_table.configure(selectmode='browse')
+
 
 def logIt_thread(log_path=None, debug=False, msg='') -> None:
     logit_thread = Thread(target=logIt,

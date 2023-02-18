@@ -70,6 +70,13 @@ class Server:
         self.server.bind((self.serverIP, self.port))
         self.server.listen()
 
+        self.logger.info(f'Running run...')
+        self.logger.debug(f'Starting connection thread...')
+        self.connectThread = Thread(target=self.connect,
+                                    daemon=True,
+                                    name=f"Connect Thread")
+        self.connectThread.start()
+
     # Send welcome message to connected clients
     def welcome_message(self) -> bool:
         self.logger.info(f'Running welcome_message...')
@@ -249,12 +256,3 @@ class Server:
             self.logger.debug(f'Calling welcome_message...')
             self.welcome_message()
             self.logger.info(f'connect completed.')
-
-    # Start connection thread
-    def run(self) -> None:
-        self.logger.info(f'Running run...')
-        self.logger.debug(f'Starting connection thread...')
-        self.connectThread = Thread(target=self.connect,
-                                    daemon=True,
-                                    name=f"Connect Thread")
-        self.connectThread.start()

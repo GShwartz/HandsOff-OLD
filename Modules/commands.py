@@ -2,6 +2,7 @@ from tkinter import messagebox, filedialog
 from datetime import datetime
 from threading import Thread
 import subprocess
+import logging
 import socket
 import time
 import csv
@@ -19,6 +20,7 @@ from Modules.sysinfo import Sysinfo
 #   1. Fix Update all clients messing up status messages - [V]
 #   2. Fix restart selected client not refreshing the connections - [V]
 #   3. Change datetime format in temp logger - [V]
+#   4. Disable refresh button when clicking on system information - []
 
 
 class Commands:
@@ -28,13 +30,41 @@ class Commands:
         self.path = path
         self.log_path = log_path
 
+        self.init_logger()
+
+    # Initiate logger
+    def init_logger(self):
+        self.logger = logging.getLogger(__name__)
+        self.logger.setLevel(logging.DEBUG)
+        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+
+        info = logging.FileHandler(self.log_path)
+        info.setLevel(logging.INFO)
+        info.setFormatter(formatter)
+
+        debug = logging.FileHandler(self.log_path)
+        debug.setLevel(logging.DEBUG)
+        debug.setFormatter(formatter)
+
+        error = logging.FileHandler(self.log_path)
+        error.setLevel(logging.ERROR)
+        error.setFormatter(formatter)
+
+        self.logger.addHandler(info)
+        self.logger.addHandler(debug)
+        self.logger.addHandler(error)
+
     # Minimize Window
     def minimize(self):
+        self.logger.debug("Minimizing screen...")
         return self.app.withdraw()
 
     # Clear Notebook
     def clear_notebook_command(self, event=0):
+        self.logger.info(f'Running clear_notebook_command...')
+        self.logger.debug("Calling create_notebook...")
         self.app.create_notebook()
+        self.logger.debug("Updating statusbar message...")
         self.app.update_statusbar_messages_thread(msg='Details window cleared.')
         return
 
@@ -47,7 +77,9 @@ class Commands:
 
     # Save History to CSV
     def _save_to_csv(self, filename):
+        self.logger.info(f'Running _save_to_csv...')
         try:
+            self.logger.debug("Writing to CSV...")
             with open(filename, 'w', newline='') as file:
                 writer = csv.writer(file)
                 writer.writerow(self.csv_header)
@@ -55,17 +87,22 @@ class Commands:
                     writer.writerow([endpoint.client_mac, endpoint.ip, endpoint.ident,
                                      endpoint.user, dt])
 
+                self.logger.debug("Calling refresh_command...")
                 self.refresh_command(event=0)
+                self.logger.info(f'_save_to_csv completed.')
                 return True
 
         except IOError as e:
-            logIt_thread(self.log_path, msg=f'Error writing to {filename}: {e}')
+            self.logger.debug(f"Error writing to {filename}: {e}")
+            self.logger.debug(f"Updating statusbar message: Status: {e}.")
             self.app.update_statusbar_messages_thread(msg=f'Status: {e}.')
             return False
 
     # Save History to TXT
     def _save_to_txt(self, filename):
+        self.logger.info(f'Running _save_to_txt...')
         try:
+            self.logger.debug("Writing to TXT...")
             with open(filename, 'w') as file:
                 c = 0
                 for endpoint, dt in self.app.server.connHistory.items():
@@ -73,86 +110,99 @@ class Commands:
                                f"Station: {endpoint.ident} | User: {endpoint.user} | Time: {dt} \n")
                     c += 1
 
+                self.logger.debug("Calling refresh_command...")
                 self.refresh_command(event=0)
+                self.logger.info(f'_save_to_txt completed.')
                 return True
 
         except IOError as e:
-            logIt_thread(self.log_path, msg=f'Error writing to {filename}: {e}')
+            self.logger.debug(f"Error writing to {filename}: {e}")
+            self.logger.debug(f"Updating statusbar message: Status: {e}.")
             self.app.update_statusbar_messages_thread(msg=f'Status: {e}.')
             return False
 
     # Save History
     def save_connection_history(self, event=0) -> bool:
+        self.logger.info(f'Running save_connection_history...')
         self.file_types = {'CSV Files': '.csv', 'TXT Files': '.txt'}
         self.csv_header = ['MAC', 'IP', 'Station', 'User', 'Time']
 
         # Create Saved Files Dir
         saves = fr"{self.path}\Saves"
         if not os.path.exists(saves):
+            self.logger.debug(f"Creating {saves}...")
             os.makedirs(saves)
 
         # Get Filename
         filename = filedialog.asksaveasfilename(initialdir=f"{saves}", defaultextension='.csv',
                                                 filetypes=(('CSV files', '.csv'), ('TXT files', '.txt')))
         if not filename:
-            logIt_thread(self.log_path, msg=f'Save canceled.')
+            self.logger.debug(f'Save canceled.')
+            self.logger.debug(f'Calling app.refresh_command...')
             self.app.refresh_command(event=0)
             return False
 
         if filename.endswith('.csv'):
+            self.logger.debug(f'Calling _save_to_csv({filename}...')
             return self._save_to_csv(filename)
 
         elif filename.endswith('.txt'):
+            self.logger.debug(f'Calling _save_to_txt({filename}...')
             return self._save_to_txt(filename)
 
         else:
-            logIt_thread(self.log_path, msg=f'Unknown file type: {filename}')
+            self.logger.debug(f'Unknown file type: {filename}')
+            self.logger.debug(f'Updating statusbar message: Unknown file type: {filename}')
             self.app.update_statusbar_messages_thread(msg=f'Unknown file type: {filename}')
             self.refresh_command(event=0)
+            self.logger.info(f'save_connection_history completed.')
             return False
-
-    # Restart All Clients Thread
-    def restart_all_clients_thread(self, event=0):
-        restartThread = Thread(target=self.restart_all_clients_command,
-                               daemon=True,
-                               name="Restart All Clients Thread")
-        restartThread.start()
 
     # Restart All Clients
     def restart_all_clients_command(self):
-        logIt_thread(self.log_path, msg=f'Running restart_all_clients()...')
+        self.logger.debug(f'Updating statusbar message: waiting for restart confirmation...')
         self.app.update_statusbar_messages_thread(msg=f'waiting for restart confirmation...')
-        logIt_thread(self.log_path, msg=f'Displaying self.sure() popup window...')
+        self.logger.debug(f'Displaying validation pop-up...')
         self.sure = messagebox.askyesno(f"Restart All Clients\t", "Are you sure?")
         logIt_thread(self.log_path, msg=f'self.sure = {self.sure}')
+        self.logger.debug(f'Validation: {self.sure}')
+
+        def send_restart(endpoint):
+            try:
+                endpoint.conn.send('restart'.encode())
+                time.sleep(1)
+                # msg = endpoint.conn.recv(1024).decode()
+                # self.logger.debug(f'Updating statusbar message: {msg}')
+                # self.app.update_statusbar_messages_thread(msg=f"{msg}")
+                self.logger.debug(f'Calling server.remove_lost_connection({endpoint}...')
+                self.app.server.remove_lost_connection(endpoint)
+                # self.logger.debug(f'Calling app.refresh_command...')
+                # self.app.refresh_command()
+
+            except (WindowsError, socket.error):
+                pass
 
         if self.sure:
+            threads = []
+
             for endpoint in self.app.server.endpoints:
-                try:
-                    endpoint.conn.send('restart'.encode())
-                    msg = endpoint.conn.recv(1024).decode()
-                    self.app.update_statusbar_messages_thread(msg=f"{msg}")
-                    self.app.server.remove_lost_connection(endpoint)
-                    refreshThread = Thread(target=self.app.refresh_command)
-                    refreshThread.start()
+                self.logger.debug(f'Sending restart to: {endpoint.conn}...')
+                restartThread = Thread(target=send_restart, args=(endpoint,), name="Send Restart")
+                restartThread.start()
+                threads.append(restartThread)
 
-                except (ConnectionResetError, socket.error):
-                    continue
+            for thread in threads:
+                thread.join()
 
-            refreshThread = Thread(target=self.app.refresh_command)
-            refreshThread.start()
             time.sleep(0.5)
-
+            self.logger.debug(f'Showing completion pop-up...')
             messagebox.showinfo("Restart All Clients", "Done!\t\t\t\t")
-            self.app.refresh_command()
-            self.app.enable_buttons_thread()
-            self.app.refresh_command()
-            self.app.update_statusbar_messages_thread(msg='Restart command completed.')
-            return True
 
-        else:
-            self.refresh_command(event=0)
-            return False
+        self.app.enable_buttons_thread()
+        self.app.refresh_command()
+        self.app.update_statusbar_messages_thread(msg='Restart command completed.')
+        self.logger.info(f'restart_all_clients completed.')
+        return True
 
     # Update all clients thread
     def update_all_clients_thread(self, event=0):
@@ -164,7 +214,7 @@ class Commands:
     # Broadcast update command to all connected stations
     def update_all_clients_command(self) -> bool:
         logIt_thread(self.log_path, msg=f'Running update_all_clients()...')
-        self.app.disable_buttons_thread()
+        self.app.disable_buttons()
         sure = messagebox.askyesno(f"Update All Clients", "Are you sure?")
         if sure:
             for endpoint in self.app.server.endpoints:
@@ -310,18 +360,14 @@ class Commands:
             return False
 
     # Grab Screenshot Thread
-    def screenshot_thread(self):
-        screenThread = Thread(target=Screenshot(self.endpoint, self.app, self.path, self.log_path).run,
-                              daemon=True,
-                              name='Screenshot Thread')
-        screenThread.start()
+    def screenshot(self):
+        Thread(target=Screenshot(self.endpoint, self.app, self.path, self.log_path).run,
+               name="Screenshot Thread").start()
 
     # System Information Thread
     def sysinfo_thread(self):
-        sysinfoThread = Thread(target=Sysinfo(self.endpoint, self.app, self.path, self.log_path).run,
-                               daemon=True,
-                               name="System Information Thread")
-        sysinfoThread.start()
+        Thread(target=Sysinfo(self.endpoint, self.app, self.path, self.log_path).run,
+               name="System Information Thread").start()
 
     # Display/Kill Tasks on Client
     def tasks(self) -> bool:
@@ -329,7 +375,7 @@ class Commands:
 
     # Restart Client
     def restart_command(self) -> bool:
-        self.app.disable_buttons_thread()
+        self.app.disable_buttons()
         logIt_thread(self.log_path, msg=f'Running restart({self.endpoint.conn})')
         self.app.update_statusbar_messages_thread(msg=f' waiting for restart confirmation...')
         logIt_thread(self.log_path, msg=f'Displaying self.sure() popup window...')
@@ -377,7 +423,7 @@ class Commands:
     # Run Maintenance on Client
     def run_maintenance_command(self) -> None:
         self.app.running = True
-        self.app.disable_buttons_thread()
+        self.app.disable_buttons()
 
         logIt_thread(self.log_path, msg=f"Sending maintenance command to {self.endpoint.ip} | {self.endpoint.ident}...")
         self.app.update_statusbar_messages_thread(
