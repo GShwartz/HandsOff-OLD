@@ -62,9 +62,6 @@ class App(Tk):
         if not os.path.exists(path):
             os.makedirs(path)
 
-        # Run Listener Thread
-        listenerThread = Thread(target=self.server.run, daemon=True, name="Listener Thread").start()
-
         # Set main window preferences
         self.title("HandsOff")
         self.iconbitmap('HandsOff.ico')
@@ -191,8 +188,8 @@ class App(Tk):
         if len(self.server.endpoints) > 1:
             self.tools.entryconfig(3, state=NORMAL)
             self.tools.entryconfig(4, state=NORMAL)
-            self.bind("<F11>", Commands(endpoint, self, path, log_path).restart_all_clients_thread)
-            self.bind("<F12>", Commands(endpoint, self, path, log_path).update_all_clients_thread)
+            self.bind("<F11>", Commands(endpoint, self, path, log_path).restart_all_clients_command)
+            self.bind("<F12>", Commands(endpoint, self, path, log_path).update_all_clients_command)
 
         else:
             self.tools.entryconfig(3, state=DISABLED)
@@ -220,10 +217,10 @@ class App(Tk):
                                command=Commands(None, self, path, log_path).save_connection_history_thread,
                                state=DISABLED)
         self.tools.add_command(label="Restart All Clients <F11>",
-                               command=Commands(None, self, path, log_path).restart_all_clients_thread,
+                               command=Commands(None, self, path, log_path).restart_all_clients_command,
                                state=DISABLED)
         self.tools.add_command(label="Update All Clients <F12>",
-                               command=Commands(None, self, path, log_path).update_all_clients_thread,
+                               command=Commands(None, self, path, log_path).update_all_clients_command,
                                state=DISABLED)
 
         helpbar.add_command(label="Help", command=Commands(None, self, path, log_path).show_help_thread)
@@ -373,14 +370,14 @@ class App(Tk):
         logger.debug("Building screenshot button...")
         self.screenshot_btn = Button(self.controller_btns, text="Screenshot", width=10,
                                      pady=5, padx=10,
-                                     command=lambda: Commands(endpoint, self, path, log_path).screenshot_thread())
+                                     command=Commands(endpoint, self, path, log_path).screenshot)
         self.screenshot_btn.grid(row=0, column=1, sticky="w", pady=5, padx=2, ipadx=2)
         logger.debug("Updating controller buttons list...")
         self.buttons.append(self.screenshot_btn)
 
         logger.debug("Building anydesk button...")
         self.anydesk_btn = Button(self.controller_btns, text="Anydesk", width=14, pady=5,
-                                  command=lambda: Commands(endpoint, self, path, log_path).anydesk_command())
+                                  command=Commands(endpoint, self, path, log_path).anydesk_command)
         self.anydesk_btn.grid(row=0, column=2, sticky="w", pady=5, padx=2, ipadx=2)
         logger.debug("Updating controller buttons list...")
         self.buttons.append(self.anydesk_btn)
