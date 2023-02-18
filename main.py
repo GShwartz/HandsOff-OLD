@@ -52,7 +52,6 @@ class App(Tk):
         super().__init__()
         self.style = ttk.Style()
         self.server = Server(log_path, self, args.ip, args.port, path)
-        self.running = False
 
         # Start listener
         logger.info("Calling listener")
@@ -743,28 +742,27 @@ class App(Tk):
                     if temp_notebook not in self.notebooks.items():
                         self.notebooks.update(temp_notebook)
 
-                    if not self.running:
-                        self.build_controller_buttons(endpoint)
-                        logger.debug(f'Connecting shell to {endpoint.ip} | {endpoint.ident}...')
-                        shellThread = Thread(target=self.shell,
-                                             args=(endpoint,),
-                                             daemon=True,
-                                             name="Shell Thread")
-                        shellThread.start()
-                        shellThread.join(timeout=0.1)
-                        if not shellThread.is_alive():
-                            logger.debug(f'Disconnected from endpoint {endpoint.ip}...')
-                            logger.debug(f'Calling server.remove_lost_connection({endpoint})...')
-                            self.server.remove_lost_connection(endpoint)
-                            logger.debug(f'Clearing temp dict...')
-                            self.temp.clear()
-                            logger.debug(f'Calling refresh_command...')
-                            self.refresh_command()
-                            break
-
+                    self.build_controller_buttons(endpoint)
+                    logger.debug(f'Connecting shell to {endpoint.ip} | {endpoint.ident}...')
+                    shellThread = Thread(target=self.shell,
+                                         args=(endpoint,),
+                                         daemon=True,
+                                         name="Shell Thread")
+                    shellThread.start()
+                    shellThread.join(timeout=0.1)
+                    if not shellThread.is_alive():
+                        logger.debug(f'Disconnected from endpoint {endpoint.ip}...')
+                        logger.debug(f'Calling server.remove_lost_connection({endpoint})...')
+                        self.server.remove_lost_connection(endpoint)
                         logger.debug(f'Clearing temp dict...')
                         self.temp.clear()
-                        logger.info(f'select_item completed.')
+                        logger.debug(f'Calling refresh_command...')
+                        self.refresh_command()
+                        break
+
+                    logger.debug(f'Clearing temp dict...')
+                    self.temp.clear()
+                    logger.info(f'select_item completed.')
 
 
 def on_icon_clicked(icon, item):
@@ -816,24 +814,15 @@ if __name__ == '__main__':
     log_path = fr'{path}\server_log.txt'
 
     logger = logging.getLogger(__name__)
+    logger.propagate = False
     logger.setLevel(logging.DEBUG)
     formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
-    info = logging.FileHandler(log_path)
-    info.setLevel(logging.INFO)
-    info.setFormatter(formatter)
+    context = logging.FileHandler(log_path)
+    context.setLevel(logging.INFO)
+    context.setFormatter(formatter)
 
-    debug = logging.FileHandler(log_path)
-    debug.setLevel(logging.DEBUG)
-    debug.setFormatter(formatter)
-
-    error = logging.FileHandler(log_path)
-    error.setLevel(logging.ERROR)
-    error.setFormatter(formatter)
-
-    logger.addHandler(info)
-    logger.addHandler(debug)
-    logger.addHandler(error)
+    logger.addHandler(context)
 
     parser = argparse.ArgumentParser()
     parser.add_argument('-i', '--ip', action='store', default=serverIP, type=str, help='Server IP')
