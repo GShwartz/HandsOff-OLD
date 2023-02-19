@@ -1,4 +1,3 @@
-import logging
 from tkinter import messagebox, filedialog
 from datetime import datetime
 from threading import Thread
@@ -24,7 +23,6 @@ class Commands:
         self.app = app
         self.path = path
         self.log_path = log_path
-
         self.logger = init_logger(self.log_path, __name__)
 
     # Minimize Window
@@ -39,10 +37,12 @@ class Commands:
         self.app.create_notebook()
         self.logger.debug("Updating statusbar message...")
         self.app.update_statusbar_messages_thread(msg='Details window cleared.')
+        self.logger.info(f'clear_notebook_command completed.')
         return
 
     # Save Connection History Thread
     def save_connection_history_thread(self, event=0):
+        self.logger.info(f'Calling save_connection_history...')
         saveThread = Thread(target=self.save_connection_history,
                             daemon=True,
                             name="Save Connection History Thread")
@@ -77,14 +77,14 @@ class Commands:
         try:
             self.logger.debug("Writing to TXT...")
             with open(filename, 'w') as file:
-                c = 0
+                c = 1
                 for endpoint, dt in self.app.server.connHistory.items():
                     file.write(f"#{c} | MAC: {endpoint.client_mac} | IP: {endpoint.ip} | "
                                f"Station: {endpoint.ident} | User: {endpoint.user} | Time: {dt} \n")
                     c += 1
 
                 self.logger.debug("Calling refresh_command...")
-                self.refresh_command(event=0)
+                self.app.refresh_command(event=0)
                 self.logger.info(f'_save_to_txt completed.')
                 return True
 
@@ -112,7 +112,6 @@ class Commands:
         if not filename:
             self.logger.info(f'Save canceled.')
             self.logger.debug(f'Calling app.refresh_command...')
-            self.app.refresh_command(event=0)
             return False
 
         if filename.endswith('.csv'):
@@ -216,6 +215,7 @@ class Commands:
         else:
             self.logger.debug(f'Calling app.refresh_command...')
             self.refresh_command()
+            self.logger.info(f'update_all_clients_command canceled.')
             return False
 
     # Show Help Thread
@@ -234,12 +234,12 @@ class Commands:
 
     # About Window
     def about(self, event=0) -> None:
-        self.logger.info(f'Running about...')
+        self.logger.info(f'Calling About...')
         About(self.app).run()
 
     # Vitals Thread
     def vital_signs_thread(self) -> None:
-        self.logger.info(f'Running vintal_signs_thread...')
+        self.logger.info(f'Calling app.server.vital_signs...')
         vitalsThread = Thread(target=self.app.server.vital_signs,
                               daemon=True,
                               name="Vitals Thread")
@@ -247,6 +247,7 @@ class Commands:
 
     # Run Anydesk on Client
     def anydesk_command(self) -> bool:
+        self.logger.info(f'Running anydesk_command...')
         self.app.update_statusbar_messages_thread(msg=f'running anydesk on '
                                                       f'{self.endpoint.ip} | {self.endpoint.ident}...')
         try:
@@ -349,20 +350,24 @@ class Commands:
                 return False
 
         else:
+            self.logger.info(f'update_selected_endpoint canceled.')
             return False
 
     # Grab Screenshot Thread
     def screenshot(self):
+        self.logger.info(f'Calling Screenshot...')
         Thread(target=Screenshot(self.endpoint, self.app, self.path, self.log_path).run,
                name="Screenshot Thread").start()
 
     # System Information Thread
     def sysinfo_thread(self):
+        self.logger.info(f'Calling Sysinfo...')
         Thread(target=Sysinfo(self.endpoint, self.app, self.path, self.log_path).run,
                name="System Information Thread").start()
 
     # Display/Kill Tasks on Client
     def tasks(self) -> bool:
+        self.logger.info(f'Calling Tasks...')
         Tasks(self.endpoint, self.app, self.path, self.log_path).run()
 
     # Restart Client
@@ -399,9 +404,12 @@ class Commands:
                 self.app.server.remove_lost_connection(self.endpoint)
                 self.logger.debug(f'Calling app.refresh_command...')
                 self.app.refresh_command()
+                self.logger.info(f'restart_command failed.')
                 return False
 
         else:
+            self.logger.debug(f'Calling app.enable_buttons_thread...')
+            self.app.enable_buttons_thread()
             self.logger.debug(f'Updating statusbar message...')
             self.app.update_statusbar_messages_thread(msg=f'restart canceled.')
             self.logger.info(f'Restart canceled.')

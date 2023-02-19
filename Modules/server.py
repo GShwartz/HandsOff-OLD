@@ -1,11 +1,9 @@
+from Modules.logger import init_logger
 from datetime import datetime
 from threading import Thread
-import logging
 import socket
 import time
 import os
-
-from Modules.logger import init_logger
 
 # TODO:
 #   1. Remove client version recv in vital_signs
@@ -221,6 +219,7 @@ class Server:
         self.logger.info(f'Running remove_lost_connection({endpoint})...')
         try:
             self.logger.debug(f'Removing {endpoint.ip} | {endpoint.ident}...')
+            endpoint.conn.close()
             self.endpoints.remove(endpoint)
 
             # Update statusbar message
