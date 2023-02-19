@@ -93,10 +93,6 @@ class SystemInformation:
             msg = self.client.soc.recv(buffer_size).decode()
             logIt_thread(log_path, msg=f'From Server: {msg}')
 
-            logIt_thread(log_path, msg=f'Sending confirmation message...')
-            self.client.soc.send(f"{self.client.hostname} | {self.client.localIP}: System Information Sent.\n".encode())
-            logIt_thread(log_path, msg=f'Send Completed.')
-
         except (WindowsError, socket.error) as e:
             logIt_thread(log_path, msg=f'Connection Error: {e}')
             return False
