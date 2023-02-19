@@ -531,8 +531,27 @@ class App(Tk):
         self.logger.debug(f"Displaying statusbar message: {msg}...")
         self.status_label.config(text=f"Status: {msg}")
 
+    def check_file_size(self):
+        max_size = 100 * 1024 * 1024  # 100 MB
+        if os.path.isfile(log_path):
+            if os.path.getsize(log_path) > max_size:
+                check_file = messagebox.askyesno("Log size limit reached.", "Log file reached 100MB. clear?\t\t\t\t")
+                if check_file:
+                    self.logger.info(f"Creating a new log file...")
+                    with open(log_path, 'r') as f:
+                        lines = f.readlines()
+
+                    with open(log_path, 'w') as f:
+                        f.write("======== Tail of last log ========\n")
+                        nonempty_lines = [line for line in lines[-100:] if line.strip()]
+                        f.writelines(''.join(nonempty_lines))
+                        f.write("======== END of last log ========\n\n")
+
+                    self.logger.info(f"New log file created.")
+
     # Close App
     def on_closing(self, event=0) -> None:
+        self.logger.info("User clicked close. Running on_closing...")
         self.logger.debug("Displaying minimize popup window...")
         minimize = messagebox.askyesnocancel("Exit or Minimize", "Minimize to Tray?")
         self.logger.debug("Minimize: {minimize}")
@@ -544,6 +563,8 @@ class App(Tk):
             self.withdraw()
 
         else:
+            self.logger.debug("Calling check_file_size...")
+            self.check_file_size()
             if len(self.server.endpoints) > 0:
                 for endpoint in self.server.endpoints:
                     try:
@@ -649,7 +670,7 @@ class App(Tk):
         self.logger.debug(f'Updating connected table...')
         for count, endpoint in enumerate(self.server.endpoints):
             tag = 'evenrow' if count % 2 == 0 else 'oddrow'
-            self.connected_table.insert('', 'end', values=(count, endpoint.client_mac, endpoint.ip,
+            self.connected_table.insert('', 'end', values=(count + 1, endpoint.client_mac, endpoint.ip,
                                                            endpoint.ident, endpoint.user,
                                                            endpoint.client_version, endpoint.boot_time),
                                         tags=(tag,))
@@ -667,11 +688,11 @@ class App(Tk):
         self.create_connection_history_table()
         try:
             self.logger.debug(f'Updating history table...')
-            c = 0
-            for entry, t in self.server.connHistory.items():
+            c = 1
+            for endpoint, t in self.server.connHistory.items():
                 tag = 'evenrow' if c % 2 == 0 else 'oddrow'
-                self.history_table.insert('', 'end', values=(c, entry.client_mac, entry.ip,
-                                                             entry.ident, entry.user,
+                self.history_table.insert('', 'end', values=(c, endpoint.client_mac, endpoint.ip,
+                                                             endpoint.ident, endpoint.user,
                                                              t), tags=(tag,))
                 c += 1
 
@@ -814,6 +835,7 @@ if __name__ == '__main__':
     serverIP = str(socket.gethostbyname(hostname))
     path = r'c:\HandsOff'
     log_path = fr'{path}\server_log.txt'
+    temp_log_path = fr"{path}\server_log.txt.new"
 
     parser = argparse.ArgumentParser()
     parser.add_argument('-i', '--ip', action='store', default=serverIP, type=str, help='Server IP')
