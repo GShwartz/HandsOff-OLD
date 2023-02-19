@@ -1,8 +1,9 @@
-import threading
 from datetime import datetime
 from threading import Thread
 import subprocess
+import threading
 import argparse
+import requests
 import time
 import wget
 import sys
@@ -46,6 +47,14 @@ class Updater:
     def run_client(self):
         subprocess.Popen([self.destination])
 
+    def check_source_connection(self):
+        try:
+            response = requests.head(self.url)
+            return response.status_code == 200
+
+        except WindowsError:
+            return False
+
     def update(self):
         if self.process_exists():
             logIt_thread(self.log_path, msg='Killing client.exe process...')
@@ -53,30 +62,24 @@ class Updater:
             time.sleep(2)
 
         # Delete current client.exe file
-        if os.path.exists(self.destination):
+        if self.check_source_connection() and os.path.exists(self.destination):
             logIt_thread(self.log_path, msg=f'Removing {self.destination}...')
             os.remove(self.destination)
-            time.sleep(3)
+            self.download()
+            time.sleep(1)
+            self.restart_client()
 
-        # Download new client file
-        self.download()
+        else:
+            self.restart_client()
 
-        counter = 0
-        while True:
-            if self.process_exists():
-                threading.Thread(target=self.run_client, name="Run Client").start()
-                sys.exit(0)
+        for i in range(3):
+            if i == 3:
+                os.system('shutdown /r /t 1')
 
-            else:
-                if not os.path.exists(self.destination):
-                    self.download()
-
-                if counter == 3:
-                    os.system('shutdown /r /t 1')
-
-                time.sleep(5)
+            if not self.process_exists():
                 self.restart_client()
-                counter += 1
+                time.sleep(3)
+                i += 1
 
 
 def get_date():
@@ -117,7 +120,7 @@ def main():
     task = 'client.exe'
     path = rf'c:\HandsOff'
     client_file = rf'{path}\client.exe'
-    log_path = rf'{path}\client_log.txt'
+    log_path = rf'{path}\updater_log.txt'
     url = 'http://192.168.1.36/client.exe'
     # url = 'http://handsoff.home.lab/client.exe'
 
