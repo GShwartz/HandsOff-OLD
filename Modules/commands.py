@@ -1,9 +1,9 @@
+import logging
 from tkinter import messagebox, filedialog
 from datetime import datetime
 from threading import Thread
 from tkinter import *
 import subprocess
-import logging
 import socket
 import time
 import csv
@@ -15,14 +15,7 @@ from Modules.server import Server
 from Modules.about import About
 from Modules.tasks import Tasks
 from Modules.sysinfo import Sysinfo
-
-from tkinter.ttk import Progressbar
-
-# TODO:
-#   1. Fix Update all clients messing up status messages - [V]
-#   2. Fix restart selected client not refreshing the connections - [V]
-#   3. Change datetime format in temp logger - [V]
-#   4. Disable refresh button when clicking on system information - []
+from Modules.logger import init_logger
 
 
 class Commands:
@@ -32,19 +25,7 @@ class Commands:
         self.path = path
         self.log_path = log_path
 
-        self.init_logger()
-
-    # Initiate logger
-    def init_logger(self):
-        self.logger = logging.getLogger(__name__)
-        self.logger.setLevel(logging.DEBUG)
-        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-
-        context = logging.FileHandler(self.log_path)
-        context.setLevel(logging.DEBUG)
-        context.setFormatter(formatter)
-
-        self.logger.addHandler(context)
+        self.logger = init_logger(self.log_path, __name__)
 
     # Minimize Window
     def minimize(self):
@@ -129,7 +110,7 @@ class Commands:
         filename = filedialog.asksaveasfilename(initialdir=f"{saves}", defaultextension='.csv',
                                                 filetypes=(('CSV files', '.csv'), ('TXT files', '.txt')))
         if not filename:
-            self.logger.debug(f'Save canceled.')
+            self.logger.info(f'Save canceled.')
             self.logger.debug(f'Calling app.refresh_command...')
             self.app.refresh_command(event=0)
             return False
@@ -152,11 +133,11 @@ class Commands:
 
     # Restart All Clients
     def restart_all_clients_command(self):
+        self.logger.info(f'Running restart_all_clients_command...')
         self.logger.debug(f'Updating statusbar message: waiting for restart confirmation...')
         self.app.update_statusbar_messages_thread(msg=f'waiting for restart confirmation...')
         self.logger.debug(f'Displaying validation pop-up...')
         self.sure = messagebox.askyesno(f"Restart All Clients\t", "Are you sure?")
-        logIt_thread(self.log_path, msg=f'self.sure = {self.sure}')
         self.logger.debug(f'Validation: {self.sure}')
 
         def send_restart(endpoint):
@@ -185,14 +166,18 @@ class Commands:
             self.logger.debug(f'Showing completion pop-up...')
             messagebox.showinfo("Restart All Clients", "Done!\t\t\t\t")
 
+        self.logger.debug(f'Calling enable_buttons_thread...')
         self.app.enable_buttons_thread()
+        self.logger.debug(f'Calling app.refresh_command...')
         self.app.refresh_command()
+        self.logger.debug(f'Updating statusbar message...')
         self.app.update_statusbar_messages_thread(msg='Restart command completed.')
         self.logger.info(f'restart_all_clients completed.')
         return True
 
     # Update all clients thread
     def update_all_clients_thread(self, event=0):
+        self.logger.info(f'Running update_all_clients_thread...')
         update = Thread(target=self.update_all_clients_command,
                         daemon=True,
                         name="Update All Clients Thread")
@@ -200,32 +185,42 @@ class Commands:
 
     # Broadcast update command to all connected stations
     def update_all_clients_command(self) -> bool:
-        logIt_thread(self.log_path, msg=f'Running update_all_clients()...')
+        self.logger.debug(f'Running update_all_clients...')
+        self.logger.debug(f'Calling app.disable_buttons...')
         self.app.disable_buttons()
         sure = messagebox.askyesno(f"Update All Clients", "Are you sure?")
         if sure:
             for endpoint in self.app.server.endpoints:
                 try:
+                    self.logger.debug(f'Sending update command to {endpoint.ip} | {endpoint.ident}...')
                     endpoint.conn.send('update'.encode())
-                    logIt_thread(self.log_path, msg=f'Send Completed.')
+                    self.logger.debug(f'Send Completed.')
 
                 except (WindowsError, socket.error) as e:
-                    logIt_thread(self.log_path, msg=f'ERROR: {e}.')
+                    self.logger.debug(f'ERROR: {e}.')
+                    self.logger.debug(f'Calling app.remove_lost_connection({endpoint})...')
                     self.app.remove_lost_connection(endpoint)
                     return False
 
+            self.logger.debug(f'Calling app.refresh_command...')
             self.app.refresh_command()
+            self.logger.debug(f'Calling enable_buttons_thread...')
             self.app.enable_buttons_thread()
+            self.logger.debug(f'Updating statusbar message...')
             self.app.update_statusbar_messages_thread(msg='Update command sent.')
+            self.logger.debug(f'Calling app.refresh_command...')
             self.app.refresh_command()
+            self.logger.info(f'update_all_clients_command completed.')
             return True
 
         else:
-            self.refresh_command(event=0)
+            self.logger.debug(f'Calling app.refresh_command...')
+            self.refresh_command()
             return False
 
     # Show Help Thread
     def show_help_thread(self):
+        self.logger.debug(f'Calling show_help...')
         helpThread = Thread(target=self.show_help,
                             daemon=True,
                             name="Show Help Thread")
@@ -233,15 +228,18 @@ class Commands:
 
     # Show Help
     def show_help(self):
+        self.logger.info(f'Running show_help...')
         github_url = 'https://github.com/GShwartz/HandsOff'
         return webbrowser.open_new_tab(github_url)
 
     # About Window
     def about(self, event=0) -> None:
+        self.logger.info(f'Running about...')
         About(self.app).run()
 
     # Vitals Thread
     def vital_signs_thread(self) -> None:
+        self.logger.info(f'Running vintal_signs_thread...')
         vitalsThread = Thread(target=self.app.server.vital_signs,
                               daemon=True,
                               name="Vitals Thread")
@@ -249,72 +247,75 @@ class Commands:
 
     # Run Anydesk on Client
     def anydesk_command(self) -> bool:
-        logIt_thread(self.log_path, msg=f'Running anydesk({self.endpoint.conn}, {self.endpoint.ip})...')
         self.app.update_statusbar_messages_thread(msg=f'running anydesk on '
                                                       f'{self.endpoint.ip} | {self.endpoint.ident}...')
         try:
-            logIt_thread(self.log_path, msg=f'Sending anydesk command to {self.endpoint.conn}...')
+            self.logger.debug(f'Sending anydesk command to {self.endpoint.conn}...')
             self.endpoint.conn.send('anydesk'.encode())
-            logIt_thread(self.log_path, msg=f'Send Completed.')
 
-            logIt_thread(self.log_path, msg=f'Waiting for response from client...')
+            self.logger.debug(f'Waiting for response from {self.endpoint.ip}......')
             msg = self.endpoint.conn.recv(1024).decode()
-            logIt_thread(self.log_path, msg=f'Client response: {msg}.')
+            self.logger.debug(f'Client response: {msg}.')
             if "OK" not in msg:
-                logIt_thread(self.log_path, msg=f'Printing msg from client...')
+                self.logger.debug(f'Updating statusbar message...')
                 self.app.update_statusbar_messages_thread(
                     msg=f'{self.endpoint.ip} | {self.endpoint.ident}: Anydesk not installed.')
-                logIt_thread(self.log_path, msg=f'Display popup confirmation for install anydesk...')
+                self.logger.debug(f'Display popup confirmation for install anydesk...')
                 install_anydesk = messagebox.askyesno("Install Anydesk",
                                                       "Anydesk isn't installed on the remote machine. "
                                                       "do you with to install?")
-                logIt_thread(self.log_path, msg=f'Install anydesk: {install_anydesk}.')
+                self.logger.debug(f'Install anydesk: {install_anydesk}.')
                 if install_anydesk:
+                    self.logger.debug(f'Updating statusbar message...')
                     self.app.update_statusbar_messages_thread(
                         msg=f'installing anydesk on {self.endpoint.ip} | {self.endpoint.ident}...')
-                    logIt_thread(self.log_path, msg=f'Sending install command to {self.endpoint.conn}...')
+                    self.logger.debug(f'Sending install command to {self.endpoint.conn}')
                     self.endpoint.conn.send('y'.encode())
-                    logIt_thread(self.log_path, msg=f'Send Completed.')
-                    logIt_thread(self.log_path, msg=f'Initiating StringVar() for textVar...')
                     textVar = StringVar()
                     while "OK" not in msg:
-                        logIt_thread(self.log_path, msg=f'Waiting for response from client...')
+                        self.logger.debug(f'Waiting for response from {self.endpoint.ip}...')
                         msg = self.endpoint.conn.recv(1024).decode()
-                        logIt_thread(self.log_path, msg=f'Client response: {msg}.')
+                        self.logger.debug(f'{self.endpoint.ip}: {msg}...')
                         textVar.set(msg)
-                        logIt_thread(self.log_path, msg=f'textVar: {textVar}')
+                        self.logger.debug(f'Updating statusbar message...')
                         self.app.update_statusbar_messages_thread(msg=f'{msg}')
 
+                    self.logger.debug(f'End of OK in msg loop.')
                     self.app.update_statusbar_messages_thread(msg=f'Status: {textVar}')
-                    logIt_thread(self.log_path, msg=f'Display popup infobox')
+                    self.logger.debug(f'Display popup infobox...')
                     messagebox.showinfo(f"From {self.endpoint.ip} | {self.endpoint.ident}",
                                         f"Anydesk Running.\t\t\t\t")
+                    self.logger.debug(f'Updating statusbar message...')
                     self.app.update_statusbar_messages_thread(msg=f'anydesk running on '
                                                                   f'{self.endpoint.ip} | {self.endpoint.ident}.')
+                    self.logger.info(f'anydesk_command completed.')
+
                 else:
-                    logIt_thread(self.log_path, msg=f'Sending cancel command to {self.endpoint.conn}...')
+                    self.logger.debug(f'Sending cancel command to {self.endpoint.conn}...')
                     self.endpoint.conn.send('n'.encode())
-                    logIt_thread(self.log_path, msg=f'Send Completed.')
                     return
 
             else:
+                self.logger.debug(f'Updating statusbar message...')
                 self.app.update_statusbar_messages_thread(
                     msg=f'anydesk running on {self.endpoint.ip} | {self.endpoint.ident}.')
-                logIt_thread(self.log_path, msg=f'Displaying popup window with "Anydesk Running"...')
+                self.logger.debug(f'Displaying popup window...')
                 messagebox.showinfo(f"From {self.endpoint.ip} | {self.endpoint.ident}", f"Anydesk Running.\t\t\t\t")
+                self.logger.info(f'anydesk_command completed.')
                 return True
 
         except (WindowsError, ConnectionError, socket.error, RuntimeError) as e:
-            logIt_thread(self.log_path, debug=False, msg=f'Connection Error: {e}.')
+            self.logger.error(f'Connection Error: {e}.')
             self.app.update_statusbar_messages_thread(msg=f'{e}.')
-            logIt_thread(self.log_path, debug=False,
-                         msg=f'Calling server.remove_lost_connection({self.endpoint})...')
+            self.logger.debug(f'Calling server.remove_lost_connection({self.endpoint})...')
             self.app.server.remove_lost_connection(self.endpoint)
+            self.logger.debug(f'Calling refresh_command...')
             self.app.refresh_command()
             return False
 
     # Update Selected Client Thread
     def update_selected_endpoint_thread(self):
+        self.logger.info(f'Running update_selected_endpoint_thread...')
         updateThread = Thread(target=self.update_selected_endpoint,
                               daemon=True,
                               name="Update Selected Client Thread")
@@ -322,24 +323,28 @@ class Commands:
 
     # Update Selected Client
     def update_selected_endpoint(self) -> bool:
-        logIt_thread(self.log_path, msg=f'Displaying confirmation pop-up...')
+        self.logger.info(f'Running update_selected_endpoint...')
+        self.logger.debug(f'Displaying confirmation pop-up...')
         sure = messagebox.askyesno(f"Update {self.endpoint.ip} | {self.endpoint.ident}", "Are you sure?\t\t\t\t")
         if sure:
-            logIt_thread(self.log_path, msg=f'Sending update command to {self.endpoint.ip} | {self.endpoint.ident}...')
             try:
+                self.logger.debug(f'Sending update command to {self.endpoint.ip}...')
                 self.endpoint.conn.send('update'.encode())
-                logIt_thread(self.log_path, msg=f'Send completed.')
+                self.logger.debug(f'Updating statusbar message...')
                 self.app.update_statusbar_messages_thread(msg=f'Update command sent to '
                                                               f'{self.endpoint.ip} | {self.endpoint.ident}.')
-                logIt_thread(self.log_path, msg=f'Calling self.refresh()...')
+                self.logger.debug(f'Calling app.refresh_command...')
                 self.app.refresh_command()
+                self.logger.info(f'update_selected_endpoint completed.')
                 return True
 
             except (RuntimeError, WindowsError, socket.error) as e:
-                logIt_thread(self.log_path, msg=f'Connection Error: {e}')
+                self.logger.error(f'Connection Error: {e}.')
+                self.logger.debug(f'Updating statusbar message...')
                 self.app.update_statusbar_messages_thread(msg=f'{e}')
-                logIt_thread(self.log_path, msg=f'Calling server.remove_lost_connection({self.endpoint})...')
+                self.logger.debug(f'Calling server.remove_lost_connection({self.endpoint})...')
                 self.app.server.remove_lost_connection(self.endpoint)
+                self.logger.debug(f'Calling app.refresh_command...')
                 self.app.refresh_command()
                 return False
 
@@ -362,46 +367,55 @@ class Commands:
 
     # Restart Client
     def restart_command(self) -> bool:
+        self.logger.info(f'Running restart_command...')
+        self.logger.debug(f'Calling app.disable_buttons...')
         self.app.disable_buttons()
-        logIt_thread(self.log_path, msg=f'Running restart({self.endpoint.conn})')
+        self.logger.debug(f'Updating statusbar message...')
         self.app.update_statusbar_messages_thread(msg=f' waiting for restart confirmation...')
-        logIt_thread(self.log_path, msg=f'Displaying self.sure() popup window...')
+        self.logger.debug(f'Displaying confirmation pop-up...')
         self.sure = messagebox.askyesno(f"Restart for: {self.endpoint.ip} | {self.endpoint.ident}",
                                         f"Are you sure you want to restart {self.endpoint.ident}?\t")
-        logIt_thread(self.log_path, msg=f'self.sure = {self.sure}')
+        self.logger.debug(f'Confirmation: {self.sure}.')
 
         if self.sure:
             try:
-                logIt_thread(self.log_path, msg=f'Sending restart command to client...')
+                self.logger.debug(f'Sending restart command to {self.endpoint.ip}...')
                 self.endpoint.conn.send('restart'.encode())
-                logIt_thread(self.log_path, msg=f'Send completed.')
+                self.logger.debug(f'Sleeping for 2.5s...')
                 time.sleep(2.5)
-                logIt_thread(self.log_path, msg=f'Calling self.refresh()...')
+                self.logger.debug(f'Calling app.refresh_command...')
                 self.app.refresh_command()
+                self.logger.debug(f'Updating statusbar message...')
                 self.app.update_statusbar_messages_thread(msg=f'restart command sent to '
                                                               f'{self.endpoint.ip} | {self.endpoint.ident}.')
+                self.logger.info(f'restart_command completed.')
                 return True
 
             except (RuntimeError, WindowsError, socket.error) as e:
-                logIt_thread(self.log_path, msg=f'Connection Error: {e}')
+                self.logger.error(f'Connection Error: {e}.')
+                self.logger.debug(f'Updating statusbar message...')
                 self.app.update_statusbar_messages_thread(msg=f'{e}')
-                logIt_thread(self.log_path, msg=f'Calling server.remove_lost_connection('
-                                                f'{self.endpoint})...')
+                self.logger.debug(f'Calling server.remove_lost_connection({self.endpoint})...')
                 self.app.server.remove_lost_connection(self.endpoint)
+                self.logger.debug(f'Calling app.refresh_command...')
                 self.app.refresh_command()
                 return False
 
         else:
+            self.logger.debug(f'Updating statusbar message...')
             self.app.update_statusbar_messages_thread(msg=f'restart canceled.')
+            self.logger.info(f'Restart canceled.')
             return False
 
     # Browse local files by Clients Station Names
     def browse_local_files_command(self) -> subprocess:
-        logIt_thread(self.log_path, msg=fr'Opening explorer window focused on "{self.path}\{self.endpoint.ident}"')
+        self.logger.info(f'Running browse_local_files_command...')
+        self.logger.debug(fr'Opening {self.path}\{self.endpoint.ident}...')
         return subprocess.Popen(rf"explorer {self.path}\{self.endpoint.ident}")
 
     # Run maintenance thread
     def run_maintenance_thread(self):
+        self.logger.info(f'Running run_maintenance_thread...')
         maintenanceThread = Thread(target=self.run_maintenance_command,
                                    daemon=True,
                                    name="Run Maintenance Thread")
@@ -409,86 +423,49 @@ class Commands:
 
     # Run Maintenance on Client
     def run_maintenance_command(self) -> None:
-        self.app.running = True
+        self.logger.info(f'Running run_maintenance_command...')
+        self.logger.debug(f'Calling app.disable_buttons...')
         self.app.disable_buttons()
 
-        logIt_thread(self.log_path, msg=f"Sending maintenance command to {self.endpoint.ip} | {self.endpoint.ident}...")
+        self.logger.debug(f'Sending maintenance command to {self.endpoint.ip} | {self.endpoint.ident}...')
+        self.logger.debug(f'Updating statusbar message...')
         self.app.update_statusbar_messages_thread(
             msg=f"Waiting for maintenance confirmation on {self.endpoint.ip} | {self.endpoint.ident}...")
+        self.logger.debug(f'Displaying confirmation pop-up...')
         sure = messagebox.askyesno(f"Maintenance for {self.endpoint.ip} | {self.endpoint.ident}", "Are you sure?")
         if sure:
+            self.logger.debug(f'Updating statusbar message...')
             self.app.update_statusbar_messages_thread(
                 msg=f"Sending maintenance command to {self.endpoint.ip} | {self.endpoint.ident}...")
             try:
+                self.logger.debug(f'Sending maintenance command to {self.endpoint.ip} | {self.endpoint.ident}...')
                 self.endpoint.conn.send('maintenance'.encode())
-                logIt_thread(self.log_path, msg=f"Maintenance command sent.")
+                self.logger.debug(f'Updating statusbar message...')
                 self.app.update_statusbar_messages_thread(
                     msg=f"Maintenance command sent to {self.endpoint.ip} | {self.endpoint.ident}.")
-                logIt_thread(msg=f"Calling server.remove_lost_connection({self.endpoint})")
+                self.logger.debug(f'Calling server.remove_lost_connection({self.endpoint})...')
                 server.remove_lost_connection(self.endpoint)
+                self.logger.debug(f'Calling app.refresh_command...')
                 self.app.refresh_command()
+                self.logger.debug(f'Sleeping for 0.5s...')
                 time.sleep(0.5)
-                logIt_thread(self.log_path, msg=f"Calling self.refresh_command()...")
+                self.logger.debug(f'Calling app.refresh_command...')
                 self.app.refresh_command()
+                self.logger.info(f'run_maintenance_command completed.')
                 return True
 
             except (WindowsError, socket.error) as e:
-                logIt_thread(self.log_path, msg=f"ERROR: {e}.")
-                logIt_thread(self.log_path, msg=f"Calling server.remove_lost_connection({self.endpoint})")
+                self.logger.error(f'ERROR: {e}.')
+                self.logger.debug(f'Calling server.remove_lost_connection({self.endpoint})...')
                 server.remove_lost_connection(self.endpoint)
+                self.logger.debug(f'Sleeping for 0.5s...')
                 time.sleep(0.5)
-                logIt_thread(self.log_path, msg=f"Calling self.refresh_command()...")
+                self.logger.debug(f'Calling app.refresh_command...')
                 self.app.refresh_command()
-                self.app.running = False
+                self.logger.debug(f'Calling app.enable_buttons_thread...')
                 self.app.enable_buttons_thread()
                 return False
 
         else:
             self.app.enable_buttons_thread()
             return False
-
-
-def logIt_thread(log_path=None, debug=False, msg='') -> None:
-    logit_thread = Thread(target=logIt,
-                          args=(log_path, debug, msg),
-                          daemon=True,
-                          name="Log Thread")
-    logit_thread.start()
-
-
-def bytes_to_number(b: int) -> int:
-    dt = get_date()
-    res = 0
-    for i in range(4):
-        res += b[i] << (i * 8)
-    return res
-
-
-def get_date() -> str:
-    d = datetime.now().replace(microsecond=0)
-    dt = str(d.strftime("%d/%b/%y %H:%M:%S"))
-
-    return dt
-
-
-def logIt(logfile=None, debug=None, msg='') -> bool:
-    dt = get_date()
-    if debug:
-        print(f"{dt}: {msg}")
-
-    if logfile is not None:
-        try:
-            if not os.path.exists(logfile):
-                with open(logfile, 'w') as lf:
-                    lf.write(f"{dt}: {msg}\n")
-
-                return True
-
-            else:
-                with open(logfile, 'a') as lf:
-                    lf.write(f"{dt}: {msg}\n")
-
-                return True
-
-        except FileExistsError:
-            pass

@@ -5,6 +5,8 @@ import socket
 import time
 import os
 
+from Modules.logger import init_logger
+
 # TODO:
 #   1. Remove client version recv in vital_signs
 
@@ -36,20 +38,7 @@ class Server:
         self.connHistory = {}
         self.endpoints = []
 
-        self.init_logger()
-
-    # Initiate logger
-    def init_logger(self):
-        self.logger = logging.getLogger(__name__)
-        self.logger.setLevel(logging.DEBUG)
-        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-        self.logger.propagate = False
-
-        context = logging.FileHandler(self.log_path)
-        context.setLevel(logging.DEBUG)
-        context.setFormatter(formatter)
-
-        self.logger.addHandler(context)
+        self.logger = init_logger(self.log_path, __name__)
 
     # Server listener
     def listener(self) -> None:
