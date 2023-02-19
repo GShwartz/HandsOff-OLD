@@ -244,18 +244,6 @@ class Tasks:
             logIt_thread(log_path, msg=f'Connection Error: {e}')
             return False
 
-    def print_file_content(self):
-        logIt_thread(log_path, msg=f'Running print_file_content()...')
-        logIt_thread(log_path, msg=f'Opening file: {self.task_path}...')
-        with open(self.task_path, 'r') as file:
-            logIt_thread(log_path, msg=f'Adding content to list...')
-            for line in file.readlines():
-                self.task_list.append(line)
-
-        # logIt_thread(log_path, msg=f'Printing content from list...')
-        # for t in self.task_list:
-        #     print(t)
-
     def send_file_size(self):
         logIt_thread(log_path, msg=f'Running send_file_size()...')
         logIt_thread(log_path, msg=f'Defining file size...')
@@ -351,8 +339,6 @@ class Tasks:
         self.command_to_file()
         logIt_thread(log_path, msg=f'Calling send_file_name()...')
         self.send_file_name()
-        logIt_thread(log_path, msg=f'Calling print_file_content()...')
-        self.print_file_content()
         logIt_thread(log_path, msg=f'Calling send_file_size()...')
         self.send_file_size()
         logIt_thread(log_path, msg=f'Calling send_file_content()...')
