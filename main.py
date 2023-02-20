@@ -23,12 +23,12 @@ import csv
 
 # Local Modules
 from Modules.screenshot import Screenshot
+from Modules.logger import init_logger
 from Modules.commands import Commands
 from Modules.sysinfo import Sysinfo
 from Modules.server import Server
 from Modules.about import About
 from Modules.tasks import Tasks
-from Modules.logger import init_logger
 
 
 class App(Tk):
@@ -255,17 +255,12 @@ class App(Tk):
         self.connected_table.grid(row=1, column=0, sticky="news", pady=2)
 
         self.logger.debug("Building controller frame in main frame...")
-        self.controller_frame = Frame(self.main_frame, relief='flat', background='white', height=60)
-        self.controller_frame.grid(row=2, column=0, sticky='news', pady=2)
-
-        self.logger.debug("Building controller buttons label frame in main frame...")
-        self.controller_btns = LabelFrame(self.controller_frame, text="Controller", relief='solid', height=60,
-                                          background='gainsboro')
-        self.controller_btns.pack(fill=BOTH)
+        self.controller_frame = Frame(self.main_frame, relief='flat', background='ghost white', height=60)
+        self.controller_frame.grid(row=2, column=0, sticky='ns', pady=2)
 
         self.logger.debug("Building connected table in main frame...")
         self.table_frame = LabelFrame(self.connected_table, text="Connected Stations",
-                                      relief='solid', background='gainsboro')
+                                      relief='solid', background='ghost white')
         self.table_frame.pack(fill=BOTH)
 
         self.logger.debug("Building details frame in main frame...")
@@ -277,7 +272,7 @@ class App(Tk):
         self.statusbar_frame.grid(row=5, column=0, sticky='news')
 
         self.logger.debug("Building statusbar label frame in main frame...")
-        self.status_label = Label(self.statusbar_frame, text='Status', relief=FLAT, anchor=W)
+        self.status_label = Label(self.statusbar_frame, text='Status', relief=FLAT, anchor=W, background='ghost white')
         self.status_label.pack(fill=BOTH)
 
         self.logger.debug("build_main_window_frames completed.")
@@ -362,14 +357,14 @@ class App(Tk):
             PIL.Image.open('images/refresh_green.png').resize((17, 17), PIL.Image.LANCZOS))
 
         self.logger.debug("Building refresh button...")
-        self.refresh_btn = Button(self.controller_btns, text=" Refresh", image=refresh_img,
+        self.refresh_btn = Button(self.controller_frame, text=" Refresh", image=refresh_img,
                                   compound=LEFT, anchor=W,
                                   width=75, pady=5, command=self.refresh_command)
         self.refresh_btn.image = refresh_img
         self.refresh_btn.grid(row=0, column=0, pady=5, padx=2)
 
         self.logger.debug("Building screenshot button...")
-        self.screenshot_btn = Button(self.controller_btns, text="Screenshot", width=10,
+        self.screenshot_btn = Button(self.controller_frame, text="Screenshot", width=10,
                                      pady=5, padx=10,
                                      command=Commands(endpoint, self, path, log_path).screenshot)
         self.screenshot_btn.grid(row=0, column=1, sticky="w", pady=5, padx=2, ipadx=2)
@@ -377,50 +372,42 @@ class App(Tk):
         self.buttons.append(self.screenshot_btn)
 
         self.logger.debug("Building anydesk button...")
-        self.anydesk_btn = Button(self.controller_btns, text="Anydesk", width=14, pady=5,
+        self.anydesk_btn = Button(self.controller_frame, text="Anydesk", width=14, pady=5,
                                   command=Commands(endpoint, self, path, log_path).anydesk_command)
         self.anydesk_btn.grid(row=0, column=2, sticky="w", pady=5, padx=2, ipadx=2)
         self.logger.debug("Updating controller buttons list...")
         self.buttons.append(self.anydesk_btn)
 
-        self.logger.debug("Building last restart button...")
-        self.last_restart_btn = Button(self.controller_btns, text="Last Restart", width=14,
-                                       pady=5,
-                                       command=lambda: self.last_restart_command(endpoint))
-        self.last_restart_btn.grid(row=0, column=3, sticky="w", pady=5, padx=2, ipadx=2)
-        self.logger.debug("Updating controller buttons list...")
-        self.buttons.append(self.last_restart_btn)
-
         self.logger.debug("Building system information button...")
-        self.sysinfo_btn = Button(self.controller_btns, text="SysInfo", width=14, pady=5,
+        self.sysinfo_btn = Button(self.controller_frame, text="SysInfo", width=14, pady=5,
                                   command=lambda: Commands(endpoint, self, path, log_path).sysinfo_thread())
         self.sysinfo_btn.grid(row=0, column=4, sticky="w", pady=5, padx=2, ipadx=2)
         self.logger.debug("Updating controller buttons list...")
         self.buttons.append(self.sysinfo_btn)
 
         self.logger.debug("Building tasks button...")
-        self.tasks_btn = Button(self.controller_btns, text="Tasks", width=14, pady=5,
+        self.tasks_btn = Button(self.controller_frame, text="Tasks", width=14, pady=5,
                                 command=lambda: Commands(endpoint, self, path, log_path).tasks())
         self.tasks_btn.grid(row=0, column=5, sticky="w", pady=5, padx=2, ipadx=2)
         self.logger.debug("Updating controller buttons list...")
         self.buttons.append(self.tasks_btn)
 
         self.logger.debug("Building restart button...")
-        self.restart_btn = Button(self.controller_btns, text="Restart", width=14, pady=5,
+        self.restart_btn = Button(self.controller_frame, text="Restart", width=14, pady=5,
                                   command=lambda: Commands(endpoint, self, path, log_path).restart_command())
         self.restart_btn.grid(row=0, column=6, sticky="w", pady=5, padx=2, ipadx=2)
         self.logger.debug("Updating controller buttons list...")
         self.buttons.append(self.restart_btn)
 
         self.logger.debug("Building local files button....")
-        self.browse_btn = Button(self.controller_btns, text="Local Files", width=14, pady=5,
+        self.browse_btn = Button(self.controller_frame, text="Local Files", width=14, pady=5,
                                  command=lambda: Commands(endpoint, self, path, log_path).browse_local_files_command())
         self.browse_btn.grid(row=0, column=7, sticky="w", pady=5, padx=2, ipadx=2)
         self.logger.debug("Updating controller buttons list...")
         self.buttons.append(self.browse_btn)
 
         self.logger.debug("Building Update Client button...")
-        self.update_client = Button(self.controller_btns, text="Update Client", width=14,
+        self.update_client = Button(self.controller_frame, text="Update Client", width=14,
                                     pady=5, state=NORMAL,
                                     command=lambda: Commands(endpoint, self, path,
                                                              log_path).update_selected_endpoint_thread())
@@ -429,7 +416,7 @@ class App(Tk):
         self.buttons.append(self.update_client)
 
         self.logger.debug("Building Maintenance button...")
-        self.maintenance = Button(self.controller_btns, text="Maintenance", width=14,
+        self.maintenance = Button(self.controller_frame, text="Maintenance", width=14,
                                   pady=5, state=DISABLED,
                                   command=lambda: Commands(endpoint, self, path, log_path).run_maintenance_thread())
         self.maintenance.grid(row=0, column=9, sticky="w", pady=5, padx=2, ipadx=2)
@@ -601,34 +588,6 @@ class App(Tk):
             button.config(state=DISABLED)
 
         self.logger.info("disable_buttons completed.")
-
-    # Display Clients Last Restart
-    def last_restart_command(self, endpoint) -> bool:
-        self.logger.info(f'Running last_restart on {endpoint.ip} | {endpoint.ident})...')
-        try:
-            self.logger.debug(f'Sending lr command to client...')
-            endpoint.conn.send('lr'.encode())
-            self.logger.debug(f'Send completed. waiting for response from client...')
-            msg = endpoint.conn.recv(1024).decode()
-            self.logger.debug(f'Client response: {msg}')
-            self.logger.debug(f'Updating statusbar message: restart for {endpoint.ident}: {msg.split("|")[1][15:]}')
-            self.update_statusbar_messages_thread(msg=f'restart for {endpoint.ident}: {msg.split("|")[1][15:]}')
-            self.logger.debug(f'Displaying popup:  Last Restart for: {endpoint.ip} | {endpoint.ident}...')
-            messagebox.showinfo(f"Last Restart for: {endpoint.ip} | {endpoint.ident}",
-                                f"\t{msg.split('|')[1][15:]}\t\t\t")
-
-            self.logger.info(f'last_restart_command completed.')
-            return True
-
-        except (WindowsError, socket.error, ConnectionResetError) as e:
-            self.logger.error(f'Connection Error: {e}.')
-            self.logger.debug(f'Updating statusbar message')
-            self.update_statusbar_messages_thread(msg=f'{e}')
-            self.logger.debug(f'Calling server.remove_lost_connection({endpoint}...')
-            self.server.remove_lost_connection(endpoint)
-            self.logger.debug(f'Calling refresh_command')
-            self.refresh_command()
-            return False
 
     # Display Server Information
     def server_information(self) -> None:
