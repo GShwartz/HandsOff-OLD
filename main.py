@@ -439,7 +439,7 @@ class App(Tk):
         self.history_table = ttk.Treeview(self.history_labelFrame,
                                           columns=("ID", "MAC Address",
                                                    "IP Address", "Station Name",
-                                                   "Logged User", "Time"),
+                                                   "Logged User", "Client Version", "Connection Time"),
                                           show="headings", selectmode='none',
                                           yscrollcommand=self.history_table_scrollbar.set)
         self.history_table.config(height=10)
@@ -448,18 +448,20 @@ class App(Tk):
 
         # Table Columns & Headings
         self.logger.debug("Building connection history table columns...")
-        self.history_table.column("#1", anchor=CENTER, width=100)
+        self.history_table.column("#1", anchor=CENTER, width=71, stretch=NO)
         self.history_table.heading("#1", text="ID")
-        self.history_table.column("#2", anchor=CENTER)
+        self.history_table.column("#2", anchor=CENTER, width=170, stretch=NO)
         self.history_table.heading("#2", text="MAC")
-        self.history_table.column("#3", anchor=CENTER)
+        self.history_table.column("#3", anchor=CENTER, width=140, stretch=NO)
         self.history_table.heading("#3", text="IP")
-        self.history_table.column("#4", anchor=CENTER)
+        self.history_table.column("#4", anchor=CENTER, width=200, stretch=NO)
         self.history_table.heading("#4", text="Station Name")
-        self.history_table.column("#5", anchor=CENTER)
+        self.history_table.column("#5", anchor=CENTER, width=170, stretch=NO)
         self.history_table.heading("#5", text="Logged User")
-        self.history_table.column("#6", anchor=CENTER)
-        self.history_table.heading("#6", text="Time")
+        self.history_table.column("#6", anchor=CENTER, width=170, stretch=NO)
+        self.history_table.heading("#6", text="Client Version")
+        self.history_table.column("#7", anchor=CENTER)
+        self.history_table.heading("#7", text="Connection Time")
 
         self.logger.debug(f'Stying table row colors...')
         self.history_table.tag_configure('oddrow', background='snow')
@@ -518,6 +520,7 @@ class App(Tk):
         self.logger.debug(f"Displaying statusbar message: {msg}...")
         self.status_label.config(text=f"Status: {msg}")
 
+    # Check log file size
     def check_file_size(self):
         max_size = 100 * 1024 * 1024  # 100 MB
         if os.path.isfile(log_path):
@@ -652,7 +655,7 @@ class App(Tk):
                 tag = 'evenrow' if c % 2 == 0 else 'oddrow'
                 self.history_table.insert('', 'end', values=(c, endpoint.client_mac, endpoint.ip,
                                                              endpoint.ident, endpoint.user,
-                                                             t), tags=(tag,))
+                                                             endpoint.client_version, t), tags=(tag,))
                 c += 1
 
             self.logger.debug(f'Updating statusbar message: displaying connection history...')
