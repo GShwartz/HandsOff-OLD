@@ -20,8 +20,8 @@ import glob
 import sys
 import csv
 
-
 # Local Modules
+from Modules.maintenance import Maintenance
 from Modules.screenshot import Screenshot
 from Modules.logger import init_logger
 from Modules.commands import Commands
@@ -29,6 +29,8 @@ from Modules.sysinfo import Sysinfo
 from Modules.server import Server
 from Modules.about import About
 from Modules.tasks import Tasks
+
+import tkinter as tk
 
 
 class App(Tk):
@@ -248,20 +250,21 @@ class App(Tk):
 
         self.logger.debug("Building server information frame...")
         self.srvinfo_frame = Frame(self.main_frame, relief='solid', border=1, height=1, background='ghost white')
-        self.srvinfo_frame.grid(row=0, column=0, sticky="nwes")
+        self.srvinfo_frame.grid(row=0, column=0, sticky="we")
 
         self.logger.debug("Building connected table frame...")
-        self.connected_table = Frame(self.main_frame, relief='flat')
-        self.connected_table.grid(row=1, column=0, sticky="news", pady=2)
-
-        self.logger.debug("Building controller frame in main frame...")
-        self.controller_frame = Frame(self.main_frame, relief='flat', background='ghost white', height=60)
-        self.controller_frame.grid(row=2, column=0, sticky='ns', pady=2)
+        self.connected_table = Frame(self.main_frame, relief='flat', height=310)
+        self.connected_table.grid(row=1, column=0, sticky="ews", pady=2)
 
         self.logger.debug("Building connected table in main frame...")
         self.table_frame = LabelFrame(self.connected_table, text="Connected Stations",
                                       relief='solid', background='ghost white')
-        self.table_frame.pack(fill=BOTH)
+        # self.table_frame.pack(fill=BOTH)
+        self.table_frame.grid(row=0, column=0, sticky='news')
+
+        self.logger.debug("Building controller frame in main frame...")
+        self.controller_frame = Frame(self.main_frame, relief='flat', background='ghost white', height=60)
+        self.controller_frame.grid(row=2, column=0, sticky='ns', pady=2)
 
         self.logger.debug("Building details frame in main frame...")
         self.details_frame = Frame(self.main_frame, relief='flat', pady=2, height=310)
@@ -318,7 +321,7 @@ class App(Tk):
                                             columns=("ID", "MAC Address",
                                                      "IP Address", "Station Name",
                                                      "Logged User", "Client Version", "Boot Time"),
-                                            show="headings", height=7,
+                                            show="headings", height=8,
                                             selectmode='browse', yscrollcommand=self.table_sb.set)
         self.connected_table.pack(fill=BOTH)
         self.table_sb.config(command=self.connected_table.yview)
@@ -416,12 +419,12 @@ class App(Tk):
         self.buttons.append(self.update_client)
 
         self.logger.debug("Building Maintenance button...")
-        self.maintenance = Button(self.controller_frame, text="Maintenance", width=14,
-                                  pady=5, state=DISABLED,
-                                  command=lambda: Commands(endpoint, self, path, log_path).run_maintenance_thread())
-        self.maintenance.grid(row=0, column=9, sticky="w", pady=5, padx=2, ipadx=2)
-        # self.logger.debug("Updating controller buttons list...")
-        # self.buttons.append(self.maintenance)
+        self.maintenance_btn = Button(self.controller_frame, text="Maintenance", width=14,
+                                      pady=5,
+                                      command=lambda: Maintenance(self, log_path, endpoint))
+        self.maintenance_btn.grid(row=0, column=9, sticky="w", pady=5, padx=2, ipadx=2)
+        self.logger.debug("Updating controller buttons list...")
+        self.buttons.append(self.maintenance_btn)
         self.logger.info("build_controller_buttons completed.")
 
     # Build Table for Connection History
@@ -797,7 +800,6 @@ if __name__ == '__main__':
     serverIP = str(socket.gethostbyname(hostname))
     path = r'c:\HandsOff'
     log_path = fr'{path}\server_log.txt'
-    temp_log_path = fr"{path}\server_log.txt.new"
 
     parser = argparse.ArgumentParser()
     parser.add_argument('-i', '--ip', action='store', default=serverIP, type=str, help='Server IP')
