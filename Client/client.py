@@ -1,27 +1,34 @@
 from subprocess import Popen, PIPE
+import win32com.client as win32
 from datetime import datetime
 from threading import Thread
 import PySimpleGUI as sg
+import win32con
 import subprocess
 import threading
 import PIL.Image
 import win32gui
-import win32con
 import win32ui
 import pystray
 import socket
 import psutil
 import ctypes
+import pickle
 import time
 import wget
 import uuid
+import json
 import sys
 import os
+
+# Local Modules
+from Modules.logger import init_logger
 
 
 # TODO:
 #   1. Change datetime format to look like main - [V]
 #   2. Add a psutil.net_connections option
+#   3. Complete maintenance class
 
 
 class SystemInformation:
@@ -360,7 +367,100 @@ class Tasks:
         if str(kil)[:4].lower() == "kill":
             logIt_thread(log_path, msg=f'Calling kill()...')
             self.kill()
+            return True
 
+
+class Maintenance:
+    def __init__(self, ps_path, client, log_path):
+        self.ps_path = ps_path
+        self.client = client
+        self.log_path = log_path
+
+    def maintenance(self) -> bool:
+        try:
+            checklist = pickle.loads(self.client.soc.recv(buffer_size))
+            logIt_thread(log_path, msg=f"Checklist: {checklist}")
+
+        except (WindowsError, socket.error) as e:
+            return False
+
+        # Make sure checklist is a dictionary
+        if not isinstance(checklist, dict):
+            logIt_thread(log_path, msg=f"Invalid checklist format: {checklist}")
+            try:
+                self.client.soc.send(f"Invalid checklist format: {checklist}")
+                return False
+
+            except (WindowsError, socket.error) as e:
+                return False
+
+        # Validate and sanitize checklist values
+        for key, value in checklist.items():
+            if not isinstance(value, bool):
+                logIt_thread(log_path, msg=f"Invalid value for key '{key}': {value}")
+                try:
+                    self.client.soc.send(f"Invalid value for key '{key}': {value}")
+                    return False
+
+                except (WindowsError, socket.error) as e:
+                    return False
+
+        try:
+            self.client.soc.send("OK".encode())
+
+        except (WindowsError, socket.error) as e:
+            return False
+
+        logIt_thread(log_path, msg=f'Writing script to {self.ps_path}...')
+        with open(self.ps_path, 'w') as file:
+            for k, v in checklist.items():
+                if v and str(k).lower() == 'chkdsk':
+                    logIt_thread(log_path, msg=f"Scheduling ChkDsk...")
+                    file.write("schtasks /create /tn 'CheckDisk' /tr 'chkdsk.exe c: /r /f' /sc onstart\n")
+
+                if v and str(k).lower() == 'cleanup':
+                    file.write('$HKLM = [UInt32] “0x80000002” \n')
+                    file.write('$strKeyPath = “SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\VolumeCaches"\n')
+                    file.write('$strValueName = “StateFlags0065” \n')
+                    file.write('$subkeys = Get-ChildItem -Path HKLM:\\$strKeyPath | Where-Object $strValueName\n')
+                    file.write('Try {\n')
+                    file.write(
+                        '\tNew-ItemProperty -Path HKLM:\\$strKeyPath\\$subkey -Name $strValueName -PropertyType DWord -Value 2 -ErrorAction SilentlyContinue| Out-Null \n')
+                    file.write('}\n')
+                    file.write('\tCatch {\n')
+                    file.write('}\n')
+                    file.write('Try {\n')
+                    file.write(
+                        '\tStart-Process cleanmgr -ArgumentList “/sagerun:65” -Wait -NoNewWindow -ErrorAction SilentlyContinue -WarningAction SilentlyContinue\n')
+                    file.write('}\n')
+                    file.write('\tCatch {\n')
+                    file.write('}\n')
+                    file.write('Try {\n')
+                    file.write(
+                        '\tRemove-ItemProperty -Path HKLM:\\$strKeyPath\\$subkey -Name $strValueName | Out-Null\n')
+                    file.write('}\n')
+                    file.write('\tCatch {\n')
+                    file.write('}\n\n')
+
+                if v and str(k).lower() == 'sfc scan':
+                    file.write('echo "Performing SFC scan..."\n')
+                    file.write('sfc /scannow\n')
+
+                if v and str(k).lower() == 'dism':
+                    file.write('echo "Performing DISM Restore..."\n')
+                    file.write('DISM /Online /Cleanup-Image /Restorehealth\n')
+
+                if v and str(k).lower() == 'restart':
+                    self.client.soc.close()
+                    file.write('shutdown /r /t 0\n')
+
+        logIt_thread(log_path, msg=f'Writing script to {self.ps_path} completed.')
+        time.sleep(0.2)
+
+        logIt_thread(log_path, msg=f'Running maintenance script...')
+        # subprocess.run(["powershell.exe", "Set-ExecutionPolicy", "-ExecutionPolicy", "AllSigned", "-Scope", "Process"])
+        ps = subprocess.Popen(["powershell.exe", rf"{self.ps_path}"], stdout=sys.stdout).communicate()
+        os.remove(self.ps_path)
         return True
 
 
@@ -528,56 +628,6 @@ class Welcome:
             logIt_thread(self.client.log_path, msg=f'File Error: {e}')
             return False
 
-    def maintenance_thread(self):
-        mThread = Thread(target=self.maintenance,
-                         daemon=True,
-                         name="Maintenance Thread")
-        mThread.start()
-
-    def maintenance(self) -> bool:
-        logIt_thread(log_path, msg='Running make_script()...')
-
-        # Schedule ChkDsk
-        logIt_thread(log_path, msg=f"Scheduling ChkDsk...")
-        p = Popen(['chkdsk', 'c:', '/r', '/x', '/b'], stdin=PIPE, stdout=PIPE)
-        output, _ = p.communicate(b'y')
-
-        logIt_thread(log_path, msg=f'Writing script to {self.ps_path}...')
-        with open(self.ps_path, 'w') as file:
-            file.write(r"""
-$HKLM = [UInt32] “0x80000002”
-$strKeyPath = “SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\VolumeCaches”
-$strValueName = “StateFlags0065”
-$subkeys = gci -Path HKLM:\$strKeyPath -Name
-Try {
-    New-ItemProperty -Path HKLM:\$strKeyPath\$subkey -Name $strValueName -PropertyType DWord -Value 2 -ErrorAction SilentlyContinue| Out-Null
-}
-    Catch {
-}
-try {
-    Start-Process cleanmgr -ArgumentList “/sagerun:65” -Wait -NoNewWindow -ErrorAction SilentlyContinue -WarningAction SilentlyContinue
-}
-catch {
-}
-Try {
-    Remove-ItemProperty -Path HKLM:\$strKeyPath\$subkey -Name $strValueName | Out-Null
-}
-Catch {
-}
-""")
-            file.write('\nsfc /scannow\n')
-            file.write('DISM /Online /Cleanup-Image /Restorehealth\n')
-            file.write('                 ')
-        logIt_thread(log_path, msg=f'Writing script to {self.ps_path} completed.')
-        time.sleep(0.2)
-
-        logIt_thread(log_path, msg=f'Running maintenance script...')
-        ps = subprocess.Popen(["powershell.exe", rf"{self.ps_path}"], stdout=sys.stdout)
-        ps.communicate()
-        os.remove(self.ps_path)
-        logIt_thread(log_path, msg=f'Rebooting...')
-        # os.system('shutdown /r /t 1')
-
     def main_menu(self):
         logIt_thread(log_path, msg='Starting main menu...')
         self.client.soc.settimeout(menu_socket_timeout)
@@ -594,7 +644,7 @@ Catch {
 
             try:
                 if len(str(command)) == 0:
-                    logIt_thread(self.client.log_path, msg='Connection Lost')
+                    logIt_thread(log_path, msg='Connection Lost')
                     return False
 
                 # Vital Signs
@@ -665,8 +715,16 @@ Catch {
 
                 # Maintenance
                 elif str(command.lower()) == "maintenance":
-                    logIt_thread(log_path, msg=f'Calling self.maintenance()...')
-                    self.client.maintenance()
+                    waiting_msg = "waiting"
+                    try:
+                        self.client.soc.send(waiting_msg.encode())
+
+                    except (WindowsError, socket.error) as e:
+                        return False
+
+                    maintenance = Maintenance(self.ps_path, self.client, log_path)
+                    logIt_thread(log_path, msg=f'Calling maintenance...')
+                    maintenance.maintenance()
                     logIt_thread(log_path, msg=f'Calling self.connection()...')
                     self.client.connection()
                     logIt_thread(log_path, msg=f'Calling backdoor({self.client.soc})...')
@@ -715,7 +773,7 @@ class Client:
         endpoint_welcome.send_boot_time()
         endpoint_welcome.confirm()
 
-        logIt_thread(log_path, msg='Calling main_menu()...')
+        logger.debug(f"Calling main_menu...")
         endpoint_welcome.main_menu()
         return True
 
@@ -787,11 +845,11 @@ def main():
     ))
 
     # Show system tray icon
+    logger.info("Displaying HandsOff icon...")
     iconThread = Thread(target=icon.run, name="Icon Thread")
     iconThread.daemon = True
     iconThread.start()
 
-    # servers = [('handsoff.home.lab', 55400)]
     server = ('handsoff.home.lab', 55400)
 
     # Start Client
@@ -819,7 +877,7 @@ def main():
 
 
 if __name__ == "__main__":
-    client_version = "1.0.0"
+    client_version = "1.0.1"
     app_path = r'c:\HandsOff'
     updater_file = rf'{app_path}\updater.exe'
     log_path = fr'{app_path}\client_log.txt'
@@ -834,4 +892,5 @@ if __name__ == "__main__":
     if not os.path.exists(app_path):
         os.makedirs(app_path)
 
+    logger = init_logger(log_path, __name__)
     main()
