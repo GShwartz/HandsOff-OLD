@@ -3,12 +3,9 @@ import win32com.client as win32
 from datetime import datetime
 from threading import Thread
 import PySimpleGUI as sg
-import win32con
 import subprocess
 import threading
 import PIL.Image
-import win32gui
-import win32ui
 import pystray
 import socket
 import psutil
@@ -17,18 +14,16 @@ import pickle
 import time
 import wget
 import uuid
-import json
 import sys
 import os
 
 # Local Modules
 from Modules.logger import init_logger
+from Modules.screenshot import Screenshot
 
 
 # TODO:
-#   1. Change datetime format to look like main - [V]
-#   2. Add a psutil.net_connections option
-#   3. Complete maintenance class
+#   1. Check double confirmation at the end of anydesk() - [V]
 
 
 class SystemInformation:
@@ -112,102 +107,6 @@ class SystemInformation:
         self.confirm()
         os.remove(self.si_full_path)
         sys.stdout.flush()
-
-
-class Screenshot:
-    def __init__(self, client):
-        self.ps_path = rf'{app_path}\screenshot.ps1'
-        self.client = client
-
-        # d = datetime.now().replace(microsecond=0).strftime("%d-%b-%y %I.%M.%S %p")
-        logIt_thread(log_path, msg='Defining screenshot file name...')
-        self.filename = rf"screenshot {self.client.hostname} {self.client.localIP} {get_date()}.jpg"
-        self.file_path = os.path.join(app_path, self.filename)
-        logIt_thread(log_path, msg=f'Screenshot file name: {self.filename}')
-
-    def run_script(self):
-        logIt_thread(log_path, msg=f'Capturing screenshot...')
-        desktop = win32gui.GetDesktopWindow()
-
-        SM_CXVIRTUALSCREEN = 78
-        SM_CYVIRTUALSCREEN = 79
-        SM_XVIRTUALSCREEN = 76
-        SM_YVIRTUALSCREEN = 77
-
-        width = ctypes.windll.user32.GetSystemMetrics(SM_CXVIRTUALSCREEN)
-        height = ctypes.windll.user32.GetSystemMetrics(SM_CYVIRTUALSCREEN)
-        left = ctypes.windll.user32.GetSystemMetrics(SM_XVIRTUALSCREEN)
-        top = ctypes.windll.user32.GetSystemMetrics(SM_YVIRTUALSCREEN)
-
-        desktop_dc = win32gui.GetWindowDC(desktop)
-        img_dc = win32ui.CreateDCFromHandle(desktop_dc)
-
-        mem_dc = img_dc.CreateCompatibleDC()
-        screenshot = win32ui.CreateBitmap()
-        screenshot.CreateCompatibleBitmap(img_dc, width, height)
-        mem_dc.SelectObject(screenshot)
-        mem_dc.BitBlt((0, 0), (width, height), img_dc, (left, top), win32con.SRCCOPY)
-
-        screenshot.SaveBitmapFile(mem_dc, self.file_path)
-
-        mem_dc.DeleteDC()
-        win32gui.DeleteObject(screenshot.GetHandle())
-        logIt_thread(log_path, msg=f'Screenshot captured.')
-
-    def send_file(self):
-        try:
-            # Send filename to server
-            logIt_thread(log_path, msg='Sending file name to server...')
-            self.client.soc.send(f"{self.filename}".encode())
-            logIt_thread(log_path, msg=f'Send Completed.')
-
-            # Receive filename Confirmation from the server
-            logIt_thread(log_path, msg='Waiting for confirmation from server...')
-            msg = self.client.soc.recv(1024).decode()
-            logIt_thread(log_path, msg=f'Server confirmation: {msg}')
-            logIt_thread(log_path, msg=f'Getting file size...')
-            length = os.path.getsize(self.file_path)
-            logIt_thread(log_path, msg=f'Sending file size to server...')
-            self.client.soc.send(convert_to_bytes(length))
-            logIt_thread(log_path, msg=f'Send Completed.')
-
-            # Send file content
-            logIt_thread(log_path, msg=f'Opening {self.filename} with read bytes permissions...')
-            with open(self.file_path, 'rb') as img_file:
-                img_data = img_file.read(1024)
-                logIt_thread(log_path, msg=f'Sending file content...')
-                while img_data:
-                    self.client.soc.send(img_data)
-                    if not img_data:
-                        break
-
-                    img_data = img_file.read(1024)
-
-            logIt_thread(log_path, msg=f'Send Completed.')
-
-        except (WindowsError, socket.error, ConnectionError) as e:
-            logIt_thread(log_path, msg=f'Connection Error: {e}')
-            return False
-
-    def confirm(self):
-        try:
-            logIt_thread(log_path, msg=f'Sending confirmation...')
-            self.client.soc.send(f"{self.client.hostname} | {self.client.localIP}: Screenshot Completed.\n".encode())
-            logIt_thread(log_path, msg=f'Send Completed.')
-
-        except (WindowsError, socket.error):
-            logIt_thread(log_path, msg=f'Connection Error')
-            return False
-
-    def run(self):
-        logIt_thread(log_path, msg='Calling run_script()...')
-        self.run_script()
-        logIt_thread(log_path, msg='Calling send_file()...')
-        self.send_file()
-        logIt_thread(log_path, msg='Calling confirm()...')
-        self.confirm()
-        os.remove(self.file_path)
-        logIt_thread(log_path, msg=f'=== End of screenshot() ===')
 
 
 class Tasks:
@@ -470,97 +369,107 @@ class Welcome:
         self.ps_path = rf'{app_path}\maintenance.ps1'
 
     def send_mac_address(self) -> str:
+        logger.info(f"Running send_mac_address...")
         mac = ':'.join(['{:02x}'.format((uuid.getnode() >> ele) & 0xff)
                         for ele in range(0, 8 * 6, 8)][::-1])
         try:
-            logIt_thread(log_path, msg=f'Sending MAC address: {mac}...')
+            logger.debug(f"Sending MAC address: {mac}...")
             self.client.soc.send(mac.encode())
-            logIt_thread(log_path, msg=f'Send completed.')
-            logIt_thread(log_path, msg='Waiting for confirmation from server...')
+            logger.debug(f"Waiting for confirmation...")
             self.client.soc.settimeout(intro_socket_timeout)
             message = self.client.soc.recv(buffer_size).decode()
             self.client.soc.settimeout(default_socket_timeout)
-            logIt_thread(log_path, msg=f'Message from server: {message}')
+            logger.debug(f"Server: {message}")
+            logger.info(f"send_mac_address completed.")
 
-        except (WindowsError, socket.error, socket.timeout):
-            logIt_thread(log_path, msg='Connection Error')
+        except (WindowsError, socket.error, socket.timeout) as e:
+            logger.debug(f"Connection Error: {e}")
             return False
 
     def send_host_name(self) -> str:
+        logger.info(f"Running send_host_name...")
         try:
-            logIt_thread(log_path, msg=f'Sending hostname: {self.client.hostname}...')
+            logger.debug(f"Sending hostname: {self.client.hostname}...")
             self.client.soc.send(self.client.hostname.encode())
-            logIt_thread(log_path, msg=f'Send completed.')
-            logIt_thread(log_path, msg='Waiting for confirmation from server...')
+            logger.debug(f"Waiting for confirmation...")
             self.client.soc.settimeout(intro_socket_timeout)
             message = self.client.soc.recv(buffer_size).decode()
             self.client.soc.settimeout(default_socket_timeout)
-            logIt_thread(log_path, msg=f'Message from server: {message}')
+            logger.debug(f"Server: {message}")
+            logger.info(f"send_host_name completed.")
 
         except (WindowsError, socket.error):
-            logIt_thread(log_path, msg='Connection Error')
+            logger.debug(f"Connection Error: {e}")
             return False
 
     def send_current_user(self) -> str:
+        logger.info(f"Running send_current_user...")
         try:
-            logIt_thread(log_path, msg=f'Sending current user: {self.client.current_user}...')
+            logger.debug(f"Sending current user: {self.client.current_user}...")
             self.client.soc.send(self.client.current_user.encode())
-            logIt_thread(log_path, msg=f'Send completed.')
-            logIt_thread(log_path, msg='Waiting for confirmation from server...')
+            logger.debug(f"Waiting for confirmation...")
             self.client.soc.settimeout(intro_socket_timeout)
             message = self.client.soc.recv(buffer_size).decode()
             self.client.soc.settimeout(default_socket_timeout)
-            logIt_thread(log_path, msg=f'Message from server: {message}')
+            logger.debug(f"Server: {message}")
+            logger.info(f"send_current_user completed.")
 
-        except (WindowsError, socket.error):
+        except (WindowsError, socket.error) as e:
+            logger.debug(f"Connection error: {e}")
             return False
 
     def send_client_version(self):
+        logger.info(f"Running send_client_version...")
         try:
-            logIt_thread(log_path, msg=f'Sending client version: {client_version}...')
+            logger.debug(f"Sending client version: {client_version}...")
             self.client.soc.send(client_version.encode())
-            logIt_thread(log_path, msg=f'Send completed.')
-            logIt_thread(log_path, msg='Waiting for confirmation from server...')
+            logger.debug(f"Waiting for confirmation...")
             self.client.soc.settimeout(intro_socket_timeout)
             message = self.client.soc.recv(buffer_size).decode()
             self.client.soc.settimeout(default_socket_timeout)
-            logIt_thread(log_path, msg=f'Message from server: {message}')
+            logger.debug(f"Server: {message}")
+            logger.info(f"send_client_version completed.")
 
         except (socket.error, WindowsError, socket.timeout) as e:
+            logger.debug(f"Connection error: {e}")
             return False
 
     def send_boot_time(self):
+        logger.info(f"Running send_boot_time...")
         try:
-            logIt_thread(log_path, msg=f'Sending Boot Time version: {client_version}...')
+            logger.debug(f"Sending Boot Time version: {client_version}...")
             bt = self.get_boot_time()
             self.client.soc.send(str(bt).encode())
-            logIt_thread(log_path, msg=f'Send completed.')
-            logIt_thread(log_path, msg='Waiting for confirmation from server...')
+            logger.debug(f"Waiting for confirmation...")
             message = self.client.soc.recv(buffer_size).decode()
-            logIt_thread(log_path, msg=f'Message from server: {message}')
+            logger.debug(f"Server: {message}")
+            logger.info(f"send_boot_time completed.")
 
         except (socket.error, WindowsError, socket.timeout) as e:
+            logger.debug(f"Connection error: {e}")
             return False
 
     def get_boot_time(self):
-        logIt_thread(log_path, msg='Fetching last restart time...')
+        logger.info(f"Running get_boot_time...")
         last_reboot = psutil.boot_time()
         return datetime.fromtimestamp(last_reboot).strftime('%d/%b/%y %H:%M:%S')
 
     def confirm(self):
+        logger.info(f"Running confirm...")
         try:
-            logIt_thread(log_path, msg='Waiting for confirmation from server...')
+            logger.debug(f"Waiting for confirmation...")
             self.client.soc.settimeout(intro_socket_timeout)
             message = self.client.soc.recv(buffer_size).decode()
             self.client.soc.settimeout(default_socket_timeout)
-            logIt_thread(log_path, msg=f'Message from server: {message}')
+            logger.debug(f"Server: {message}")
+            logger.info(f"confirm completed.")
 
-        except (WindowsError, socket.error, socket.timeout):
-            logIt_thread(log_path, msg='Connection Error')
+        except (WindowsError, socket.error, socket.timeout) as e:
+            logger.debug(f"Connection error: {e}")
             return False
 
     def anydeskThread(self) -> None:
-        logIt_thread(log_path, msg=f'Starting Anydesk app...')
+        logger.debug(f"Running Anydesk App...")
         return subprocess.call([r"C:\Program Files (x86)\AnyDesk\anydesk.exe"])
 
     def anydesk(self):
@@ -568,177 +477,175 @@ class Welcome:
         def run_ad():
             return subprocess.run(anydesk_path)
 
-        logIt_thread(log_path, msg=f'Running anydesk()...')
+        logger.debug(f"Running anydesk()...")
         try:
             if os.path.exists(r"C:\Program Files (x86)\AnyDesk\anydesk.exe"):
                 anydeskThread = threading.Thread(target=self.anydeskThread, name="Run Anydesk")
                 anydeskThread.daemon = True
-                logIt_thread(log_path, msg=f'Calling anydeskThread()...')
+                logger.debug(f"Calling anydeskThread()...")
                 anydeskThread.start()
-                logIt_thread(log_path, msg=f'Sending Confirmation...')
+                logger.debug(f"Sending Confirmation...")
                 self.client.soc.send("OK".encode())
-                logIt_thread(log_path, msg=f'Send Complete.')
 
             else:
                 error = "Anydesk not installed."
-                logIt_thread(log_path, msg=f'Sending error message: {error}...')
+                logger.debug(f"Sending error message: {error}...")
                 self.client.soc.send(error.encode())
-                logIt_thread(log_path, msg=f'Send Complete.')
 
                 try:
-                    logIt_thread(log_path, msg=f'Waiting for install confirmation...')
+                    logger.debug(f"Waiting for install confirmation...")
                     install = self.client.soc.recv(buffer_size).decode()
                     if str(install).lower() == "y":
                         url = "https://download.anydesk.com/AnyDesk.exe"
                         destination = rf'c:\users\{os.getlogin()}\Downloads\anydesk.exe'
 
                         if not os.path.exists(destination):
-                            logIt_thread(log_path, msg=f'Sending downloading message...')
+                            logger.debug(f"Sending downloading message...")
                             self.client.soc.send("Downloading anydesk...".encode())
 
-                            logIt_thread(log_path, msg=f'Downloading anydesk.exe...')
+                            logger.debug(f"Downloading anydesk.exe..")
                             wget.download(url, destination)
-                            logIt_thread(log_path, msg=f'Download complete.')
+                            logger.debug(f"Download complete.")
 
-                        logIt_thread(log_path, msg=f'Sending running anydesk message...')
+                        logger.debug(f"Sending running anydesk message...")
                         self.client.soc.send("Running anydesk...".encode())
-                        logIt_thread(log_path, msg=f'Send Complete.')
 
-                        logIt_thread(log_path, msg=f'Running anydesk...')
+                        logger.debug(f"Running anydesk...")
                         programThread = Thread(target=run_ad, name='programThread')
                         programThread.daemon = True
                         programThread.start()
 
-                        logIt_thread(log_path, msg=f'Sending Confirmation...')
+                        logger.debug(f"Sending Confirmation...")
                         self.client.soc.send("Anydesk Running.".encode())
-                        logIt_thread(log_path, msg=f'Send Complete.')
 
-                        logIt_thread(log_path, msg=f'Sending Confirmation...')
+                        logger.debug(f"Sending final confirmation...")
                         self.client.soc.send("OK".encode())
-                        logIt_thread(log_path, msg=f'Send Completed.')
 
                     else:
                         return False
 
                 except (WindowsError, socket.error, socket.timeout) as e:
-                    logIt_thread(log_path, msg=f'{e}')
+                    logger.debug(f"Error: {e}")
                     return False
 
         except FileNotFoundError as e:
-            logIt_thread(self.client.log_path, msg=f'File Error: {e}')
+            logger.debug(f"File Error: {e}")
             return False
 
     def main_menu(self):
-        logIt_thread(log_path, msg='Starting main menu...')
+        logger.info(f"Running main_menu...")
         self.client.soc.settimeout(menu_socket_timeout)
         while True:
             try:
-                logIt_thread(log_path, msg='Waiting for command...')
+                logger.debug(f"Waiting for command...")
                 command = self.client.soc.recv(buffer_size).decode()
-                logIt_thread(log_path, msg=f'Server Command: {command}')
+                logger.debug(f"Server Command: {command}")
 
             except (ConnectionResetError, ConnectionError,
                     ConnectionAbortedError, WindowsError, socket.error) as e:
-                logIt_thread(log_path, msg=f'Connection Error: {e}')
+                logger.debug(f"Connection Error: {e}")
                 break
 
             try:
                 if len(str(command)) == 0:
-                    logIt_thread(log_path, msg='Connection Lost')
+                    logger.debug(f"Connection Lost")
                     return False
 
                 # Vital Signs
                 elif str(command.lower())[:5] == "alive":
-                    logIt_thread(log_path, msg='Calling Vital Signs...')
+                    logger.debug(f"Calling Vital Signs...")
                     try:
-                        logIt_thread(log_path, msg='Answer yes to server')
+                        logger.debug(f"Answer yes to server...")
                         self.client.soc.send('yes'.encode())
-                        logIt_thread(log_path, msg=f'Send completed.')
 
                     except (WindowsError, socket.error) as e:
-                        logIt_thread(log_path, msg=f'{e}')
+                        logger.debug(f"Error: {e}")
                         break
 
                 # Capture Screenshot
                 elif str(command.lower())[:6] == "screen":
-                    logIt_thread(log_path, msg='Initiating screenshot class...')
-                    screenshot = Screenshot(self.client)
+                    logger.debug(f"Initiating screenshot class...")
+                    screenshot = Screenshot(self.client, log_path, app_path)
+                    logger.debug(f"Calling screenshot.run...")
                     screenshot.run()
 
                 # Get System Information & Users
                 elif str(command.lower())[:2] == "si":
+                    logger.debug(f"Initiating SystemInformation class...")
                     system = SystemInformation(self.client)
+                    logger.debug(f"Calling system.run...")
                     system.run()
 
                 # Get Last Restart Time
                 elif str(command.lower())[:2] == "lr":
-                    logIt_thread(log_path, msg='Fetching last restart time...')
+                    logger.debug(f"Fetching last restart time...")
                     last_reboot = psutil.boot_time()
                     try:
-                        logIt_thread(log_path, msg='Sending last restart time...')
+                        logger.debug(f"Sending last restart time...")
                         self.client.soc.send(f"{self.client.hostname} | {self.client.localIP}: "
                                              f"{self.get_boot_time()}".encode())
 
-                        logIt_thread(log_path, msg=f'Send completed.')
-
                     except ConnectionResetError as e:
-                        logIt_thread(log_path, msg=f'Connection Error: {e}')
+                        logger.debug(f"Connection Error: {e}")
                         break
 
                 # Run Anydesk
                 elif str(command.lower())[:7] == "anydesk":
-                    logIt_thread(log_path, msg='Calling anydesk()...')
+                    logger.debug(f"Calling anydesk...")
                     self.anydesk()
                     continue
 
                 # Task List
                 elif str(command.lower())[:5] == "tasks":
-                    logIt_thread(log_path, msg='Calling tasks()...')
+                    logger.debug(f"Calling tasks...")
                     task = Tasks(self.client)
                     task.run()
 
                 # Restart Machine
                 elif str(command.lower())[:7] == "restart":
-                    logIt_thread(log_path, msg='Restarting local station...')
+                    logger.debug(f"Restarting local station...")
                     os.system('shutdown /r /t 1')
 
                 # Run Updater
                 elif str(command.lower())[:6] == "update":
                     try:
-                        logIt_thread(log_path, msg='Running updater...')
+                        logger.debug(f"Running updater...")
                         subprocess.run(f'{updater_file}')
                         sys.exit(0)
 
                     except (WindowsError, socket.error) as e:
-                        logIt_thread(log_path, msg=f'ERROR: {e}.')
+                        logger.debug(f"ERROR: {e}")
                         return False
 
                 # Maintenance
                 elif str(command.lower()) == "maintenance":
                     waiting_msg = "waiting"
                     try:
+                        logger.debug(f"Sending waiting message...")
                         self.client.soc.send(waiting_msg.encode())
 
                     except (WindowsError, socket.error) as e:
+                        logger.debug(f"ERROR: {e}")
                         return False
 
+                    logger.debug(f"Initializing maintenance class...")
                     maintenance = Maintenance(self.ps_path, self.client, log_path)
-                    logIt_thread(log_path, msg=f'Calling maintenance...')
+                    logger.debug(f"Calling maintenance...")
                     maintenance.maintenance()
-                    logIt_thread(log_path, msg=f'Calling self.connection()...')
+                    logger.debug(f"Calling self.connection...")
                     self.client.connection()
-                    logIt_thread(log_path, msg=f'Calling backdoor({self.client.soc})...')
+                    logger.debug(f"Calling main_menu...")
                     self.main_menu()
 
                 # Close Connection
                 elif str(command.lower())[:4] == "exit":
-                    logIt_thread(log_path, msg='Server closed the connection.')
+                    logger.debug(f"Server closed the connection.")
                     self.client.soc.settimeout(1)
                     # sys.exit(0)     # CI CD
                     break  # CICD
 
             except (Exception, socket.error, socket.timeout) as err:
-                logIt_thread(log_path, msg=f'Connection Error: {e}')
+                logger.debug(f"Connection Error: {e}")
                 break
 
 
@@ -752,73 +659,39 @@ class Client:
         self.soc = soc
 
         if not os.path.exists(f'{app_path}'):
+            logger.debug(f"Creating App dir...")
             os.makedirs(app_path)
 
     def connection(self) -> None:
-        logIt_thread(log_path, msg=f'Running connection()...')
+        logger.info(f"Running connection...")
         try:
-            logIt_thread(log_path, msg=f'Connecting to Server: {self.server_host} | Port {self.server_port}...')
+            logger.debug(f"Connecting to Server: {self.server_host} | Port {self.server_port}...")
             self.soc.connect((self.server_host, self.server_port))
 
         except (TimeoutError, WindowsError, ConnectionAbortedError, ConnectionResetError, socket.timeout) as e:
-            logIt_thread(log_path, msg=f'Connection Error: {e}')
+            logger.debug(f"Connection error: {e}")
             return False
 
     def welcome(self):
+        logger.info(f"Running welcome...")
+        logger.debug(f"Initiating Welcome class..")
         endpoint_welcome = Welcome(self)
+        logger.debug(f"Calling endpoint_welcome.send_mac_address...")
         endpoint_welcome.send_mac_address()
+        logger.debug(f"Calling endpoint_welcome.send_host_name...")
         endpoint_welcome.send_host_name()
+        logger.debug(f"Calling endpoint_welcome.send_current_user...")
         endpoint_welcome.send_current_user()
+        logger.debug(f"Calling endpoint_welcome.send_client_version...")
         endpoint_welcome.send_client_version()
+        logger.debug(f"Calling endpoint_welcome.send_boot_time...")
         endpoint_welcome.send_boot_time()
+        logger.debug(f"Calling endpoint_welcome.confirm...")
         endpoint_welcome.confirm()
 
-        logger.debug(f"Calling main_menu...")
+        logger.debug(f"Calling endpoint_welcome.main_menu...")
         endpoint_welcome.main_menu()
         return True
-
-
-def get_date() -> str:
-    d = datetime.now().replace(microsecond=0)
-    dt = str(d.strftime("%d-%b-%y %I.%M.%S %p"))
-
-    return dt
-
-
-def logIt(logfile=None, debug=None, msg=''):
-    dt = get_date()
-    if debug:
-        print(f"{dt}: {msg}")
-
-    if logfile is not None:
-        try:
-            if not os.path.exists(logfile):
-                with open(logfile, 'w') as lf:
-                    lf.write(f"{dt}: {msg}\n")
-                    return True
-
-            else:
-                with open(logfile, 'a') as lf:
-                    lf.write(f"{dt}: {msg}\n")
-                return True
-
-        except FileExistsError:
-            pass
-
-
-def logIt_thread(log_path=None, debug=False, msg=''):
-    logit_thread = Thread(target=logIt, args=(log_path, debug, msg), name="Log Thread")
-    logit_thread.start()
-    return
-
-
-def convert_to_bytes(no):
-    result = bytearray()
-    result.append(no & 255)
-    for i in range(3):
-        no = no >> 8
-        result.append(no & 255)
-    return result
 
 
 def on_clicked(icon, item):
@@ -855,29 +728,31 @@ def main():
     # Start Client
     while True:
         try:
-            logIt_thread(log_path, msg='Creating Socket...')
+            logger.debug(f"Creating Socket...")
             soc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            logIt_thread(log_path, msg='Defining socket to Reuse address...')
+            logger.debug(f"Defining socket to Reuse address...")
             soc.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
-            logIt_thread(log_path, msg='Initiating client Class...')
+            logger.debug(f"Initiating client Class...")
             client = Client(server, soc)
 
-            logIt_thread(log_path, msg=f'connecting to {server}...')
+            logger.debug(f"connecting to {server}...")
+            soc.settimeout(default_socket_timeout)
             soc.connect(server)
-            logIt_thread(log_path, msg=f'Calling backdoor({soc})...')
+            logger.debug(f"Calling backdoor({soc})...")
             client.welcome()
 
         except (WindowsError, socket.error) as e:
-            logIt_thread(log_path, msg=f'Connection Error: {e}')
+            logger.debug(f"Connection Error: {e}")
             soc.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            logIt_thread(log_path, msg=f'Closing socket...')
+            logger.debug(f"Closing socket...")
             soc.close()
+            logger.debug(f"Sleeping for 1s...")
             time.sleep(1)
 
 
 if __name__ == "__main__":
-    client_version = "1.0.1"
+    client_version = "1.0.0"
     app_path = r'c:\HandsOff'
     updater_file = rf'{app_path}\updater.exe'
     log_path = fr'{app_path}\client_log.txt'
