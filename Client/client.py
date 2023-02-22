@@ -20,253 +20,13 @@ import os
 # Local Modules
 from Modules.logger import init_logger
 from Modules.screenshot import Screenshot
+from Modules.sysinfo import SystemInformation
+from Modules.tasks import Tasks
 
 
 # TODO:
 #   1. Check double confirmation at the end of anydesk() - [V]
-
-
-class SystemInformation:
-    def __init__(self, client):
-        self.client = client
-        self.dt = get_date()
-        self.sifile = rf"systeminfo {self.client.hostname} {self.dt}.txt"
-        self.si_full_path = os.path.join(app_path, self.sifile)
-
-    def command_to_file(self):
-        with open(self.si_full_path, 'w') as sysinfo:
-            logIt_thread(log_path, msg='Running system information command...')
-            sys_info = subprocess.run(['systeminfo'], stdout=subprocess.PIPE, text=True)
-            sys_info_str = sys_info.stdout
-            logIt_thread(log_path, msg=f'Adding header to {self.si_full_path}...')
-            sysinfo.write(f"{'=' * 80}\n")
-            sysinfo.write(
-                f"IP: {self.client.localIP} | NAME: {self.client.hostname} | LOGGED USER: {os.getlogin()} | {self.dt}\n")
-            sysinfo.write(f"{'=' * 80}\n")
-            logIt_thread(log_path, msg=f'Adding system information to {self.si_full_path}...')
-            sysinfo.write(f"{sys_info_str}\n\n")
-
-    def send_filename(self):
-        try:
-            logIt_thread(log_path, msg='Sending file name...')
-            self.client.soc.send(f"{self.sifile}".encode())
-            logIt_thread(log_path, msg=f'Send Completed.')
-
-        except (WindowsError, socket.error) as e:
-            logIt_thread(log_path, msg=f'Connection Error: {e}')
-            return False
-
-    def send_file_size(self):
-        try:
-            logIt_thread(log_path, msg='Defining file size...')
-            length = os.path.getsize(self.si_full_path)
-            logIt_thread(log_path, msg=f'File Size: {length}')
-
-            logIt_thread(log_path, msg='Sending file size...')
-            self.client.soc.send(convert_to_bytes(length))
-            logIt_thread(log_path, msg=f'Send Completed.')
-
-        except (WindowsError, socket.error) as e:
-            logIt_thread(log_path, msg=f'Connection Error: {e}')
-            return False
-
-    def send_file_content(self):
-        try:
-            logIt_thread(log_path, msg=f'Opening {self.si_full_path}...')
-            with open(self.si_full_path, 'rb') as sy_file:
-                logIt_thread(log_path, msg='Sending file content...')
-                sys_data = sy_file.read(buffer_size)
-                while sys_data:
-                    self.client.soc.send(sys_data)
-                    if not sys_data:
-                        break
-
-                    sys_data = sy_file.read(buffer_size)
-
-            logIt_thread(log_path, msg=f'Send Completed.')
-
-        except (WindowsError, socket.error, FileExistsError, FileNotFoundError) as e:
-            logIt_thread(log_path, msg=f'Error: {e}')
-            return False
-
-    def confirm(self):
-        try:
-            logIt_thread(log_path, msg='Waiting for message from server...')
-            msg = self.client.soc.recv(buffer_size).decode()
-            logIt_thread(log_path, msg=f'From Server: {msg}')
-
-        except (WindowsError, socket.error) as e:
-            logIt_thread(log_path, msg=f'Connection Error: {e}')
-            return False
-
-    def run(self):
-        self.command_to_file()
-        self.send_filename()
-        self.send_file_size()
-        self.send_file_content()
-        self.confirm()
-        os.remove(self.si_full_path)
-        sys.stdout.flush()
-
-
-class Tasks:
-    def __init__(self, client):
-        self.client = client
-        self.task_list = []
-        logIt_thread(log_path, msg=f'Defining tasks file name...')
-        self.dt = get_date()
-        self.taskfile = rf"tasks {self.client.hostname} {str(self.client.localIP)} {self.dt}.txt"
-        self.task_path = os.path.join(app_path, self.taskfile)
-
-    def command_to_file(self):
-        logIt_thread(log_path, msg=f'Running command_to_file()...')
-        try:
-            logIt_thread(log_path, msg=f'Opening file: {self.task_path}...')
-            with open(self.task_path, 'w') as task_file:
-                task_file.write(f"{'=' * 80}\n")
-                task_file.write(f"IP: {self.client.localIP} | NAME: {self.client.hostname} | "
-                                f"LOGGED USER: {os.getlogin()} | {self.dt}\n")
-                task_file.write(f"{'=' * 80}\n")
-
-            with open(self.task_path, 'a') as task_file:
-                subprocess.run(['tasklist'], stdout=task_file)
-                task_file.write('\n')
-
-            return True
-
-        except (FileNotFoundError, FileExistsError) as e:
-            logIt_thread(log_path, msg=f'File Error: {e}')
-            return False
-
-    def send_file_name(self):
-        logIt_thread(log_path, msg=f'Running send_file_name()...')
-        try:
-            logIt_thread(log_path, msg=f'Sending file name: {self.taskfile}...')
-            self.client.soc.send(f"{self.taskfile}".encode())
-            logIt_thread(log_path, msg=f'Send Completed.')
-            return True
-
-        except (WindowsError, socket.error) as e:
-            logIt_thread(log_path, msg=f'Connection Error: {e}')
-            return False
-
-    def send_file_size(self):
-        logIt_thread(log_path, msg=f'Running send_file_size()...')
-        logIt_thread(log_path, msg=f'Defining file size...')
-        length = os.path.getsize(self.task_path)
-        logIt_thread(log_path, msg=f'File Size: {length}')
-
-        try:
-            logIt_thread(log_path, msg=f'Sending file size...')
-            self.client.soc.send(convert_to_bytes(length))
-            logIt_thread(log_path, msg=f'Send Completed.')
-            return True
-
-        except (WindowsError, socket.error) as e:
-            logIt_thread(log_path, msg=f'Connection Error: {e}')
-            return False
-
-    def send_file_content(self):
-        logIt_thread(log_path, msg=f'Running send_file_content()...')
-        logIt_thread(log_path, msg=f'Opening file: {self.task_path}...')
-        with open(self.task_path, 'rb') as tsk_file:
-            logIt_thread(log_path, msg=f'Reading content from {self.task_path}...')
-            tsk_data = tsk_file.read(1024)
-            try:
-                logIt_thread(log_path, msg=f'Sending file content...')
-                while tsk_data:
-                    self.client.soc.send(tsk_data)
-                    if not tsk_data:
-                        break
-
-                    tsk_data = tsk_file.read(1024)
-
-                logIt_thread(log_path, msg=f'Send Completed.')
-
-            except (WindowsError, socket.error) as e:
-                logIt_thread(log_path, msg=f'Connection Error: {e}')
-                return False
-
-    def confirm(self) -> bool:
-        logIt_thread(log_path, msg=f'Running confirm()...')
-        try:
-            logIt_thread(log_path, msg=f'Waiting for confirmation from server...')
-            self.client.soc.settimeout(10)
-            msg = self.client.soc.recv(1024).decode()
-            self.client.soc.settimeout(None)
-            logIt_thread(log_path, msg=f'Server Confirmation: {msg}')
-
-        except (WindowsError, socket.error) as e:
-            logIt_thread(log_path, msg=f'Connection Error: {e}')
-            return False
-
-        try:
-            logIt_thread(log_path, msg=f'Sending confirmation...')
-            self.client.soc.send(f"{self.client.hostname} | {self.client.localIP}: Task List Sent.\n".encode())
-            logIt_thread(log_path, msg=f'Send Completed.')
-            return True
-
-        except (WindowsError, socket.error) as e:
-            logIt_thread(log_path, msg=f'Connection Error: {e}')
-            return False
-
-    def kill(self) -> bool:
-        logIt_thread(log_path, msg=f'Waiting for task name...')
-        try:
-            self.client.soc.settimeout(10)
-            task2kill = self.client.soc.recv(1024).decode()
-            self.client.soc.settimeout(None)
-            logIt_thread(log_path, msg=f'Task name: {task2kill}')
-
-        except (WindowsError, socket.error) as e:
-            logIt_thread(log_path, msg=f'Connection Error: {e}')
-            return False
-
-        if str(task2kill).lower()[:1] == 'q':
-            return True
-
-        logIt_thread(log_path, msg=f'Killing {task2kill}...')
-        os.system(f'taskkill /IM {task2kill} /F')
-        logIt_thread(log_path, msg=f'{task2kill} killed.')
-
-        logIt_thread(log_path, msg=f'Sending killed confirmation to server...')
-        try:
-            self.client.soc.send(f"Task: {task2kill} Killed.".encode())
-            logIt_thread(log_path, msg=f'Send Completed.')
-
-        except (WindowsError, socket.error) as e:
-            logIt_thread(log_path, msg=f'Connection Error: {e}')
-            return False
-
-        return True
-
-    def run(self) -> bool:
-        logIt_thread(log_path, msg=f'Calling command_to_file()...')
-        self.command_to_file()
-        logIt_thread(log_path, msg=f'Calling send_file_name()...')
-        self.send_file_name()
-        logIt_thread(log_path, msg=f'Calling send_file_size()...')
-        self.send_file_size()
-        logIt_thread(log_path, msg=f'Calling send_file_content()...')
-        self.send_file_content()
-        logIt_thread(log_path, msg=f'Calling confirm()...')
-        self.confirm()
-        logIt_thread(log_path, msg=f'Removing file: {self.task_path}...')
-        os.remove(self.task_path)
-        sys.stdout.flush()
-
-        try:
-            self.client.soc.settimeout(10)
-            kil = self.client.soc.recv(1024).decode()
-            self.client.soc.settimeout(None)
-
-        except (WindowsError, socket.error):
-            return False
-
-        if str(kil)[:4].lower() == "kill":
-            logIt_thread(log_path, msg=f'Calling kill()...')
-            self.kill()
-            return True
+#   2. Split Maintenance class
 
 
 class Maintenance:
@@ -572,7 +332,7 @@ class Welcome:
                 # Get System Information & Users
                 elif str(command.lower())[:2] == "si":
                     logger.debug(f"Initiating SystemInformation class...")
-                    system = SystemInformation(self.client)
+                    system = SystemInformation(self.client, log_path, app_path)
                     logger.debug(f"Calling system.run...")
                     system.run()
 
@@ -598,7 +358,7 @@ class Welcome:
                 # Task List
                 elif str(command.lower())[:5] == "tasks":
                     logger.debug(f"Calling tasks...")
-                    task = Tasks(self.client)
+                    task = Tasks(self.client, log_path, app_path)
                     task.run()
 
                 # Restart Machine
