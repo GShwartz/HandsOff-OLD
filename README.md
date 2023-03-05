@@ -20,7 +20,7 @@ The entire idea behind this solution is that the other side only holds the <b>ph
 - Restart Remote Station
 - View Remote Station's Files In Local Dir (screenshots, system information and tasks files)
 - Update Remote Station's Client
-- Run Maintenance On The Remote Station
+- Run Maintenance On The Remote Station (WiP)
 
 ### Menubar Tools
 - Refresh Connections
@@ -30,24 +30,12 @@ The entire idea behind this solution is that the other side only holds the <b>ph
 - Update All Connected Stations
 
 ---
-# Installation #
-## Controller ##
-* HandsOff runs on Python >= 3.10.8
-* Clone Repo
-* open CMD, navigate to dir and run pip install -r requirements.txt
-* change the ip addr/port according to your wished inside main.py OR <br />
-  run python main.py -i [ip] -p [port] <br />
-  -- keep in mind you'll have to change the ip address in the client file or run the client the same as you run the server.
+## Usage ##
 
-## Client ##
-### Important!!!
-  Remember to use the same IP address and port for both main & client files.
-* Navigate to Client Folder
-* Run python client.py OR python client -i [ip_to_connect_to] -p [port]
-  - you can also setup autorun @startup using registery or creating a bat file inside StartUp folder that runs the client, <br />
-  or use the scripts [here](https://github.com/GShwartz/HandsOff/tree/main/Client).
+Just 'python3 main.py -i <IP> -p <PORT> on the machine you want to act as the C&C. <br />
+on the client side, download the client DIR (or clone the repo), install requirements (pip install -r /path/to/requirements.txt) <br />
+last step is to type 'python3 client.py' or run the client.bat file. <br />
 
-#### the client runs an icon inside system tray, no exit options on purpse.
 ---
 
 
