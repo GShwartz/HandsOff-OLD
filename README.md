@@ -31,34 +31,12 @@ The entire idea behind this solution is that the other side only holds the <b>ph
 
 ---
 ## Usage ##
-
 Just 'python3 main.py -i <IP> -p <PORT> on the machine you want to act as the C&C. <br />
 on the client side, download the client DIR (or clone the repo), install requirements (pip install -r /path/to/requirements.txt) <br />
 last step is to type 'python3 client.py' or run the client.bat file. <br />
 
----
-
-
-### About
-![about](https://github.com/GShwartz/HandsOff/raw/main/Images/POC/about.JPG)
-
 ------
 ### Main Window
-![main window](https://github.com/GShwartz/HandsOff/raw/main/Images/POC/main_window.JPG)
+![main window](https://raw.githubusercontent.com/GShwartz/HandsOff/main/Images/POC.jpg)
 
-------
-### Connected Stations
-![main window connected stations](https://github.com/GShwartz/HandsOff/raw/main/Images/POC/main_window_connected.JPG)
-
-------
-### Screenshot
-![screenshot](https://github.com/GShwartz/HandsOff/raw/main/Images/POC/screenshot.JPG)
-------
-
-### System Information
-![system information](https://github.com/GShwartz/HandsOff/raw/main/Images/POC/sysinfo.JPG)
-
-------
-### Tasks
-![tasks](https://github.com/GShwartz/HandsOff/raw/main/Images/POC/tasks.JPG)
 
