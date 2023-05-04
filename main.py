@@ -792,8 +792,10 @@ def main():
 
 
 if __name__ == '__main__':
-    serving_on = "handsoff.home.lab"
-    port = 55400
+    load_dotenv()
+
+    serving_on = os.getenv('URL')
+    port = os.getenv('PORT')
     hostname = socket.gethostname()
     serverIP = str(socket.gethostbyname(hostname))
     path = r'c:\HandsOff'
@@ -801,7 +803,7 @@ if __name__ == '__main__':
 
     log_path = os.path.join(path, 'server_log.txt')
     with open(log_path, 'w'):
-        pass  # do nothing, leave file empty
+        pass
 
     parser = argparse.ArgumentParser()
     parser.add_argument('-i', '--ip', action='store', default=serverIP, type=str, help='Server IP')
