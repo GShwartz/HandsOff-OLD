@@ -2,6 +2,7 @@ from tkinter import simpledialog, filedialog, messagebox, ttk
 from datetime import datetime
 from threading import Thread
 from tkinter import *
+import tkinter as tk
 import PIL.ImageTk
 import subprocess
 import webbrowser
@@ -9,7 +10,6 @@ import threading
 import PIL.Image
 import argparse
 import logging
-import queue
 import pystray
 import os.path
 import socket
@@ -30,7 +30,7 @@ from Modules.server import Server
 from Modules.about import About
 from Modules.tasks import Tasks
 
-import tkinter as tk
+from dotenv import load_dotenv, dotenv_values
 
 
 class App(Tk):
@@ -773,9 +773,6 @@ def on_icon_clicked(icon, item):
 
 def main():
     icon_path = fr"{os.path.dirname(__file__)}\HandsOff.png"
-    default_socket_timeout = None
-    chkdsk_socket_timeout = 10
-    sfc_socket_timeout = 5
 
     # Configure system tray icon
     icon_image = PIL.Image.open(icon_path)
@@ -790,6 +787,7 @@ def main():
                         daemon=True,
                         name="Icon Thread")
     iconThread.start()
+
     app.mainloop()
 
 
@@ -799,7 +797,11 @@ if __name__ == '__main__':
     hostname = socket.gethostname()
     serverIP = str(socket.gethostbyname(hostname))
     path = r'c:\HandsOff'
-    log_path = fr'{path}\server_log.txt'
+    os.makedirs(path, exist_ok=True)
+
+    log_path = os.path.join(path, 'server_log.txt')
+    with open(log_path, 'w'):
+        pass  # do nothing, leave file empty
 
     parser = argparse.ArgumentParser()
     parser.add_argument('-i', '--ip', action='store', default=serverIP, type=str, help='Server IP')
